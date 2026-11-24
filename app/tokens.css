@@ -1,0 +1,4854 @@
+/* ============================================================
+   IS — Design System v76 «NEBULA» (إعادة بناء بصرية كاملة،
+   2026-11-20) بطلب صريح من المالك بعد رفض v75: «عايز حاجة
+   من الخيال كده في التطور و الحداثة».
+
+   لغة التصميم — «Nebula»: واجهة من المستقبل القريب.
+   · أرض حية: سديم ضوئي (أورورا) من الأزرق الملكي والسماوي
+     يتنفس ببطء خلف كل شيء، وشبكة هندسية خافتة تذوب من
+     الأعلى — عمق وحركة بلا زخرفة مرسومة.
+   · زجاج حقيقي: الشريط العلوي كبسولة زجاجية عائمة، والقائمة
+     الجانبية لوح زجاجي عائم، والنوافذ وصفحة الدخول ألواح
+     زجاجية بحواف متدرجة مضيئة (أزرق ← سماوي).
+   · زر أساسي واحد بتدرّج حيّ (ملكي ← سماوي) وتوهّج ملوّن،
+     وزر النسخ يمتلئ بالتدرّج نفسه عند تحويم الكارت.
+   · الآية في لوح زجاجي مضيء بحافة متدرجة — بلا ذهب وبلا
+     نجوم وبلا أطر مخطوطية (اتجاه v71/v72 مرفوض نهائيًا).
+   · الهوية الزرقاء كما اختارها المالك، والشعار العاري كما
+     هو، وكل الوظائف والبيانات كما هي: نفس أسماء الكلاسات
+     والتوكنز التي تستخدمها المكونات، فلا يتغير أي منطق.
+   · ملف واحد غير مُطبّق (unlayered) كما ثبت في v75 — لا
+     ملف ثانٍ ينازعه الكاسكيد أبدًا.
+   · v77 «NEBULA REFINED» (آخر الملف): صقل أخير قبلّه
+     المالك اتجاهًا — ألوان أرقى، قائمة مرتبة ببلاطات
+     أيقونات وخطوط إرشاد وعدّادات أقراص، حركة أيقونات
+     زنبركية نظيفة في كل الموقع، وصفحة دخول أشيك.
+   ============================================================ */
+
+:root {
+  /* ---- Spacing — مقياس 4/8 ---- */
+  --space-1: 4px;  --space-2: 8px;   --space-3: 12px;  --space-4: 16px;
+  --space-5: 20px; --space-6: 24px;  --space-8: 32px;  --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* ---- Radius — مقياس واسع انسيابي (زجاج المستقبل) ---- */
+  --r-xs: 10px; --r-sm: 14px; --r-md: 18px; --r-lg: 24px; --r-xl: 30px; --r-full: 999px;
+  --radius: 20px;
+  --radius-sm: 12px; --radius-md: 20px; --radius-lg: 28px; --radius-full: 999px;
+
+  /* ---- Fluid type ---- */
+  --fs-display: clamp(21px, 1.15rem + 0.7vw, 26px);
+  --fs-h1: clamp(26px, 1.5rem + 1.4vw, 40px);
+  --fs-h2: clamp(18px, 1.05rem + 0.5vw, 22px);
+  --fs-title: clamp(16px, 1rem + 0.4vw, 19px);
+  --fs-card: clamp(16px, 0.98rem + 0.2vw, 17px);
+  --fs-body: clamp(14px, 0.88rem + 0.2vw, 15px);
+  --fs-caption: clamp(11.5px, 0.72rem + 0.2vw, 12.5px);
+  --fs-meta: clamp(12px, 0.74rem + 0.12vw, 13px);
+  --fs-floor: 12px;
+  --fs-nav: 13.5px;
+
+  /* ---- Motion — منحنيات حرفية فقط (لا متغيرات داخل الحركات) ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.3, 1.3, 0.4, 1);
+  --ease-lux: cubic-bezier(0.3, 1.3, 0.4, 1);
+  --dur-press: 120ms; --dur-1: 120ms;
+  --dur: 180ms;       --dur-2: 180ms;
+  --dur-3: 240ms;
+  --dur-slow: 320ms;  --dur-4: 320ms;
+  --dur-xl: 460ms;
+
+  /* ---- Blur ---- */
+  --blur-sm: 10px; --blur-md: 16px; --blur-lg: 24px;
+
+  /* ---- Z scale ---- */
+  --z-panel: 40; --z-modal: 50; --z-menu: 70; --z-toast: 80;
+}
+
+/* ============================================================
+   الألوان الدلالية — قيم صريحة لكل وضع
+   ============================================================ */
+:root, :root[data-theme="light"], :root[data-theme="dark"] {
+  --info: var(--accent);
+  --info-soft: var(--accent-soft);
+  --navy-ink: oklch(0.96 0.014 250);
+  --navy-dim: oklch(0.80 0.04 252);
+  --navy-border: oklch(0.96 0.014 250 / 0.16);
+  --navy-soft: oklch(0.96 0.014 250 / 0.08);
+  --shadow-card: var(--shadow-2);
+  --shadow-hover: var(--shadow-3);
+  --shadow-pop: var(--shadow-5);
+  --focus: var(--accent);
+  --gold: var(--accent);
+  --gold-bright: var(--accent-strong);
+  --gold-soft: var(--accent-soft);
+  /* النحاسي أُلغي من الهوية نهائيًا: أي إشارة قديمة له تقع على
+     لون التمييز نفسه. الذهبي الوحيد الباقي نجمة المفضلة. */
+  --brass: var(--accent);
+  --brass-strong: var(--accent-strong);
+  --brass-soft: var(--accent-soft);
+  --brass-line: color-mix(in srgb, var(--accent) 40%, transparent);
+  /* التدرّج الحيّ الواحد: أزرق ملكي ← سماوي — يبني الزر
+     الأساسي والعناصر النشطة وحواف الألواح المضيئة. طرفه
+     الفاتح --grad-end: سماوي للهوية الزرقاء، وللألوان
+     الأخرى درجة من عائلة اللون نفسه (قسم v77) حتى لا
+     يختلط لونان متباعدان في تدرّج موحّل أبدًا. */
+  --grad: linear-gradient(120deg, var(--accent-strong) 0%, var(--accent) 46%, var(--grad-end, var(--cyan)) 128%);
+  --grad-soft: linear-gradient(140deg, var(--accent-soft), color-mix(in srgb, var(--accent) 8%, var(--surface)));
+}
+
+:root, :root[data-theme="light"] {
+  /* شعار القوس (Concept 04): لونه مش ثابت — بيُشتق من لون
+     التمييز المختار نفسه، فبيتغير معاه في كل حتة. العمق هو
+     درجة غامقة من نفس درجة اللون، والشريط تدرّج من اللون. */
+  --logo-deep: oklch(from var(--accent) 0.235 0.085 h);
+  --logo-hi: oklch(from var(--accent) 0.66 0.145 h);
+  --logo-mid: oklch(from var(--accent) 0.55 0.16 h);
+  --logo-lo: oklch(from var(--accent) 0.44 0.145 h);
+  --bg: oklch(0.962 0.016 252);
+  --surface: oklch(1 0 0 / 0.86);
+  --surface-alt: oklch(0.945 0.02 252 / 0.82);
+  --surface-elevated: oklch(1 0 0 / 0.94);
+  --surface-hover: oklch(0.955 0.018 252 / 0.92);
+  --surface-selected: oklch(0.915 0.045 256 / 0.92);
+  --surface-pressed: oklch(0.885 0.055 256 / 0.94);
+  --bg-sidebar: oklch(1 0 0 / 0.62);
+  --ink: oklch(0.21 0.06 264);
+  --text: oklch(0.21 0.06 264);
+  --dim: oklch(0.42 0.05 260);
+  --faint: oklch(0.54 0.04 256);
+  --text-disabled: oklch(0.68 0.03 252);
+  --silver: oklch(0.84 0.024 250);
+  --border: oklch(0.855 0.026 252 / 0.9);
+  --border-strong: oklch(0.68 0.05 254);
+  --cyan: oklch(0.66 0.14 205);
+  --cyan-soft: oklch(0.93 0.045 205);
+  --success: oklch(0.55 0.15 160);
+  --success-ink: oklch(1 0 0);
+  --warning: oklch(0.58 0.13 75);
+  --warning-soft: oklch(0.95 0.05 88);
+  --danger: oklch(0.54 0.2 25);
+  --danger-soft: oklch(0.95 0.032 26);
+  --favorite: oklch(0.64 0.16 82);
+  --favorite-soft: oklch(0.95 0.05 88);
+  --navy: oklch(0.26 0.09 264);
+  --navy-2: oklch(0.34 0.1 262);
+  --scrim: oklch(0.16 0.05 264 / 0.5);
+  --glass-bg: oklch(1 0 0 / 0.72);
+  --glass-border: oklch(0.82 0.03 252 / 0.85);
+  --glass-line: oklch(1 0 0 / 0.7);
+  --on-grad: oklch(1 0 0);
+  --shadow-1: 0 1px 2px oklch(0.30 0.08 262 / 0.07);
+  --shadow-2:
+    0 1px 2px oklch(0.30 0.08 262 / 0.05),
+    0 6px 18px -8px oklch(0.30 0.08 262 / 0.10),
+    0 22px 44px -20px oklch(0.35 0.10 262 / 0.18);
+  --shadow-3:
+    0 2px 4px oklch(0.30 0.08 262 / 0.05),
+    0 16px 34px -12px oklch(0.35 0.10 262 / 0.16),
+    0 40px 72px -28px oklch(0.40 0.12 258 / 0.26);
+  --shadow-4:
+    0 10px 22px oklch(0.28 0.08 262 / 0.10),
+    0 52px 96px -32px oklch(0.32 0.10 262 / 0.36);
+  --shadow-5:
+    0 12px 26px oklch(0.26 0.08 262 / 0.12),
+    0 60px 112px -28px oklch(0.30 0.10 262 / 0.46);
+  --glow-accent: 0 16px 40px -12px color-mix(in srgb, var(--accent) 55%, transparent);
+  --accent: oklch(0.52 0.185 262);
+  --accent-strong: oklch(0.44 0.17 264);
+  --accent-soft: oklch(0.925 0.045 256);
+  --accent-ink: oklch(1 0 0);
+}
+
+:root[data-theme="dark"] {
+  /* طبعة الشعار الليلية: العمق عاجي ملوّن بدرجة اللون،
+     والشريط أفتح — نفس الهندسة، نفس الاشتقاق من التمييز. */
+  --logo-deep: oklch(from var(--accent) 0.93 0.03 h);
+  --logo-hi: oklch(from var(--accent) 0.84 0.10 h);
+  --logo-mid: oklch(from var(--accent) 0.76 0.125 h);
+  --logo-lo: oklch(from var(--accent) 0.66 0.13 h);
+  --bg: oklch(0.082 0.03 264);
+  --surface: oklch(0.155 0.034 262 / 0.82);
+  --surface-alt: oklch(0.20 0.038 260 / 0.78);
+  --surface-elevated: oklch(0.185 0.036 261 / 0.92);
+  --surface-hover: oklch(0.195 0.038 260 / 0.88);
+  --surface-selected: oklch(0.30 0.08 256 / 0.55);
+  --surface-pressed: oklch(0.34 0.09 256 / 0.6);
+  --bg-sidebar: oklch(0.125 0.032 263 / 0.72);
+  --ink: oklch(0.94 0.014 250);
+  --text: oklch(0.94 0.014 250);
+  --dim: oklch(0.76 0.034 252);
+  --faint: oklch(0.63 0.034 253);
+  --text-disabled: oklch(0.48 0.03 254);
+  --silver: oklch(0.31 0.045 256);
+  --border: oklch(1 0 0 / 0.10);
+  --border-strong: oklch(1 0 0 / 0.22);
+  --cyan: oklch(0.83 0.125 200);
+  --cyan-soft: oklch(0.83 0.125 200 / 0.15);
+  --success: oklch(0.81 0.14 162);
+  --success-ink: oklch(0.15 0.03 160);
+  --warning: oklch(0.84 0.13 84);
+  --warning-soft: oklch(0.84 0.13 84 / 0.14);
+  --danger: oklch(0.73 0.155 22);
+  --danger-soft: oklch(0.73 0.155 22 / 0.14);
+  --favorite: oklch(0.85 0.145 86);
+  --favorite-soft: oklch(0.85 0.145 86 / 0.15);
+  --navy: oklch(0.14 0.03 264);
+  --navy-2: oklch(0.20 0.04 262);
+  --scrim: oklch(0.03 0.015 264 / 0.7);
+  --glass-bg: oklch(0.15 0.034 261 / 0.78);
+  --glass-border: oklch(1 0 0 / 0.12);
+  --glass-line: oklch(1 0 0 / 0.08);
+  --on-grad: oklch(0.13 0.03 258);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.42);
+  --shadow-2:
+    inset 0 1px 0 oklch(1 0 0 / 0.05),
+    0 1px 2px oklch(0 0 0 / 0.44),
+    0 22px 44px -20px oklch(0 0 0 / 0.6);
+  --shadow-3:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 2px 4px oklch(0 0 0 / 0.44),
+    0 40px 72px -28px oklch(0 0 0 / 0.72);
+  --shadow-4:
+    0 10px 22px oklch(0 0 0 / 0.52),
+    0 52px 96px -32px oklch(0 0 0 / 0.76);
+  --shadow-5:
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    0 60px 112px -28px oklch(0 0 0 / 0.86),
+    0 12px 26px oklch(0 0 0 / 0.46);
+  --glow-accent: 0 16px 40px -12px color-mix(in srgb, var(--accent) 50%, transparent);
+  --accent: oklch(0.74 0.135 256);
+  --accent-strong: oklch(0.83 0.095 252);
+  --accent-soft: oklch(0.74 0.135 256 / 0.16);
+  --accent-ink: oklch(0.13 0.03 258);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --logo-deep: oklch(from var(--accent) 0.93 0.03 h);
+    --logo-hi: oklch(from var(--accent) 0.84 0.10 h);
+    --logo-mid: oklch(from var(--accent) 0.76 0.125 h);
+    --logo-lo: oklch(from var(--accent) 0.66 0.13 h);
+    --bg: oklch(0.082 0.03 264);
+    --surface: oklch(0.155 0.034 262 / 0.82);
+    --surface-alt: oklch(0.20 0.038 260 / 0.78);
+    --surface-elevated: oklch(0.185 0.036 261 / 0.92);
+    --surface-hover: oklch(0.195 0.038 260 / 0.88);
+    --surface-selected: oklch(0.30 0.08 256 / 0.55);
+    --surface-pressed: oklch(0.34 0.09 256 / 0.6);
+    --bg-sidebar: oklch(0.125 0.032 263 / 0.72);
+    --ink: oklch(0.94 0.014 250);
+    --text: oklch(0.94 0.014 250);
+    --dim: oklch(0.76 0.034 252);
+    --faint: oklch(0.63 0.034 253);
+    --text-disabled: oklch(0.48 0.03 254);
+    --silver: oklch(0.31 0.045 256);
+    --border: oklch(1 0 0 / 0.10);
+    --border-strong: oklch(1 0 0 / 0.22);
+    --cyan: oklch(0.83 0.125 200);
+    --cyan-soft: oklch(0.83 0.125 200 / 0.15);
+    --success: oklch(0.81 0.14 162);
+    --success-ink: oklch(0.15 0.03 160);
+    --warning: oklch(0.84 0.13 84);
+    --warning-soft: oklch(0.84 0.13 84 / 0.14);
+    --danger: oklch(0.73 0.155 22);
+    --danger-soft: oklch(0.73 0.155 22 / 0.14);
+    --favorite: oklch(0.85 0.145 86);
+    --favorite-soft: oklch(0.85 0.145 86 / 0.15);
+    --navy: oklch(0.14 0.03 264);
+    --navy-2: oklch(0.20 0.04 262);
+    --scrim: oklch(0.03 0.015 264 / 0.7);
+    --glass-bg: oklch(0.15 0.034 261 / 0.78);
+    --glass-border: oklch(1 0 0 / 0.12);
+    --glass-line: oklch(1 0 0 / 0.08);
+    --on-grad: oklch(0.13 0.03 258);
+    --shadow-1: 0 1px 2px oklch(0 0 0 / 0.42);
+    --shadow-2:
+      inset 0 1px 0 oklch(1 0 0 / 0.05),
+      0 1px 2px oklch(0 0 0 / 0.44),
+      0 22px 44px -20px oklch(0 0 0 / 0.6);
+    --shadow-3:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 2px 4px oklch(0 0 0 / 0.44),
+      0 40px 72px -28px oklch(0 0 0 / 0.72);
+    --shadow-4:
+      0 10px 22px oklch(0 0 0 / 0.52),
+      0 52px 96px -32px oklch(0 0 0 / 0.76);
+    --shadow-5:
+      inset 0 1px 0 oklch(1 0 0 / 0.08),
+      0 60px 112px -28px oklch(0 0 0 / 0.86),
+      0 12px 26px oklch(0 0 0 / 0.46);
+    --glow-accent: 0 16px 40px -12px color-mix(in srgb, var(--accent) 50%, transparent);
+    --accent: oklch(0.74 0.135 256);
+    --accent-strong: oklch(0.83 0.095 252);
+    --accent-soft: oklch(0.74 0.135 256 / 0.16);
+    --accent-ink: oklch(0.13 0.03 258);
+  }
+}
+
+/* ============================================================
+   ألوان التمييز الستة — يختارها المستخدم، × وضعان
+   ============================================================ */
+:root[data-accent="royal"], :root[data-theme="light"][data-accent="royal"] {
+  --accent: oklch(0.52 0.185 262); --accent-strong: oklch(0.44 0.17 264);
+  --accent-soft: oklch(0.925 0.045 256); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="royal"] {
+  --accent: oklch(0.74 0.135 256); --accent-strong: oklch(0.83 0.095 252);
+  --accent-soft: oklch(0.74 0.135 256 / 0.16); --accent-ink: oklch(0.13 0.03 258);
+}
+:root[data-accent="sky"], :root[data-theme="light"][data-accent="sky"] {
+  --accent: oklch(0.57 0.15 232); --accent-strong: oklch(0.47 0.135 236);
+  --accent-soft: oklch(0.935 0.04 228); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="sky"] {
+  --accent: oklch(0.76 0.13 226); --accent-strong: oklch(0.85 0.09 224);
+  --accent-soft: oklch(0.76 0.13 226 / 0.16); --accent-ink: oklch(0.15 0.04 230);
+}
+:root[data-accent="teal"], :root[data-theme="light"][data-accent="teal"] {
+  --accent: oklch(0.54 0.12 182); --accent-strong: oklch(0.44 0.105 184);
+  --accent-soft: oklch(0.935 0.045 180); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="teal"] {
+  --accent: oklch(0.78 0.13 178); --accent-strong: oklch(0.86 0.10 176);
+  --accent-soft: oklch(0.78 0.13 178 / 0.15); --accent-ink: oklch(0.14 0.035 182);
+}
+:root[data-accent="violet"], :root[data-theme="light"][data-accent="violet"] {
+  --accent: oklch(0.52 0.20 292); --accent-strong: oklch(0.43 0.175 294);
+  --accent-soft: oklch(0.935 0.04 294); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="violet"] {
+  --accent: oklch(0.72 0.145 295); --accent-strong: oklch(0.81 0.115 294);
+  --accent-soft: oklch(0.72 0.145 295 / 0.17); --accent-ink: oklch(0.15 0.04 294);
+}
+:root[data-accent="rose"], :root[data-theme="light"][data-accent="rose"] {
+  --accent: oklch(0.56 0.20 12); --accent-strong: oklch(0.47 0.175 10);
+  --accent-soft: oklch(0.945 0.035 10); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="rose"] {
+  --accent: oklch(0.72 0.165 8); --accent-strong: oklch(0.81 0.125 6);
+  --accent-soft: oklch(0.72 0.165 8 / 0.16); --accent-ink: oklch(0.15 0.04 10);
+}
+:root[data-accent="amber"], :root[data-theme="light"][data-accent="amber"] {
+  --accent: oklch(0.56 0.14 66); --accent-strong: oklch(0.46 0.125 62);
+  --accent-soft: oklch(0.945 0.05 82); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="amber"] {
+  --accent: oklch(0.80 0.155 82); --accent-strong: oklch(0.86 0.135 88);
+  --accent-soft: oklch(0.80 0.155 82 / 0.15); --accent-ink: oklch(0.15 0.04 70);
+}
+:root[data-accent="cyan"], :root[data-theme="light"][data-accent="cyan"] {
+  --accent: oklch(0.58 0.125 205); --accent-strong: oklch(0.48 0.11 207);
+  --accent-soft: oklch(0.94 0.04 200); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="cyan"] {
+  --accent: oklch(0.77 0.11 200); --accent-strong: oklch(0.85 0.08 198);
+  --accent-soft: oklch(0.77 0.11 200 / 0.16); --accent-ink: oklch(0.14 0.035 205);
+}
+:root[data-accent="emerald"], :root[data-theme="light"][data-accent="emerald"] {
+  --accent: oklch(0.55 0.135 165); --accent-strong: oklch(0.46 0.115 167);
+  --accent-soft: oklch(0.94 0.04 162); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="emerald"] {
+  --accent: oklch(0.76 0.125 162); --accent-strong: oklch(0.84 0.095 160);
+  --accent-soft: oklch(0.76 0.125 162 / 0.16); --accent-ink: oklch(0.14 0.035 165);
+}
+:root[data-accent="indigo"], :root[data-theme="light"][data-accent="indigo"] {
+  --accent: oklch(0.50 0.185 277); --accent-strong: oklch(0.42 0.165 279);
+  --accent-soft: oklch(0.93 0.04 274); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="indigo"] {
+  --accent: oklch(0.70 0.135 277); --accent-strong: oklch(0.79 0.105 276);
+  --accent-soft: oklch(0.70 0.135 277 / 0.16); --accent-ink: oklch(0.14 0.035 277);
+}
+:root[data-accent="fuchsia"], :root[data-theme="light"][data-accent="fuchsia"] {
+  --accent: oklch(0.55 0.185 322); --accent-strong: oklch(0.46 0.165 320);
+  --accent-soft: oklch(0.94 0.04 320); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="fuchsia"] {
+  --accent: oklch(0.72 0.145 322); --accent-strong: oklch(0.80 0.115 320);
+  --accent-soft: oklch(0.72 0.145 322 / 0.17); --accent-ink: oklch(0.15 0.04 322);
+}
+:root[data-accent="red"], :root[data-theme="light"][data-accent="red"] {
+  --accent: oklch(0.55 0.185 27); --accent-strong: oklch(0.46 0.165 25);
+  --accent-soft: oklch(0.945 0.04 25); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="red"] {
+  --accent: oklch(0.71 0.155 24); --accent-strong: oklch(0.79 0.12 22);
+  --accent-soft: oklch(0.71 0.155 24 / 0.16); --accent-ink: oklch(0.15 0.04 25);
+}
+:root[data-accent="orange"], :root[data-theme="light"][data-accent="orange"] {
+  --accent: oklch(0.58 0.155 42); --accent-strong: oklch(0.49 0.14 40);
+  --accent-soft: oklch(0.945 0.045 45); --accent-ink: oklch(1 0 0);
+}
+:root[data-theme="dark"][data-accent="orange"] {
+  --accent: oklch(0.74 0.135 45); --accent-strong: oklch(0.82 0.105 48);
+  --accent-soft: oklch(0.74 0.135 45 / 0.15); --accent-ink: oklch(0.15 0.04 42);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-accent="royal"] {
+    --accent: oklch(0.74 0.135 256); --accent-strong: oklch(0.83 0.095 252);
+    --accent-soft: oklch(0.74 0.135 256 / 0.16); --accent-ink: oklch(0.13 0.03 258);
+  }
+  :root:not([data-theme="light"])[data-accent="sky"] {
+    --accent: oklch(0.76 0.13 226); --accent-strong: oklch(0.85 0.09 224);
+    --accent-soft: oklch(0.76 0.13 226 / 0.16); --accent-ink: oklch(0.15 0.04 230);
+  }
+  :root:not([data-theme="light"])[data-accent="teal"] {
+    --accent: oklch(0.78 0.13 178); --accent-strong: oklch(0.86 0.10 176);
+    --accent-soft: oklch(0.78 0.13 178 / 0.15); --accent-ink: oklch(0.14 0.035 182);
+  }
+  :root:not([data-theme="light"])[data-accent="violet"] {
+    --accent: oklch(0.72 0.145 295); --accent-strong: oklch(0.81 0.115 294);
+    --accent-soft: oklch(0.72 0.145 295 / 0.17); --accent-ink: oklch(0.15 0.04 294);
+  }
+  :root:not([data-theme="light"])[data-accent="rose"] {
+    --accent: oklch(0.72 0.165 8); --accent-strong: oklch(0.81 0.125 6);
+    --accent-soft: oklch(0.72 0.165 8 / 0.16); --accent-ink: oklch(0.15 0.04 10);
+  }
+  :root:not([data-theme="light"])[data-accent="amber"] {
+    --accent: oklch(0.80 0.155 82); --accent-strong: oklch(0.86 0.135 88);
+    --accent-soft: oklch(0.80 0.155 82 / 0.15); --accent-ink: oklch(0.15 0.04 70);
+  }
+  :root:not([data-theme="light"])[data-accent="cyan"] {
+    --accent: oklch(0.77 0.11 200); --accent-strong: oklch(0.85 0.08 198);
+    --accent-soft: oklch(0.77 0.11 200 / 0.16); --accent-ink: oklch(0.14 0.035 205);
+  }
+  :root:not([data-theme="light"])[data-accent="emerald"] {
+    --accent: oklch(0.76 0.125 162); --accent-strong: oklch(0.84 0.095 160);
+    --accent-soft: oklch(0.76 0.125 162 / 0.16); --accent-ink: oklch(0.14 0.035 165);
+  }
+  :root:not([data-theme="light"])[data-accent="indigo"] {
+    --accent: oklch(0.70 0.135 277); --accent-strong: oklch(0.79 0.105 276);
+    --accent-soft: oklch(0.70 0.135 277 / 0.16); --accent-ink: oklch(0.14 0.035 277);
+  }
+  :root:not([data-theme="light"])[data-accent="fuchsia"] {
+    --accent: oklch(0.72 0.145 322); --accent-strong: oklch(0.80 0.115 320);
+    --accent-soft: oklch(0.72 0.145 322 / 0.17); --accent-ink: oklch(0.15 0.04 322);
+  }
+  :root:not([data-theme="light"])[data-accent="red"] {
+    --accent: oklch(0.71 0.155 24); --accent-strong: oklch(0.79 0.12 22);
+    --accent-soft: oklch(0.71 0.155 24 / 0.16); --accent-ink: oklch(0.15 0.04 25);
+  }
+  :root:not([data-theme="light"])[data-accent="orange"] {
+    --accent: oklch(0.74 0.135 45); --accent-strong: oklch(0.82 0.105 48);
+    --accent-soft: oklch(0.74 0.135 45 / 0.15); --accent-ink: oklch(0.15 0.04 42);
+  }
+}
+
+/* ============================================================
+   لون أيقونات الواجهة العام (يختاره المالك من المظهر)
+   ============================================================ */
+:root[data-icon-tone="royal"] { --icon-tone: #1668C4; }
+:root[data-icon-tone="sky"] { --icon-tone: #0284C7; }
+:root[data-icon-tone="cyan"] { --icon-tone: #0891B2; }
+:root[data-icon-tone="teal"] { --icon-tone: #0F766E; }
+:root[data-icon-tone="emerald"] { --icon-tone: #059669; }
+:root[data-icon-tone="indigo"] { --icon-tone: #4F46E5; }
+:root[data-icon-tone="violet"] { --icon-tone: #7C3AED; }
+:root[data-icon-tone="fuchsia"] { --icon-tone: #C026D3; }
+:root[data-icon-tone="rose"] { --icon-tone: #E11D63; }
+:root[data-icon-tone="red"] { --icon-tone: #DC2626; }
+:root[data-icon-tone="orange"] { --icon-tone: #EA580C; }
+:root[data-icon-tone="amber"] { --icon-tone: #B45309; }
+:root[data-icon-tone="slate"] { --icon-tone: #64748B; }
+:root[data-icon-tone]:not([data-icon-tone="auto"]) .float-header button svg.lucide,
+:root[data-icon-tone]:not([data-icon-tone="auto"]) .bottom-nav button svg.lucide,
+:root[data-icon-tone]:not([data-icon-tone="auto"]) .lux-row svg.lucide {
+  color: var(--icon-tone);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-icon-tone]:not([data-icon-tone="auto"]) .float-header button svg.lucide,
+  :root:not([data-theme="light"])[data-icon-tone]:not([data-icon-tone="auto"]) .bottom-nav button svg.lucide,
+  :root:not([data-theme="light"])[data-icon-tone]:not([data-icon-tone="auto"]) .lux-row svg.lucide {
+    color: color-mix(in srgb, var(--icon-tone) 55%, #fff);
+  }
+}
+:root[data-theme="dark"][data-icon-tone]:not([data-icon-tone="auto"]) .float-header button svg.lucide,
+:root[data-theme="dark"][data-icon-tone]:not([data-icon-tone="auto"]) .bottom-nav button svg.lucide,
+:root[data-theme="dark"][data-icon-tone]:not([data-icon-tone="auto"]) .lux-row svg.lucide {
+  color: color-mix(in srgb, var(--icon-tone) 55%, #fff);
+}
+
+/* ============================================================
+   الأساس: الخط والإيقاع والتركيز
+   ============================================================ */
+body {
+  font-family: "IBM Plex Sans Arabic", "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, .font-display, .folder-bar-title {
+  font-family: "Readex Pro", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+  letter-spacing: 0;
+}
+.verse { font-family: "Amiri", serif; }
+svg.lucide { stroke-width: 1.75; }
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--ink);
+}
+[class*="count"], .folder-bar-count, .pill-btn, .seg-btn {
+  font-variant-numeric: tabular-nums;
+}
+.lux-card p { text-wrap: pretty; }
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong)) transparent; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 35%, var(--border-strong)); border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 60%, var(--border-strong)); }
+*::-webkit-scrollbar-track { background: transparent; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* حقول تنبض بهدوء: ظل داخلي خفيف في الراحة، وحلقة تركيز
+   مضيئة عند الكتابة — في كل الموقع. */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+input:not([type="checkbox"]):not([type="radio"]):not(:focus-visible),
+textarea:not(:focus-visible),
+select:not(:focus-visible) {
+  box-shadow: inset 0 1px 2px oklch(0.30 0.08 262 / 0.05);
+}
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not(:focus-visible),
+:root[data-theme="dark"] textarea:not(:focus-visible),
+:root[data-theme="dark"] select:not(:focus-visible) {
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.32);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input:not([type="checkbox"]):not([type="radio"]):not(:focus-visible),
+  :root:not([data-theme="light"]) textarea:not(:focus-visible),
+  :root:not([data-theme="light"]) select:not(:focus-visible) {
+    box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.32);
+  }
+}
+/* ستائر النوافذ: تعتيم بتمويه ناعم وتشبّع خفيف */
+div[class*="bg-[var(--scrim)]"] {
+  -webkit-backdrop-filter: blur(4px) saturate(1.1);
+  backdrop-filter: blur(4px) saturate(1.1);
+}
+
+/* ============================================================
+   أرضية التطبيق — السديم: أربع بقع ضوئية ملوّنة (ملكي،
+   سماوي، لمحة بنفسجية) مموّهة بشدة وتتنفس بحركة بطيئة
+   جدًا، وشبكة هندسية خافتة تذوب من الأعلى. الطبقتان خلف
+   المحتوى دائمًا (z-index: -1 داخل عزل القشرة).
+   ============================================================ */
+.app-shell {
+  position: relative;
+  isolation: isolate;
+}
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 13%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.08), transparent 65%);
+  filter: blur(30px);
+  animation: neb-drift 38s ease-in-out infinite alternate;
+}
+:root[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.12), transparent 65%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-shell::before {
+    background:
+      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 65%),
+      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 65%),
+      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
+      radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.12), transparent 65%);
+  }
+}
+/* نمط الشبكة (المربعات) أُزيل نهائيًا بطلب المالك (v84): الأرض
+   ضوء سديمي ناعم فقط — لا خطوط، لا مربعات، لا نسيج هندسي. */
+@keyframes neb-drift {
+  from { transform: translate3d(-1.6%, -1%, 0) scale(1); }
+  to { transform: translate3d(1.6%, 1.6%, 0) scale(1.07); }
+}
+
+/* الشعار العاري: ظل يتبع حروف IS نفسها (مفرّغ كما اختار
+   المالك) — لا بلاطة ولا إطار ولا حلقة أبدًا. */
+.logo-modern {
+  display: inline-flex;
+  flex-shrink: 0;
+  user-select: none;
+  filter:
+    drop-shadow(0 10px 20px oklch(from var(--accent) 0.30 0.10 h / 0.30))
+    drop-shadow(0 2px 5px oklch(from var(--accent) 0.30 0.10 h / 0.18));
+}
+
+/* ============================================================
+   الشريط العلوي: كبسولة زجاجية عائمة — تنفصل عن حافة
+   الشاشة بهامش من كل جهة، بحافة زجاجية وظل عائم وتوهّج
+   خفيف عند التمرير. بنية مختلفة كليًا عن الشريط الملتحم.
+   ============================================================ */
+.app-shell > header { padding-top: 12px; }
+.header-blur {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.55);
+  backdrop-filter: blur(20px) saturate(1.55);
+}
+.float-header {
+  width: calc(100% - 24px);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-2);
+}
+.header-elevated {
+  box-shadow: var(--shadow-3), 0 18px 44px -18px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+/* المنبثقات والألواح: زجاج حقيقي بحافة متدرجة مضيئة */
+.glass, .pop-glass {
+  background: var(--surface-elevated);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+  backdrop-filter: blur(18px) saturate(1.45);
+}
+.glass-panel {
+  background:
+    linear-gradient(var(--surface-elevated), var(--surface-elevated)) padding-box,
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 52%, transparent), var(--glass-border) 45%, color-mix(in srgb, var(--grad-end, var(--cyan)) 42%, transparent)) border-box;
+  border: 1px solid transparent;
+  border-radius: 26px;
+  box-shadow: var(--shadow-5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+}
+@media (max-width: 639px) {
+  .glass-panel { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+}
+
+/* ============================================================
+   القائمة الجانبية: لوح زجاجي عائم أسفل الكبسولة العلوية —
+   ينفصل عن كل الحواف، بحواف دائرية واسعة وظل عائم، وتمرّ
+   ألوان السديم من خلف زجاجه.
+   ============================================================ */
+.modern-sidebar {
+  top: 92px;
+  height: calc(100dvh - 104px);
+  margin-inline-start: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: var(--shadow-2);
+  overflow: visible;
+  /* v81: NO width transition here. This permanent transition was
+     half the sidebar bug — it stayed active while the owner
+     dragged the edge (the conditional utility class on the
+     <aside> could not switch it off), so the bar trailed the
+     pointer with a 320ms spring and bounced past its target.
+     The width transition now lives ONLY on the <aside> utility
+     classes, applied when a toggle animates and removed while
+     dragging. */
+}
+.modern-sidebar .nav-label { font-size: 13px; }
+.sidebar-panel { background: var(--glass-bg); }
+.drawer-nav {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+}
+/* حد أدنى 13px لأي نص صغير داخل القائمة والدرج — لا نص غير مقروء */
+.modern-sidebar [class*="text-[11px]"],
+.modern-sidebar [class*="text-[12px]"],
+.modern-sidebar [class*="text-[12.5px]"],
+.drawer-nav [class*="text-[11px]"],
+.drawer-nav [class*="text-[12px]"],
+.drawer-nav [class*="text-[12.5px]"] {
+  font-size: 13px;
+  line-height: 1.55;
+}
+.side-scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+}
+/* مقبض تغيير عرض القائمة */
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-end: -11px;
+  width: 22px;
+  z-index: 6;
+  cursor: col-resize;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+.sidebar-resize-line {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  inset-inline-end: 10px;
+  width: 2px;
+  border-radius: 99px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sidebar-resize-grip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 34px;
+  border-radius: 99px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--dim);
+  box-shadow: var(--shadow-2);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .sidebar-resize-handle:hover .sidebar-resize-line,
+  .sidebar-resize-handle:focus-visible .sidebar-resize-line { opacity: 0.55; }
+  .sidebar-resize-handle:hover .sidebar-resize-grip,
+  .sidebar-resize-handle:focus-visible .sidebar-resize-grip { opacity: 1; transform: scale(1); }
+}
+.sidebar-resize-active .sidebar-resize-line { opacity: 0.9; }
+.sidebar-resize-active .sidebar-resize-grip { opacity: 1; transform: scale(1); }
+body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
+/* شارة تصغير القائمة */
+.collapse-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.collapse-chip-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.collapse-chip-tile svg { transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .collapse-chip:hover { border-color: var(--border-strong); box-shadow: var(--shadow-2); }
+  .collapse-chip:hover .collapse-chip-tile { background: var(--accent); color: var(--accent-ink); }
+  [dir="rtl"] .collapse-chip:hover .collapse-chip-tile svg { transform: translateX(1.5px); }
+  [dir="ltr"] .collapse-chip:hover .collapse-chip-tile svg { transform: translateX(-1.5px); }
+}
+
+/* ============================================================
+   التنقّل والشجرة: العنصر النشط قرص بتدرّج لوني خفيف وحلقة
+   داخلية وتوهّج، وشريط تمييز متدرج على حافته؛ المجموعات
+   تنفتح بحركة شبكية ناعمة.
+   ============================================================ */
+.nav-group-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nav-group-body[data-open="true"] { grid-template-rows: 1fr; }
+.nav-group-body > div { overflow: hidden; min-height: 0; }
+.nav-item-active {
+  position: relative;
+  border-radius: var(--r-sm);
+  background: var(--grad-soft);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 8px 20px -8px color-mix(in srgb, var(--accent) 48%, transparent);
+}
+.nav-item-active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3.5px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, var(--accent), var(--cyan));
+}
+.tree-chevron { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+.tree-chevron[data-open="true"] { transform: rotate(-90deg); }
+[dir="ltr"] .tree-chevron[data-open="true"] { transform: rotate(90deg); }
+.tree-children {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tree-children[data-open="true"] { grid-template-rows: 1fr; }
+.tree-children > div { overflow: hidden; min-height: 0; }
+.tree-node { position: relative; }
+.tree-node[data-dragging="true"] { opacity: 0.45; }
+.tree-node[data-drop-inside="true"] {
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+.tree-drop-line {
+  position: absolute;
+  inset-inline: 6px;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 5;
+}
+.tree-drop-line::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -2px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--accent);
+  transform: translateY(-50%);
+}
+.tree-drop-line-v {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 99px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 5;
+}
+.tree-drop-line-v::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--accent);
+  transform: translateX(-50%);
+}
+.tree-grip { cursor: grab; touch-action: none; }
+.tree-grip:active { cursor: grabbing; }
+.folder-section {
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
+}
+.folder-section[data-sec-dragging="true"] { opacity: 0.5; }
+.folder-section[data-drop-inside="true"] {
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+.card-dragging { opacity: 0.45; }
+@keyframes neb-land {
+  from { background-color: var(--accent-soft); }
+  to { background-color: transparent; }
+}
+.animate-land { animation: neb-land 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; border-radius: var(--radius); }
+
+/* قسم «المصادر» — تحت «المكتبة» مباشرة: بطاقة بحافة متدرجة
+   مضيئة وعلامة مرسومة تدور بزنبرك عند الفتح، والمصادر
+   تنساب متتابعة */
+.tree-node-sources { margin-top: 14px; }
+.tree-node-sources > [data-tree-row] {
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(140deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--border) 55%, color-mix(in srgb, var(--cyan) 45%, transparent)) border-box;
+  box-shadow: var(--shadow-1);
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .tree-node-sources > [data-tree-row]:hover {
+    box-shadow: var(--shadow-2), 0 10px 24px -12px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+.tree-node-sources > [data-tree-row]:active { transform: scale(0.985); }
+.tree-node-sources > .tree-children { margin-top: 6px; }
+.sources-glyph {
+  display: inline-flex;
+  color: var(--accent);
+  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+.sources-glyph .sources-glyph-star {
+  transform-origin: center;
+  transition: transform 420ms cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+.sources-glyph[data-open="true"] .sources-glyph-star { transform: rotate(45deg); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .tree-node-sources > [data-tree-row]:hover .sources-glyph { transform: scale(1.12) rotate(-6deg); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tree-node-sources > .tree-children[data-open="true"] > div > .tree-node {
+    animation: neb-source-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .tree-node-sources > .tree-children[data-open="true"] > div > .tree-node:nth-child(2) { animation-delay: 60ms; }
+  .tree-node-sources > .tree-children[data-open="true"] > div > .tree-node:nth-child(3) { animation-delay: 120ms; }
+  .tree-node-sources > .tree-children[data-open="true"] > div > .tree-node:nth-child(4) { animation-delay: 180ms; }
+  .tree-node-sources > .tree-children[data-open="true"] > div > .tree-node:nth-child(n+5) { animation-delay: 240ms; }
+}
+@keyframes neb-source-in {
+  from { opacity: 0; transform: translateY(7px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tree-node-sources svg.shrink-0 { transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+@media (hover: hover) {
+  .tree-node-sources [data-tree-row]:hover svg.shrink-0 { transform: scale(1.18); }
+}
+.tree-flash { animation: neb-flash 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; border-radius: 12px; }
+@keyframes neb-flash {
+  0%, 55% { background-color: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+  100% { background-color: transparent; box-shadow: none; }
+}
+
+/* ============================================================
+   الهيرو: لوح زجاجي مضيء — الآية كبيرة بأميري على زجاج
+   بحافة متدرجة (ملكي ← سماوي)، توهّج سديمي يسكن أعلاه،
+   ولمعة ضوئية بطيئة تعبره كل حين. لا ذهب، لا نجوم، لا
+   أطر. ينطوي إلى شريط زجاجي بنفس اللغة.
+   ============================================================ */
+.verse-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 26px;
+  padding: 28px 34px 24px;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--accent) 8%, var(--surface-elevated)), color-mix(in srgb, var(--surface-elevated) 96%, transparent) 52%, color-mix(in srgb, var(--cyan) 7%, var(--surface-elevated))) padding-box,
+    linear-gradient(130deg, color-mix(in srgb, var(--accent) 68%, transparent), var(--border) 42%, color-mix(in srgb, var(--grad-end, var(--cyan)) 58%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-3),
+    0 28px 64px -26px color-mix(in srgb, var(--accent) 38%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+  backdrop-filter: blur(18px) saturate(1.45);
+}
+@media (max-width: 640px) {
+  .verse-hero { padding: 22px 20px 18px; border-radius: 22px; }
+}
+.verse-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(480px 190px at 18% -30px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
+    radial-gradient(420px 170px at 88% -20px, color-mix(in srgb, var(--cyan) 13%, transparent), transparent 70%);
+  animation: neb-hero-glow 11s ease-in-out infinite alternate;
+}
+@keyframes neb-hero-glow {
+  from { opacity: 0.72; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.05); }
+}
+.verse-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, oklch(1 0 0 / 0.10) 50%, transparent 62%);
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  animation: neb-hero-sheen 9s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+@keyframes neb-hero-sheen {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
+}
+.verse-hero .verse {
+  position: relative;
+  z-index: 1;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.8;
+  text-wrap: balance;
+}
+.hero-counter {
+  position: relative;
+  z-index: 1;
+  color: var(--dim);
+  font-size: 14px;
+  font-weight: 500;
+}
+.hero-hide-btn {
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--faint);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .hero-hide-btn:hover { background: var(--surface-alt); color: var(--text); border-color: var(--border-strong); }
+}
+.hero-strip {
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(16px) saturate(1.45);
+  backdrop-filter: blur(16px) saturate(1.45);
+  box-shadow: var(--shadow-2);
+}
+.hero-glow, .hero-sheen, .hero-corner, .hero-ornament { display: none; }
+.orn-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(200px, 60%);
+  margin: 12px auto 0;
+}
+.orn-divider::before, .orn-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+.orn-divider::before { background: linear-gradient(to left, var(--accent), transparent); }
+.orn-divider::after { background: linear-gradient(to right, var(--cyan), transparent); }
+.orn-divider > i {
+  width: 6px; height: 6px; flex: none;
+  transform: rotate(45deg);
+  background: var(--accent);
+  border-radius: 1px;
+}
+.pattern-star {
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 8%, transparent) 1.2px, transparent 1.3px);
+  background-size: 22px 22px;
+}
+/* كشف الثيم الدائري من زر التبديل */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2147483646; }
+
+/* ============================================================
+   الزر الأساسي: التدرّج الحيّ (ملكي ← سماوي) بتوهّج ملوّن
+   ولمعة واحدة تعبر عند التحويم — في الوضعين معًا، لأن
+   التدرّج مبني من توكنز التمييز نفسها التي تنقلب ليلًا.
+   ============================================================ */
+.btn-lux {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.28),
+    inset 0 -1px 0 oklch(0 0 0 / 0.18),
+    0 16px 36px -12px color-mix(in srgb, var(--accent) 58%, transparent),
+    0 5px 14px -5px color-mix(in srgb, var(--accent) 38%, transparent);
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-lux::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(115deg, transparent 32%, oklch(1 0 0 / 0.26) 50%, transparent 68%);
+  transform: translateX(-130%);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+[dir="rtl"] .btn-lux::after { transform: translateX(130%); }
+@media (hover: hover) {
+  .btn-lux:hover { filter: brightness(1.07); }
+  .btn-lux:hover::after { transform: translateX(130%); }
+  [dir="rtl"] .btn-lux:hover::after { transform: translateX(-130%); }
+}
+.btn-lux:active { transform: scale(0.965); }
+.btn-lux:disabled { cursor: progress; }
+.btn-lux:disabled:hover { transform: none; }
+.btn-lux-success {
+  background: linear-gradient(165deg,
+    color-mix(in srgb, var(--success) 84%, #fff 16%) 0%,
+    var(--success) 60%,
+    color-mix(in srgb, var(--success) 86%, #000 14%) 100%);
+  color: var(--success-ink);
+}
+/* أي زر رئيسي آخر بملء التمييز المسطح يرث التدرّج والتوهّج */
+button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"] {
+  background-image: var(--grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    0 14px 30px -10px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+@media (hover: hover) {
+  button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"]:hover { filter: brightness(1.07); }
+}
+/* أزرار التمييز اللينة (التبويب النشط، المثبّت): تدرّج خفيف
+   بحلقة داخلية بدل الملء المسطح */
+button[class*="bg-[var(--accent-soft)]"] {
+  background-image: var(--grad-soft);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent),
+    0 5px 14px -5px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+/* ============================================================
+   طبقة التفاعل المشتركة
+   ============================================================ */
+.lux-btn {
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lux-btn:active { transform: scale(0.985); }
+.lux-row {
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lux-row:hover { background-color: var(--surface-hover); }
+  .lux-nudge:hover { transform: translateX(-2px); }
+}
+
+/* ============================================================
+   كارت الرد: سطح زجاجي بحدّ شعري، وهج حدّي يتبع المؤشر،
+   ورفع مع توهّج ملوّن عند التحويم.
+   ============================================================ */
+.lux-card {
+  position: relative;
+  container-type: inline-size;
+  transition: box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1), border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 200ms cubic-bezier(0.22, 1, 0.36, 1), transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lux-card h3 { font-weight: 700; text-wrap: balance; }
+.lux-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--accent) 55%, transparent), transparent 65%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+.lux-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--accent) 6%, transparent), transparent 65%);
+  opacity: 0;
+  transition: opacity 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lux-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover), 0 20px 44px -18px color-mix(in srgb, var(--accent) 32%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+    background-color: var(--surface-hover);
+  }
+  .lux-card:hover::before, .lux-card:hover::after { opacity: 1; }
+}
+.card-marked {
+  background-color: var(--surface-selected);
+  box-shadow: var(--shadow-card),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+@media (hover: hover) {
+  .lux-card.card-marked:hover {
+    background-color: var(--surface-selected);
+    box-shadow: var(--shadow-hover),
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
+.elev-card { box-shadow: var(--shadow-card); }
+.elev-pop { box-shadow: var(--shadow-pop); }
+.elev-bar { box-shadow: var(--shadow-2); }
+/* إجراءات الكارت: قرص زجاجي عائم بجانب العنوان (ديسكتوب)،
+   ولوحة منسدلة عند اللمس */
+@media (hover: hover) and (pointer: fine) {
+  .card-actions {
+    opacity: 0;
+    transform: translateY(2px);
+    transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    background: var(--surface-elevated);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-full);
+    box-shadow: var(--shadow-2);
+    padding: 3px;
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    backdrop-filter: blur(14px) saturate(1.4);
+  }
+  .group\/card:hover .card-actions, .group\/card:focus-within .card-actions { opacity: 1; transform: translateY(0); }
+  .card-actions.card-actions-open { opacity: 1; transform: translateY(0); }
+  .quick-preview { opacity: 0; visibility: hidden; transform: translateY(4px); transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 180ms; }
+  .group\/preview:hover .quick-preview, .group\/preview:focus-within .quick-preview { opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 350ms; }
+  .lux-card .tree-grip, .folder-bar .tree-grip {
+    opacity: 0;
+    transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lux-card:hover .tree-grip, .lux-card:focus-within .tree-grip,
+  .folder-bar:hover .tree-grip, .folder-bar:focus-within .tree-grip { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-actions, .quick-preview { transform: none; transition-delay: 0s; }
+}
+@media (hover: none), (pointer: coarse) {
+  .card-actions { display: none; }
+  .card-actions.card-actions-open {
+    display: flex;
+    position: absolute;
+    top: 44px;
+    inset-inline-end: 10px;
+    z-index: 30;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-pop);
+    padding: 6px;
+  }
+}
+.card-menu-btn { display: none; }
+@media (hover: none), (pointer: coarse) {
+  .card-menu-btn { display: inline-flex; }
+}
+
+/* ---- زر النسخ الكبير: تدرّج لوني خفيف في الراحة، يمتلئ
+   بالتدرّج الحيّ وتوهّجه عند تحويم الكارت أو تركيزه،
+   وأخضر عند النجاح مع لمعة واحدة وتموّج من نقطة الضغطة ---- */
+.copy-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--grad-soft);
+  color: var(--accent-strong);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.35),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  transition: background-color 240ms cubic-bezier(0.22, 1, 0.36, 1), color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.copy-cta:not(:disabled):active { transform: scale(0.98); }
+.lux-card:hover .copy-cta, .lux-card:focus-within .copy-cta {
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    0 14px 30px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.copy-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 32%, oklch(1 0 0 / 0.28) 50%, transparent 68%);
+  transform: translateX(-130%);
+  pointer-events: none;
+}
+[dir="rtl"] .copy-cta::after { transform: translateX(130%); }
+.copy-cta.copy-cta-done {
+  background: linear-gradient(150deg, var(--success), color-mix(in srgb, var(--success) 78%, oklch(0 0 0)));
+  color: var(--success-ink);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.22), 0 12px 26px -10px color-mix(in srgb, var(--success) 55%, transparent);
+}
+.lux-card:hover .copy-cta.copy-cta-done, .lux-card:focus-within .copy-cta.copy-cta-done {
+  background: linear-gradient(150deg, var(--success), color-mix(in srgb, var(--success) 78%, oklch(0 0 0)));
+  color: var(--success-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .copy-cta.copy-cta-done::after { animation: neb-cta-sheen 720ms cubic-bezier(0.22, 1, 0.36, 1) 1 both; }
+  [dir="rtl"] .copy-cta.copy-cta-done::after { animation-name: neb-cta-sheen-rtl; }
+}
+@keyframes neb-cta-sheen {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(130%); }
+}
+@keyframes neb-cta-sheen-rtl {
+  from { transform: translateX(130%); }
+  to { transform: translateX(-130%); }
+}
+.copy-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 26%, transparent);
+  transform: translate(-50%, -50%) scale(0);
+  animation: neb-ripple 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes neb-ripple {
+  to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .copy-ripple { display: none; }
+  .copy-cta:not(:disabled):active { transform: none; }
+}
+@container (max-width: 280px) {
+  .copy-cta { font-size: 14px; padding-inline: 12px; }
+}
+
+/* ---- المفضلة والتثبيت: النجمة تمتلئ وتقفز بزنبرك ---- */
+[aria-pressed="true"] svg.lucide-star { fill: currentColor; }
+[aria-pressed="true"] svg.lucide-heart { fill: currentColor; }
+[aria-pressed="true"] svg.lucide-pin { transform: rotate(-14deg); }
+@media (prefers-reduced-motion: no-preference) {
+  [aria-pressed="true"] svg.lucide-star {
+    animation: neb-star-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  button:active svg.lucide-star, [role="button"]:active svg.lucide-star {
+    animation: neb-star-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  button:active svg.lucide-heart, [role="button"]:active svg.lucide-heart {
+    animation: neb-star-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+@keyframes neb-star-pop {
+  0% { transform: scale(0.4) rotate(-18deg); }
+  55% { transform: scale(1.3) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+span[class*="var(--favorite)"] > svg.lucide-star { fill: currentColor; }
+button[aria-pressed="true"]:has(> svg.lucide-star) {
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--favorite) 55%, transparent);
+}
+.btn-lux-success svg.lucide-check path,
+.copy-cta-done svg.lucide-check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .copy-cta.copy-cta-done svg.lucide-check {
+    animation: neb-star-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+
+/* ============================================================
+   ترويسة المجلد: شريط زجاجي، بلاطة أيقونة بلون المجلد
+   الخاص بتوهّج ملوّن، عنوان واثق، وزر فتح يمتلئ بالتدرّج
+   الحيّ عند التحويم.
+   ============================================================ */
+.folder-bar {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-2);
+  padding: 10px 14px 10px 10px;
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+[dir="ltr"] .folder-bar { padding: 10px 10px 10px 14px; }
+@media (hover: hover) {
+  .folder-bar:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong)); box-shadow: var(--shadow-3); }
+}
+.folder-bar[data-drop-inside="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  border-radius: 22px;
+}
+.folder-bar-icon, .folder-tile {
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--fhue, var(--accent)) 26%, var(--surface)) 0%,
+    color-mix(in srgb, var(--fhue, var(--accent)) 12%, var(--surface)) 100%);
+  color: color-mix(in srgb, var(--fhue, var(--accent)) 76%, var(--text));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 30%, transparent);
+}
+.folder-bar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 30%, transparent),
+    0 12px 22px -10px color-mix(in srgb, var(--fhue, var(--accent)) 60%, transparent);
+}
+:root[data-theme="dark"] .folder-bar-icon, :root[data-theme="dark"] .folder-tile {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.10),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 34%, transparent),
+    0 12px 22px -10px color-mix(in srgb, var(--fhue, var(--accent)) 50%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .folder-bar-icon, :root:not([data-theme="light"]) .folder-tile {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.10),
+      inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 34%, transparent),
+      0 12px 22px -10px color-mix(in srgb, var(--fhue, var(--accent)) 50%, transparent);
+  }
+}
+.folder-bar-icon-sm { width: 38px; height: 38px; border-radius: 12px; }
+.folder-bar-title { font-size: 20px; font-weight: 700; line-height: 1.35; color: var(--text); }
+.folder-bar-count {
+  flex-shrink: 0;
+  border-radius: 99px;
+  background: var(--surface-alt);
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 11px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 65%, transparent);
+}
+.folder-bar-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--dim);
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.folder-bar-open .folder-bar-arrow { display: flex; transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (hover: hover) {
+  .folder-bar-open:hover {
+    background: var(--grad);
+    border-color: transparent;
+    color: var(--on-grad);
+    box-shadow: 0 12px 24px -9px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  [dir="rtl"] .folder-bar-open:hover .folder-bar-arrow { transform: translateX(-3px); }
+  [dir="ltr"] .folder-bar-open:hover .folder-bar-arrow { transform: translateX(3px); }
+}
+.folder-bar-open:active { transform: scale(0.97); }
+@media (max-width: 639px) {
+  .folder-bar { padding: 10px 10px 10px 8px; gap: 6px; }
+  [dir="ltr"] .folder-bar { padding: 10px 8px 10px 10px; }
+  .folder-bar .lux-btn { gap: 8px; }
+  .folder-bar-icon { width: 36px; height: 36px; border-radius: 11px; }
+  .folder-bar-count { padding: 5px 7px; }
+  .folder-bar-open { padding: 7px 8px; }
+  .folder-bar-open .folder-bar-arrow { display: none; }
+}
+.smart-folder-bar {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(130deg, var(--accent), var(--grad-end, var(--cyan))) border-box;
+}
+/* ألوان المجلدات: درجات الاسم + ألوان يختارها المالك —
+   خفّض v77 تشبّعها كلها درجة: ألوان أهدأ وأرقى، لا تصرخ. */
+.fhue-0 { --fhue: oklch(0.60 0.095 256); }
+.fhue-1 { --fhue: oklch(0.62 0.088 205); }
+.fhue-2 { --fhue: oklch(0.60 0.082 172); }
+.fhue-3 { --fhue: oklch(0.59 0.095 300); }
+.fhue-4 { --fhue: oklch(0.62 0.095 18); }
+.fhue-5 { --fhue: oklch(0.63 0.09 72); }
+.fcol-royal { --fhue: oklch(0.55 0.115 256); }
+.fcol-sky { --fhue: oklch(0.60 0.098 230); }
+.fcol-cyan { --fhue: oklch(0.60 0.095 200); }
+.fcol-navy { --fhue: oklch(0.45 0.11 262); }
+.fcol-teal { --fhue: oklch(0.58 0.088 175); }
+.fcol-emerald { --fhue: oklch(0.60 0.11 162); }
+.fcol-green { --fhue: oklch(0.58 0.10 150); }
+.fcol-lime { --fhue: oklch(0.62 0.115 128); }
+.fcol-indigo { --fhue: oklch(0.52 0.15 277); }
+.fcol-violet { --fhue: oklch(0.56 0.12 295); }
+.fcol-purple { --fhue: oklch(0.55 0.15 305); }
+.fcol-fuchsia { --fhue: oklch(0.58 0.14 322); }
+.fcol-rose { --fhue: oklch(0.59 0.125 15); }
+.fcol-pink { --fhue: oklch(0.62 0.13 350); }
+.fcol-red { --fhue: oklch(0.57 0.15 27); }
+.fcol-orange { --fhue: oklch(0.62 0.13 38); }
+.fcol-amber { --fhue: oklch(0.62 0.095 70); }
+.fcol-gold { --fhue: oklch(0.64 0.105 85); }
+.fcol-brown { --fhue: oklch(0.50 0.085 55); }
+.fcol-slate { --fhue: oklch(0.55 0.028 250); }
+.tree-ficon { color: color-mix(in srgb, var(--fhue, var(--accent)) 78%, var(--text)); }
+:root[data-icon-style="plain"] .folder-tile,
+:root[data-icon-style="plain"] .folder-bar-icon {
+  background: transparent;
+  box-shadow: none;
+}
+/* حركة الأيقونات في القوائم والمختارات */
+@keyframes neb-icon-in {
+  0% { transform: scale(0.45); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes neb-row-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.folder-row { animation: neb-row-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.folder-bar-icon > svg { transition: transform 180ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+@media (hover: hover) {
+  .folder-bar:hover .folder-bar-icon > svg,
+  .folder-row:hover .folder-bar-icon > svg { transform: scale(1.14) rotate(-3deg); }
+  .folder-field-btn:hover .folder-bar-icon > svg { transform: scale(1.1); }
+}
+.folder-field-btn[aria-expanded="true"] .folder-bar-icon > svg {
+  animation: neb-icon-in 0.34s cubic-bezier(0.3, 1.3, 0.4, 1) both;
+}
+.move-icon-btn > svg { transition: transform 180ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+@media (hover: hover) {
+  .move-icon-btn:hover > svg { transform: scale(1.16); }
+}
+.move-icon-btn:active > svg { transform: scale(0.9); }
+.icon-tile {
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.icon-tile[aria-checked="true"] > svg { animation: neb-icon-in 0.34s cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+.icon-tile:active { transform: scale(0.93); }
+@media (hover: hover) {
+  .icon-tile:hover { transform: translateY(-1px); }
+}
+
+/* ============================================================
+   شريط الفلاتر: كبسولة زجاجية عائمة بعرض المحتوى، أقراص
+   بعدّادات وقرص نشط منزلق بالتدرّج الحيّ.
+   ============================================================ */
+.modern-switcher {
+  top: 92px;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.55);
+  backdrop-filter: blur(20px) saturate(1.55);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-2);
+}
+.pill-thumb {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    0 12px 24px -9px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: left 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pill-btn {
+  position: relative; z-index: 1; flex-shrink: 0; white-space: nowrap;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pill-btn:not(:disabled):active, .seg-btn:not(:disabled):active { transform: scale(0.98); }
+.filter-scroll {
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+.filter-scroll::-webkit-scrollbar { display: none; }
+@media (min-width: 1024px) {
+  .filter-scroll { -webkit-mask-image: none; mask-image: none; }
+}
+.seg-track {
+  position: relative;
+  background: var(--surface-alt);
+  border-radius: var(--r-full);
+  padding: 3px;
+}
+.seg-thumb {
+  position: absolute;
+  top: 3px; bottom: 3px;
+  border-radius: var(--r-full);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border);
+  transition: left 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.seg-btn {
+  position: relative; z-index: 1; flex-shrink: 0; white-space: nowrap;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* التنقّل السفلي للموبايل: رصيف زجاجي عائم، والوجهة
+   النشطة قرص بتدرّج خفيف متوهّج */
+.bottom-nav {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  inset-inline: 12px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-4), 0 18px 40px -18px color-mix(in srgb, var(--accent) 30%, transparent);
+  padding-bottom: 0;
+}
+.bottom-nav button[aria-current="page"] {
+  background: var(--grad-soft);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent),
+    0 8px 18px -8px color-mix(in srgb, var(--accent) 48%, transparent);
+}
+@media (min-width: 1024px) { .bottom-nav { display: none; } }
+
+/* الصورة الشخصية: حلقة دقيقة بتدرّج التمييز */
+.avatar-face {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 8px 16px -6px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* التوست وشريط الإجراءات الجماعية ولوحة التفاصيل */
+.toast-card {
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  box-shadow: var(--shadow-pop);
+}
+.bulk-dock {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: var(--shadow-4);
+}
+.details-panel {
+  border-radius: 26px;
+  -webkit-backdrop-filter: blur(20px) saturate(1.45);
+  backdrop-filter: blur(20px) saturate(1.45);
+}
+@media (max-width: 1023px) {
+  .details-panel { border-radius: 26px 26px 0 0; }
+}
+
+/* الدوّار والهياكل العظمية وقصّ الأسطر */
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  animation: neb-spin 0.7s linear infinite;
+}
+@keyframes neb-spin { to { transform: rotate(360deg); } }
+@keyframes neb-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+.skeleton-card { position: relative; overflow: hidden; }
+.skeleton-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--text) 6%, transparent) 50%, transparent 75%);
+  transform: translateX(-100%);
+  animation: neb-shimmer 1.5s ease-in-out infinite;
+}
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-5 { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+@keyframes neb-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.demo-caret { animation: neb-blink 1s step-end infinite; color: var(--accent); }
+
+/* ============================================================
+   حركات الدخول العامة — بمنحنيات حرفية دائمًا
+   ============================================================ */
+@keyframes neb-page {
+  from { opacity: 0; transform: translateY(18px) scale(0.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes neb-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes neb-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes neb-sheet {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes neb-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes neb-check {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes neb-menu {
+  from { opacity: 0; transform: translateY(-5px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes neb-drawer {
+  from { opacity: 0; transform: translateX(48px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes neb-copy-pop {
+  0% { transform: scale(0.35); opacity: 0; }
+  55% { transform: scale(1.28); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .animate-page { animation: neb-page 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-rise { animation: neb-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-pop { animation: neb-pop 320ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+  .animate-sheet { animation: neb-sheet 340ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-menu { animation: neb-menu 200ms cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top center; }
+  .animate-drawer { animation: neb-drawer 340ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade { animation: neb-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-check { animation: neb-check 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-copy-pop { animation: neb-copy-pop 0.38s cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+}
+
+/* ============================================================
+   صفحة الدخول — مشهد سديمي كامل (v76): سديم ضوئي يتنفس
+   وشبكة هندسية على الأرض كلها، شريط علوي زجاجي، ولوح
+   زجاجي واحد عائم في المنتصف بحافة متدرجة مضيئة يضم
+   الشعار العاري والآية والتبويبات والحقول. لا لوحة
+   منقسمة، لا ذهب، لا زخرفة — زجاج وضوء ودقة.
+   ============================================================ */
+.auth-modern {
+  background: var(--bg);
+  isolation: isolate;
+}
+.auth-modern::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(620px 460px at 14% 4%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+    radial-gradient(680px 500px at 88% 10%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+    radial-gradient(720px 540px at 50% 108%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+    radial-gradient(480px 380px at 92% 88%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
+  filter: blur(30px);
+  animation: neb-drift 34s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+/* شبكة صفحة الدخول أُزيلت أيضًا (v84) — المشهد سديم وضوء فقط. */
+.auth-in { animation: neb-auth-in 640ms cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: var(--d, 0ms); }
+@keyframes neb-auth-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-in { animation: none; }
+}
+.auth-topbar {
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+}
+/* اللوح الزجاجي: العمود كله بطاقة واحدة عائمة */
+.auth-modern main {
+  position: relative;
+  z-index: 1;
+  width: calc(100% - 28px);
+  max-width: 460px;
+  min-height: 0;
+  margin-top: clamp(18px, 5vh, 56px);
+  margin-bottom: 34px;
+  padding: 42px 36px 36px;
+  border: 1px solid transparent;
+  border-radius: 30px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface-elevated) 94%, transparent), color-mix(in srgb, var(--surface-elevated) 94%, transparent)) padding-box,
+    linear-gradient(150deg, color-mix(in srgb, var(--accent) 58%, transparent), var(--glass-border) 45%, color-mix(in srgb, var(--cyan) 48%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-5),
+    0 34px 84px -32px color-mix(in srgb, var(--accent) 42%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(24px) saturate(1.5);
+}
+@media (max-width: 520px) {
+  .auth-modern main {
+    width: calc(100% - 24px);
+    padding: 34px 22px 28px;
+    border-radius: 26px;
+  }
+}
+.auth-verse {
+  margin-top: 16px;
+  font-size: 19px;
+  line-height: 1.9;
+  color: var(--dim);
+  text-wrap: balance;
+  max-width: 340px;
+}
+/* التبويبات: مسار قرصي زجاجي، والمختار قرص بالتدرّج الحيّ */
+.auth-tabs {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+.auth-tabs [role="tab"] {
+  position: relative;
+  border-radius: 999px;
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-tabs [role="tab"][aria-selected="true"] {
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    0 10px 22px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+/* الحقول: سطح زجاجي هادئ بحدّ شعري، وعند التركيز تستيقظ
+   بحدّ التمييز وحلقته المضيئة */
+.auth-input {
+  border-radius: 16px;
+  min-height: 54px;
+  background: color-mix(in srgb, var(--surface-alt) 82%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-input:focus {
+  background: var(--surface-elevated);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.auth-field-icon { transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1); }
+label:focus-within .auth-field-icon { color: var(--accent); }
+.auth-submit { border-radius: 16px; letter-spacing: 0.01em; }
+.auth-features {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.auth-feature-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 96px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+}
+.auth-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    linear-gradient(150deg, var(--accent), var(--cyan)) border-box;
+  color: var(--accent);
+  box-shadow: var(--shadow-2);
+  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-feature-item:hover .auth-feature-icon {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: var(--shadow-2), 0 12px 24px -10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+/* بقايا معمارية قديمة لا تُستخدم — تبقى محيّدة */
+.auth-brand, .auth-plaque, .auth-orn, .logo-frame { display: none; }
+.auth-card { border-radius: 26px; }
+.elev-auth { box-shadow: var(--shadow-5); }
+
+/* ============================================================
+   التلميحات — التصميم الأبيض المعتمد من المالك (2026-11-19)،
+   منقول كما هو بقواعده الحاملة: القرص لا يُولّد إلا أثناء
+   عرضه حتى لا يصنع تجاوز تمرير، وقاعدة تحرير القصّ فوق
+   أزرار اللمعة. لا أسود، لا ظل ثقيل، لا تأثيرات مزعجة.
+   ============================================================ */
+[data-tip]:not(.absolute):not(.fixed):not(.sticky) {
+  position: relative;
+}
+[data-tip]:not([data-tip=""])::after {
+  content: none;
+  position: absolute;
+  inset-inline: 0;
+  top: auto;
+  bottom: calc(100% + 8px);
+  z-index: 90;
+  width: max-content;
+  max-width: min(240px, 78vw);
+  margin-inline: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  color: var(--text);
+  box-shadow:
+    0 12px 32px -12px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 2px 8px -2px color-mix(in srgb, var(--accent) 12%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  white-space: normal;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+}
+[data-tip][data-tip-pos="below"]::after {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+[data-tip][data-tip-align="start"]::after {
+  inset-inline-start: 0;
+  inset-inline-end: auto;
+  margin-inline: 0;
+}
+[data-tip][data-tip-align="end"]::after {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  margin-inline: 0;
+}
+@keyframes tip-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes tip-in-below {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:not([data-tip=""]):hover::after {
+    content: attr(data-tip);
+    opacity: 1;
+    animation: tip-in 180ms cubic-bezier(0.22, 1, 0.36, 1) 260ms backwards;
+  }
+  [data-tip][data-tip-pos="below"]:not([data-tip=""]):hover::after {
+    animation-name: tip-in-below;
+  }
+}
+[data-tip]:not([data-tip=""]):focus-visible::after {
+  content: attr(data-tip);
+  opacity: 1;
+  animation: tip-in 180ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+[data-tip][data-tip-pos="below"]:not([data-tip=""]):focus-visible::after {
+  animation-name: tip-in-below;
+}
+[data-tip]:has([data-tip]:hover)::after,
+[data-tip]:has([data-tip]:focus-visible)::after {
+  content: none;
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]::after { animation: none; }
+}
+@media (pointer: coarse) {
+  .tree-grip { display: none; }
+}
+.btn-lux[data-tip],
+.copy-cta[data-tip]:not(:has(.copy-ripple)) {
+  overflow: visible;
+}
+.tree-children[data-open="true"] > div,
+.nav-group-body[data-open="true"] > div {
+  overflow: visible;
+  transition: overflow 0s linear 320ms;
+}
+
+/* ============================================================
+   صفحة المعاينة (#/preview)
+   ============================================================ */
+.pv-shell { container-type: inline-size; container-name: pv; }
+.pv-cards {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: 1fr;
+}
+@container pv (min-width: 640px) {
+  .pv-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@container pv (min-width: 1020px) {
+  .pv-cards { grid-template-columns: repeat(3, 1fr); }
+  .pv-cards[data-view="list"] { grid-template-columns: 1fr; }
+  .pv-cards[data-view="compact"] { grid-template-columns: repeat(2, 1fr); }
+}
+.pv-card {
+  container-type: inline-size;
+}
+.pv-card .pv-actions {
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pv-card:hover .pv-actions, .pv-card:focus-within .pv-actions { opacity: 1; transform: translateY(0); }
+@media (hover: none) {
+  .pv-card .pv-actions { display: none; }
+}
+.pv-seg { position: relative; }
+.pv-seg .pv-seg-thumb {
+  position: absolute;
+  top: 4px; bottom: 4px;
+  border-radius: var(--r-full);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border);
+  transition: inset-inline-start 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+.pv-chip {
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pv-chip[data-on="true"] {
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow: 0 10px 22px -9px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.pv-stagger > * {
+  animation: neb-pv-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes neb-pv-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-stagger > * { animation: none; }
+}
+
+/* ============================================================
+   تقليل الحركة: لا دخول ولا رفع ولا انتقالات — حالات فورية
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .lux-nudge:hover { transform: none; }
+}
+
+/* ============================================================
+   v77 «NEBULA REFINED» — الصقل الأخير (2026-11-20)، بطلب
+   المالك على v76 التي قبل اتجاهها: «ده كويس بس طوّر فيه
+   أكتر وخلي الألوان أرقى، والقايمة منظمة ونضيفة ومرتبة،
+   وكل الأيقونات حديثة ومتطورة وليها حركة قوية بس نضيفة
+   جدًا، وصفحة الدخول أشيك وأرقى ونضيفة». نفس اتجاه Nebula
+   ونفس الهوية الزرقاء والشعار العاري — لا اتجاه جديد:
+   · ألوان أرقى: لؤلؤي أنظف نهارًا، وفضاء أعمق ليلًا، وملكي
+     أغنى، والسديم أهدأ، وطرف التدرّج من عائلة اللون نفسه
+     للألوان غير الزرقاء فلا تدرّج موحّل أبدًا.
+   · القائمة مرتبة: صفوف بارتفاع واحد، أيقونة كل صف في
+     بلاطة هادئة بلون موضوعه، العدّادات أقراص صغيرة، خطوط
+     إرشاد عمودية تربط الأبناء بأبيهم، والمجموعات عناوين
+     أقسام هادئة فوقها خط شعري.
+   · حركة أيقونات قوية ونظيفة: قفزة زنبركية للأيقونة عند
+     التحويم والضغط في كل الموقع، وبلاطة الصف النشط تمتلئ
+     بالتدرّج الحيّ.
+   · صفحة الدخول: كبسولة علوية عائمة كشريط الموقع، ولوح
+     أرحب بحافة أرقى، والشعار يطفو فوق هالة ضوئية، وخط
+     متدرج تحت الآية، وحقول أطول بأيقونات في بلاطات تضيء
+     بالتدرّج عند الكتابة.
+   القواعد هنا تتفوّق على نظيراتها فوقها بنفس المحدّدات
+   وترتيب أخير — ملف واحد كالمعتاد، لا طبقة ثانية.
+   ============================================================ */
+
+/* ---- ألوان أرقى: اللؤلؤي والملكي (نهاري) ---- */
+:root, :root[data-theme="light"] {
+  --bg: oklch(0.972 0.009 252);
+  --surface-alt: oklch(0.952 0.013 252 / 0.85);
+  --ink: oklch(0.20 0.055 266);
+  --text: oklch(0.20 0.055 266);
+  --dim: oklch(0.40 0.045 262);
+  --faint: oklch(0.52 0.035 258);
+  --border: oklch(0.868 0.018 252 / 0.9);
+  --cyan: oklch(0.64 0.125 208);
+}
+:root[data-accent="royal"], :root[data-theme="light"][data-accent="royal"] {
+  --accent: oklch(0.50 0.19 263); --accent-strong: oklch(0.42 0.175 265);
+  --accent-soft: oklch(0.93 0.04 258); --accent-ink: oklch(1 0 0);
+}
+/* ---- ألوان أرقى: فضاء أعمق وملكي أصفى (ليلي) ---- */
+:root[data-theme="dark"] {
+  --bg: oklch(0.075 0.026 266);
+  --cyan: oklch(0.82 0.115 202);
+  --accent: oklch(0.75 0.13 255); --accent-strong: oklch(0.84 0.09 251);
+  --accent-soft: oklch(0.75 0.13 255 / 0.16); --accent-ink: oklch(0.13 0.03 258);
+}
+:root[data-theme="dark"][data-accent="royal"] {
+  --accent: oklch(0.75 0.13 255); --accent-strong: oklch(0.84 0.09 251);
+  --accent-soft: oklch(0.75 0.13 255 / 0.16); --accent-ink: oklch(0.13 0.03 258);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: oklch(0.075 0.026 266);
+    --cyan: oklch(0.82 0.115 202);
+  }
+  :root:not([data-theme="light"])[data-accent="royal"] {
+    --accent: oklch(0.75 0.13 255); --accent-strong: oklch(0.84 0.09 251);
+    --accent-soft: oklch(0.75 0.13 255 / 0.16); --accent-ink: oklch(0.13 0.03 258);
+  }
+}
+/* طرف التدرّج للألوان غير الزرقاء: درجة فاتحة من عائلة
+   اللون نفسه — ذهبي للعنبري، وردي للوردي، بنفسجي فاتح
+   للبنفسجي، وبحري للمخضرّ — فلا يختلط لونان متباعدان. */
+:root[data-accent="teal"] { --grad-end: oklch(0.70 0.11 192); }
+:root[data-accent="violet"] { --grad-end: oklch(0.68 0.115 322); }
+:root[data-accent="rose"] { --grad-end: oklch(0.70 0.12 352); }
+:root[data-accent="amber"] { --grad-end: oklch(0.76 0.125 84); }
+:root[data-accent="cyan"] { --grad-end: oklch(0.72 0.11 195); }
+:root[data-accent="emerald"] { --grad-end: oklch(0.72 0.11 175); }
+:root[data-accent="indigo"] { --grad-end: oklch(0.68 0.12 300); }
+:root[data-accent="fuchsia"] { --grad-end: oklch(0.70 0.12 340); }
+:root[data-accent="red"] { --grad-end: oklch(0.70 0.13 30); }
+:root[data-accent="orange"] { --grad-end: oklch(0.72 0.13 55); }
+
+/* السديم أهدأ نهارًا (أرقى = أخفت)، وأنقى قليلًا ليلًا */
+.app-shell::before {
+  background:
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.05), transparent 65%);
+}
+:root[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-shell::before {
+    background:
+      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+      radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
+  }
+}
+/* لمعة حدّ علوية على الكبسولة العلوية واللوح الجانبي */
+.float-header { box-shadow: var(--shadow-2), inset 0 1px 0 var(--glass-line); }
+.modern-sidebar {
+  border-radius: 28px;
+  box-shadow: var(--shadow-3), inset 0 1px 0 var(--glass-line);
+}
+
+/* ============================================================
+   القائمة الجانبية مرتبة: إيقاع واحد لكل الصفوف
+   ============================================================ */
+.modern-sidebar .tree-row, .drawer-nav .tree-row {
+  min-height: 38px;
+  border-radius: 12px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-inline-end: 8px;
+  column-gap: 6px;
+}
+/* المجموعات عناوين أقسام: هادئة، صغيرة، فوقها خط شعري
+   وفاصل سخي — لا صفوف تنافس المجلدات */
+.tree-node-group {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+.tree-node-group:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.modern-sidebar .tree-row-group, .drawer-nav .tree-row-group {
+  margin-top: 0;
+  min-height: 34px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: var(--dim);
+}
+.tree-row-group .tree-icon {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* بلاطة أيقونة كل صف: هادئة، بلون موضوع الصف نفسه */
+.tree-icon {
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--fhue, var(--dim)) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--dim)) 13%, transparent);
+  transition: transform 280ms cubic-bezier(0.3, 1.3, 0.4, 1),
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tree-icon > svg { transition: transform 300ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+/* علامات المصادر الحقيقية تجلس على بلاطة فاتحة نظيفة —
+   كأيقونات التطبيقات، وفي الليل تبقى فاتحة لتُقرأ */
+.tree-icon-brand {
+  background: var(--surface-elevated);
+  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-1);
+}
+:root[data-theme="dark"] .tree-icon-brand { background: oklch(0.92 0.012 250); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tree-icon-brand { background: oklch(0.92 0.012 250); }
+}
+.tree-node-sources .tree-icon {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+/* حركة الصف: البلاطة تقفز بخفة، والأيقونة تكبر وتميل
+   قليلًا — قوية لكن نظيفة، ولمسة ضغط تنكمش بها */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .modern-sidebar [data-tree-row]:hover .tree-icon,
+  .drawer-nav [data-tree-row]:hover .tree-icon { transform: translateY(-1px) scale(1.07); }
+  .modern-sidebar [data-tree-row]:hover .tree-icon > svg,
+  .drawer-nav [data-tree-row]:hover .tree-icon > svg { transform: scale(1.14) rotate(-4deg); }
+}
+.modern-sidebar [data-tree-row]:active .tree-icon,
+.drawer-nav [data-tree-row]:active .tree-icon { transform: scale(0.93); }
+/* الصف النشط: بلاطته تمتلئ بالتدرّج الحيّ وأيقونته تقفز
+   مرة واحدة عند التفعيل، وملؤه أهدأ من قبل */
+.nav-item-active {
+  background: linear-gradient(120deg, var(--accent-soft), color-mix(in srgb, var(--accent) 7%, var(--surface)));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent),
+    0 10px 22px -12px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.nav-item-active .tree-icon {
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    0 10px 20px -10px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nav-item-active .tree-icon > svg { animation: neb-icon-in 420ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+}
+/* العدّادات أقراص صغيرة مرتبة بدل أرقام سائبة */
+.modern-sidebar .tree-count, .drawer-nav .tree-count {
+  background: var(--surface-alt);
+  color: var(--dim);
+  border-radius: 999px;
+  padding: 3px 8px;
+  min-width: 27px;
+  text-align: center;
+  font-size: 11.5px;
+  line-height: 1.25;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+}
+.tree-row-group .tree-count {
+  background: transparent;
+  box-shadow: none;
+  color: var(--faint);
+  min-width: 0;
+  padding-inline: 2px;
+}
+.nav-item-active .tree-count {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent-strong);
+  box-shadow: none;
+}
+/* خطوط إرشاد عمودية: خيط شعري يربط أبناء كل أب بمركز
+   أيقونته (الإزاحة محسوبة من --depth التي يمررها الصف) */
+.tree-children > div { position: relative; }
+.tree-children > div::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 7px;
+  inset-inline-start: calc(73px + (var(--depth, 0) * 16px));
+  width: 1.5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  pointer-events: none;
+}
+/* قسم المصادر: بطاقة هادئة بحدّ واحد نظيف بدل الإطار
+   المتدرج الصارخ — تبقى مميزة بعلامتها وبلاطتها */
+.tree-node-sources > [data-tree-row] {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-line);
+}
+
+/* ============================================================
+   حركة الأيقونات في كل الموقع: زنبرك واحد نظيف
+   ============================================================ */
+button svg.lucide, [role="button"] svg.lucide {
+  transition: transform 260ms cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .float-header button:hover svg.lucide,
+  .float-header [role="button"]:hover svg.lucide { transform: translateY(-1px) scale(1.13); }
+  .bottom-nav button:hover svg.lucide { transform: translateY(-2px) scale(1.08); }
+  .lux-card:hover .copy-cta svg.lucide-copy,
+  .lux-card:focus-within .copy-cta svg.lucide-copy { animation: neb-icon-lift 480ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  button:active svg.lucide, [role="button"]:active svg.lucide { transform: scale(0.88); }
+  .bottom-nav button[aria-current="page"] svg.lucide { animation: neb-icon-in 450ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+}
+@keyframes neb-icon-lift {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-2.5px) scale(1.14); }
+  100% { transform: translateY(0) scale(1.06); }
+}
+
+/* ============================================================
+   صفحة الدخول v77: أشيك وأرقى وأنظف
+   ============================================================ */
+/* مشهد أهدأ: هالة واحدة كبيرة خلف اللوح ولمحتان جانبيتان */
+.auth-modern::before {
+  background:
+    radial-gradient(680px 480px at 50% -6%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 62%),
+    radial-gradient(560px 420px at 10% 22%, color-mix(in srgb, var(--cyan) 9%, transparent), transparent 65%),
+    radial-gradient(620px 480px at 90% 88%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%);
+}
+/* الشريط العلوي كبسولة عائمة — نفس لغة شريط الموقع */
+.auth-topbar {
+  top: 12px;
+  width: calc(100% - 24px);
+  max-width: 76rem;
+  margin: 12px auto 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-2), inset 0 1px 0 var(--glass-line);
+}
+/* اللوح أرحب، بحافة متدرجة أرقى ولمعة حدّ علوية */
+.auth-modern main {
+  max-width: 472px;
+  margin-top: clamp(24px, 5.5vh, 60px);
+  padding: 46px 42px 38px;
+  border-radius: 34px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface-elevated) 96%, transparent), color-mix(in srgb, var(--surface-elevated) 96%, transparent)) padding-box,
+    linear-gradient(165deg, color-mix(in srgb, var(--accent) 62%, transparent), var(--glass-border) 40%, color-mix(in srgb, var(--grad-end, var(--cyan)) 45%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-5),
+    0 44px 96px -36px color-mix(in srgb, var(--accent) 45%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.55);
+}
+@media (max-width: 520px) {
+  .auth-modern main { padding: 38px 24px 30px; border-radius: 28px; }
+}
+/* منطقة الرأس مفصولة بخط شعري عن منطقة النموذج */
+.auth-modern main > div:first-child {
+  width: 100%;
+  padding-bottom: 26px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+}
+/* الشعار يطفو ببطء فوق هالة ضوئية من لون الهوية */
+.auth-modern main .logo-modern { position: relative; }
+@media (prefers-reduced-motion: no-preference) {
+  .auth-modern main .logo-modern { animation: neb-logo-float 7s ease-in-out infinite; }
+}
+@keyframes neb-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.auth-modern main .logo-modern::after {
+  content: "";
+  position: absolute;
+  inset: -34px -52px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%);
+  filter: blur(4px);
+  pointer-events: none;
+}
+/* خط متدرج رفيع يفصل الشعار عن الآية */
+.auth-verse { position: relative; padding-top: 18px; font-size: 20px; }
+.auth-verse::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  inset-inline: 16%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 50%, transparent), transparent);
+}
+/* التبويبات: مسار غائر ناعم بلا حدّ صلب */
+.auth-tabs {
+  border: none;
+  padding: 5px;
+  background: color-mix(in srgb, var(--surface-alt) 90%, transparent);
+  box-shadow:
+    inset 0 1px 3px oklch(0.30 0.08 262 / 0.08),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+}
+/* عناوين الحقول أصغر وأهدأ — التسلسل البصري أنظف */
+.auth-modern main form label > span:first-child {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dim);
+  letter-spacing: 0.01em;
+}
+/* الحقول أطول وأرحب، وأيقونتها في بلاطة هادئة تضيء
+   بالتدرّج الحيّ لحظة الكتابة في الحقل */
+.auth-input {
+  min-height: 56px;
+  border-radius: 18px;
+  padding-inline-start: 58px;
+  background: color-mix(in srgb, var(--surface-alt) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+.auth-input:hover { border-color: var(--border-strong); }
+.auth-input:focus {
+  background: var(--surface-elevated);
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 14px 28px -14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.auth-field-icon {
+  inset-inline-start: 10px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+  transition: background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+label:focus-within .auth-field-icon {
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    0 10px 20px -10px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+/* زر الدخول أطول وأثقل — حضور يليق بآخر خطوة */
+.auth-submit {
+  min-height: 56px;
+  border-radius: 18px;
+  font-size: 16.5px;
+  font-weight: 800;
+}
+/* المزايا شريط سفلي واحد فوق خط شعري، وحلقاتها من
+   عائلة اللون نفسه */
+.auth-features {
+  margin-top: 30px;
+  padding-top: 24px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+}
+.auth-feature-icon {
+  width: 48px;
+  height: 48px;
+  background:
+    linear-gradient(var(--surface-elevated), var(--surface-elevated)) padding-box,
+    linear-gradient(150deg, color-mix(in srgb, var(--accent) 72%, transparent), color-mix(in srgb, var(--grad-end, var(--cyan)) 55%, transparent)) border-box;
+}
+
+/* ============================================================
+   v78 — صفحة الدخول فقط (إعادة تصميم بطلب المالك، مواصفة
+   Design Director): «أقلّ، لكن متقن». لا ميزات جديدة ولا
+   تغيير في منطق الدخول — الشكل والتفاعل فقط:
+   · سطح منقسم على الشاشات الكبيرة (≥1024px): لوحة علامة
+     هادئة بحبر أزرق عميق (الشعار أكبر، والآية مخطوطة داخل
+     إطار بتعبئة متدرجة خفيفة، ونقاط القيمة الثلاث قائمة
+     هادئة) + جانب نموذج نظيف بعرض 420px كحد أقصى.
+   · على الجوال: عمود واحد — كتلة علامة مدمجة فوق النموذج،
+     ونقاط القيمة سطر واحد هادئ، ونموذج الدخول بلا تمرير
+     على 390×844.
+   · لا ذهب/بني في الأزرار أو التبويبات: عائلة الأزرق
+     النيلي العميق فقط، والذهب خط شعري فقط إن وُجد. التبويبات
+     شريط مقسّم فاتح بثمب منزلق أبيض بدل القرص المتدرج.
+   · الأرض: أورورا هادئة جدًا بحبيبات 2-3% — الشبكة الهندسية
+     القديمة أُزيلت من هذه الصفحة نهائيًا.
+   · الحقول 52px، أهداف اللمس 48px، حلقة تركيز متحركة،
+     إصلاح ألوان الإكمال التلقائي، اهتزاز خطأ 240ms، وسبينر
+     تحميل في الزر. القواعد هنا أخيرة في الملف فتتغلب على
+   قواعد v76/v77 لصفحة الدخول وحدها — بقية الموقع كما هو.
+   ============================================================ */
+
+/* ---- الأرض: أوف-وايت دافئ نهارًا، وأسود مزرقّ ليلًا ---- */
+.auth-v78 { background: oklch(0.972 0.010 78); }
+:root[data-theme="dark"] .auth-v78 { background: oklch(0.16 0.02 265); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-v78 { background: oklch(0.16 0.02 265); }
+}
+/* أورورا أهدأ بكثير من v77: لمحتان فقط وبشفافية منخفضة */
+.auth-v78::before {
+  background:
+    radial-gradient(720px 520px at 18% -4%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 62%),
+    radial-gradient(680px 520px at 96% 100%, color-mix(in srgb, var(--cyan) 8%, transparent), transparent 65%);
+}
+/* الحبيبات بدل الشبكة: ضجيج SVG خفيف جدًا فوق الأرض كلها */
+.auth-v78::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  -webkit-mask-image: none;
+  mask-image: none;
+  opacity: 0.032;
+}
+/* دخول متدرج قصير: كامل المشهد يستقر قبل 500ms */
+.auth-v78 .auth-in {
+  animation: neb-auth-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: min(var(--d, 0ms), 140ms);
+}
+
+/* ---- الشريط العلوي: أزرار فقط، تطفو فوق المشهد ---- */
+.auth-v78 .auth-topbar {
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  z-index: 50;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ---- البنية المنقسمة ---- */
+.auth-v78 .auth-split {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100dvh;
+}
+
+/* ---- لوحة العلامة (سطح المكتب فقط) ---- */
+.auth-brand-panel { display: none; }
+@media (min-width: 1024px) {
+  /* v80: لوحة العلامة أُلغيت من صفحة الدخول بقرار المالك —
+     العمود واحد مركزي في كل العروض، وقواعد اللوحة بالأسفل
+     ميتة (لا عنصر يطابقها) وتُركت بلا أثر. */
+  .auth-brand-panel {
+    position: relative;
+    display: flex;
+    overflow: hidden;
+    background: linear-gradient(165deg, oklch(0.245 0.075 266), oklch(0.155 0.048 265) 72%);
+    color: oklch(0.95 0.015 250);
+  }
+  /* ضوء ناعم واحد من الأعلى — لا زخرفة أخرى */
+  .auth-brand-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(560px 420px at 30% 0%, oklch(0.72 0.13 230 / 0.20), transparent 65%);
+    pointer-events: none;
+  }
+  .auth-brand-inner {
+    position: relative;
+    margin: auto;
+    width: 100%;
+    max-width: 408px;
+    padding: 56px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 40px;
+  }
+  /* الشعار العاري أكبر هنا، بهالة ضوئية خفيفة ليُقرأ على الحبر */
+  .auth-modern.auth-v78 .auth-brand-panel .logo-modern {
+    animation: none;
+    filter: brightness(1.12) drop-shadow(0 8px 28px oklch(0.72 0.13 225 / 0.35));
+  }
+  .auth-modern.auth-v78 .auth-brand-panel .logo-modern::after { display: none; }
+  /* الآية مخطوطة داخل إطار هادئ، بتعبئة متدرجة خفيفة */
+  .auth-verse-frame {
+    width: 100%;
+    border: 1px solid oklch(1 0 0 / 0.14);
+    border-radius: 20px;
+    padding: 28px 30px;
+    background: oklch(1 0 0 / 0.04);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.08);
+  }
+  .auth-verse-panel {
+    font-size: 26px;
+    line-height: 2;
+    text-wrap: balance;
+    color: oklch(0.93 0.02 245);
+  }
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .auth-verse-panel {
+      background-image: linear-gradient(120deg, oklch(0.98 0.008 250), oklch(0.80 0.075 228));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  }
+  /* نقاط القيمة الثلاث: قائمة هادئة بأيقونات صغيرة */
+  .auth-brand-points { display: flex; flex-direction: column; gap: 18px; }
+  .auth-brand-point {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.6;
+    color: oklch(0.88 0.028 252);
+  }
+  .auth-brand-point-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: oklch(1 0 0 / 0.07);
+    box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.10);
+    color: oklch(0.80 0.09 225);
+  }
+}
+
+/* ---- جانب النموذج: يُصفّي كل قواعد «لوح زجاجي» القديمة ---- */
+.auth-modern.auth-v78 main.auth-form-side {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: none;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 60px 20px 36px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* قاعدة v77 كانت تضع حدًا سفليًا على أول ابن للـ main */
+.auth-modern.auth-v78 main.auth-form-side > div.auth-form-card:first-child {
+  padding-bottom: 26px;
+  border-bottom: none;
+}
+/* الشعار داخل النموذج ساكن — لا طفو ولا هالة */
+.auth-modern.auth-v78 main .logo-modern { animation: none; }
+.auth-modern.auth-v78 main .logo-modern::after { display: none; }
+
+/* ---- بطاقة النموذج: سطح نظيف، حدّ شعري متدرج من الأعلى ---- */
+.auth-form-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 30px 30px 26px;
+  border: 1px solid transparent;
+  border-radius: 28px;
+  background:
+    linear-gradient(oklch(1 0 0), oklch(1 0 0)) padding-box,
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 36%, transparent), color-mix(in srgb, var(--border) 85%, transparent) 52%) border-box;
+  box-shadow:
+    0 1px 2px oklch(0.30 0.06 262 / 0.05),
+    0 12px 32px -12px oklch(0.30 0.06 262 / 0.12),
+    0 32px 64px -32px oklch(0.30 0.06 262 / 0.16);
+}
+:root[data-theme="dark"] .auth-form-card {
+  background:
+    linear-gradient(oklch(0.205 0.022 265), oklch(0.205 0.022 265)) padding-box,
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 32%, transparent), oklch(1 0 0 / 0.08) 52%) border-box;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 24px 48px -24px oklch(0 0 0 / 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-form-card {
+    background:
+      linear-gradient(oklch(0.205 0.022 265), oklch(0.205 0.022 265)) padding-box,
+      linear-gradient(180deg, color-mix(in srgb, var(--accent) 32%, transparent), oklch(1 0 0 / 0.08) 52%) border-box;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 24px 48px -24px oklch(0 0 0 / 0.55);
+  }
+}
+
+/* ---- كتلة العلامة المدمجة (تحت سطح المكتب) ---- */
+.auth-compact-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.auth-verse-compact {
+  font-size: 16.5px;
+  line-height: 1.95;
+  color: var(--dim);
+  text-wrap: balance;
+  max-width: 330px;
+}
+@media (min-width: 1024px) {
+  .auth-compact-brand { display: none; }
+}
+
+/* ---- الترحيب: عنوان واحد + جملة واحدة قصيرة ---- */
+.auth-greeting { text-align: start; }
+.auth-title {
+  font-size: 29px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-wrap: balance;
+  color: var(--text);
+}
+.auth-subtitle {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--dim);
+}
+
+/* ---- الشريط المقسّم الفاتح: ثمب أبيض منزلق، لا تدرّج ---- */
+.auth-v78 .auth-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 22px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-alt) 88%, transparent);
+  box-shadow: none;
+}
+.auth-seg-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  inset-inline-start: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  box-shadow:
+    0 1px 3px oklch(0.30 0.06 262 / 0.14),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+  transition: inset-inline-start 300ms cubic-bezier(0.3, 1.2, 0.4, 1);
+}
+.auth-seg[data-active="register"] .auth-seg-thumb { inset-inline-start: 50%; }
+.auth-v78 .auth-seg-btn {
+  position: relative;
+  z-index: 1;
+  min-height: 44px;
+  border-radius: 999px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--faint);
+  background: transparent;
+  transition: color 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-v78 .auth-seg-btn:hover { color: var(--dim); }
+.auth-v78 .auth-seg-btn[aria-selected="true"] {
+  color: var(--text);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---- النموذج ---- */
+.auth-v78 .auth-form {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+/* تبديل الوضعين: تلاشٍ متقاطع قصير بلا قفزة ارتفاع مفاجئة */
+.auth-v78 .auth-mode-swap { animation: auth-swap-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes auth-swap-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* عناوين الحقول: 13.5px بوزن 500، تبقى ظاهرة دائمًا */
+.auth-v78 .auth-form label > span:first-child {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0;
+}
+/* الحقول: 52px، حدّ ناعم، وحلقة تركيز متحركة بتوهّج خفيف */
+.auth-v78 .auth-input {
+  min-height: 52px;
+  border-radius: 15px;
+  padding-inline-start: 46px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  font-size: 16px;
+  color: var(--text);
+  box-shadow: 0 1px 2px oklch(0.30 0.06 262 / 0.04);
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-v78 .auth-input::placeholder { color: var(--faint); }
+.auth-v78 .auth-input:hover { border-color: var(--border-strong); }
+.auth-v78 .auth-input:focus {
+  border-color: var(--accent);
+  background: var(--surface-elevated);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 1px 2px oklch(0.30 0.06 262 / 0.04);
+}
+/* حقول كلمة المرور: مساحة لزر الإظهار (هدف 48px) في النهاية */
+.auth-v78 .auth-input[class*="pe-11"] { padding-inline-end: 54px; }
+/* أيقونة الحقل: بسيطة بلا بلاطة، تضيء بلون التمييز عند الكتابة */
+.auth-v78 .auth-field-icon {
+  inset-inline-start: 15px;
+  width: auto;
+  height: auto;
+  display: flex;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--faint);
+}
+.auth-v78 label:focus-within .auth-field-icon {
+  background: transparent;
+  box-shadow: none;
+  color: var(--accent);
+}
+/* زر إظهار/إخفاء كلمة المرور: هدف لمس 48px في جهة النهاية */
+.auth-v78 .auth-form label .relative > button {
+  min-width: 48px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+/* سطر مساعد واحد كحد أقصى لكل حقل، بتباين AA */
+.auth-helper {
+  display: block;
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--dim);
+}
+/* الإكمال التلقائي: لا خلفيات صفراء/زرقاء من المتصفح */
+.auth-v78 .auth-input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  box-shadow: 0 0 0 100px var(--surface-elevated) inset;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+/* ---- صف «ابقَ مسجّلًا» + «نسيت كلمة المرور؟» ---- */
+.auth-remember-wrap { display: flex; flex-direction: column; gap: 10px; }
+.auth-remember-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.auth-remember-main { display: inline-flex; align-items: center; }
+.auth-remember-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+.auth-checkbox {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.auth-info-btn {
+  width: 48px;
+  height: 48px;
+  margin-inline-start: -12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--faint);
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-info-btn:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.auth-forgot-link {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent);
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-forgot-link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* شرح «ابقَ مسجّلًا» الكامل — في فقاعة معلومات عند الطلب فقط */
+.auth-popover {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  background: var(--surface-alt);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--dim);
+  animation: auth-swap-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---- الخطأ والزر الأساسي ---- */
+.auth-error {
+  border-radius: 14px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.65;
+}
+.auth-v78 .auth-shake { animation: auth-shake 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes auth-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(5px); }
+  75% { transform: translateX(-5px); }
+}
+/* زر واحد بتدرّج الهوية الأزرق + لمعة حدّ داخلية + ظل ملوّن
+   (من .btn-lux)، بلا لمعة عابرة وبلا ذهب — وضغطة 0.98 */
+.auth-v78 .auth-submit {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.auth-v78 .auth-submit::after { display: none; }
+.auth-v78 .auth-submit:active { transform: scale(0.98); }
+.auth-btn-loading { display: inline-flex; align-items: center; gap: 10px; }
+.auth-spinner {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2.5px solid oklch(1 0 0 / 0.35);
+  border-top-color: oklch(1 0 0);
+  animation: auth-spin 700ms linear infinite;
+}
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+
+/* ---- حالة الدخول الناجح (كما هي سلوكيًا) ---- */
+.auth-entering {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+/* ---- سطر القيم المدمج + سطر الخصوصية (تحت سطح المكتب) ---- */
+.auth-values-line {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: var(--faint);
+}
+@media (min-width: 1024px) {
+  .auth-values-line { display: none; }
+}
+.auth-privacy {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--faint);
+}
+
+/* ---- حلقات تركيز لوحة المفاتيح في الصفحة كلها ---- */
+.auth-v78 button:focus-visible,
+.auth-v78 .auth-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.auth-v78 .auth-input:focus-visible { outline: none; }
+
+/* ---- الجوال: نموذج الدخول كاملًا بلا تمرير على 390×844 ---- */
+@media (max-width: 520px) {
+  .auth-modern.auth-v78 main.auth-form-side { padding: 42px 12px 16px; }
+  .auth-form-card { padding: 22px 20px 18px; border-radius: 24px; }
+  .auth-compact-brand { margin-bottom: 12px; gap: 6px; }
+  .auth-compact-brand .logo-modern { width: 44px; height: auto; }
+  .auth-verse-compact { font-size: 15px; line-height: 1.9; }
+  .auth-title { font-size: 26px; }
+  .auth-subtitle { margin-top: 4px; font-size: 14px; }
+  .auth-v78 .auth-seg { margin-top: 16px; }
+  .auth-v78 .auth-form { margin-top: 18px; gap: 14px; }
+  /* صف التذكّر يبقى سطرًا واحدًا حتى على أضيق الشاشات */
+  .auth-remember-row { flex-wrap: nowrap; gap: 8px; }
+  .auth-remember-label { font-size: 12.5px; white-space: nowrap; }
+  .auth-info-btn { width: 48px; margin-inline-start: -18px; }
+  .auth-forgot-link { font-size: 12.5px; white-space: nowrap; }
+  .auth-values-line { margin-top: 14px; }
+  .auth-privacy { margin-top: 10px; }
+}
+
+/* ---- تقليل الحركة ---- */
+@media (prefers-reduced-motion: reduce) {
+  .auth-v78::before { animation: none; }
+  .auth-seg-thumb { transition: none; }
+  .auth-spinner { animation-duration: 1.6s; }
+}
+
+/* ---- الألوان القسرية (forced-colors) ---- */
+@media (forced-colors: active) {
+  .auth-form-card, .auth-v78 .auth-input, .auth-v78 .auth-seg, .auth-verse-frame {
+    border: 1px solid CanvasText;
+  }
+  .auth-seg-thumb { border: 1px solid CanvasText; background: Highlight; }
+  .auth-v78::before, .auth-v78::after { display: none; }
+}
+
+/* ============================================================
+   v79 — تطوير صفحة الدخول + تطوير الشعار (بطلب المالك:
+   «طوّرها أكتر» + «طوّر اللوجو نفسه»). البنية والسلوك كما
+   في v78 تمامًا — هذا القسم يطوّر التنفيذ فقط:
+   · الشعار: مادة رئيسية جديدة أُعيد رسمها من العمل المعتمد
+     (نفس تشابك IS، حواف أنضف وكروم ياقوتي أعمق وأفخم)،
+     ولمعة ضوئية واحدة هادئة تعبر المعدن كل بضع ثوانٍ —
+     مقنّعة بألفا العلامة نفسها فلا تظهر إلا على الحروف.
+   · الأرض: لؤلؤة زرقاء باردة بدل البيج الدافئ، وأورورا
+     حيّة تنساب ببطء شديد (تتوقف مع تقليل الحركة).
+   · لوحة العلامة: حبر أعمق بطبقات ضوئية، الشعار أكبر فوق
+     هالة ناعمة، إطار الآية بحافة متدرجة، وبلاطات نقاط
+     القيمة بتدرّج زجاجي.
+   · البطاقة والحقول والزر: ظلال أغنى، ثمب زنبركي، توهّج
+     تركيز أوضح، ولمعة الزر الأساسية عادت عند التحويم.
+   القواعد هنا أخيرة في الملف فتتغلب على v78 لصفحة الدخول
+   وحدها — بقية الموقع كما هو إلا الشعار المطوَّر نفسه.
+   ============================================================ */
+
+/* ---- الشعار: علامة القوس المرسومة بالفيكتور ----
+   طبعة واحدة للوضعين: الألوان بتتقرأ من --logo-* المشتقة
+   من لون التمييز، فمفيش طبعة ليلية منفصلة ولا لمعة مقنّعة. */
+.logo-modern { position: relative; }
+
+/* ---- الأرض: لؤلؤة باردة نهارًا، وعمق مزرقّ ليلًا ---- */
+.auth-v79 {
+  background-color: oklch(0.968 0.012 252);
+  background-image: linear-gradient(168deg, oklch(0.988 0.005 250), oklch(0.958 0.016 254) 78%);
+}
+:root[data-theme="dark"] .auth-v79 {
+  background-color: oklch(0.16 0.02 265);
+  background-image: linear-gradient(168deg, oklch(0.185 0.026 266), oklch(0.145 0.020 265) 78%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-v79 {
+    background-color: oklch(0.16 0.02 265);
+    background-image: linear-gradient(168deg, oklch(0.185 0.026 266), oklch(0.145 0.020 265) 78%);
+  }
+}
+/* أورورا أغنى من v78 لكنها ما زالت هادئة، وتنساب ببطء */
+.auth-v79::before {
+  background:
+    radial-gradient(820px 560px at 14% -6%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 62%),
+    radial-gradient(760px 560px at 98% 104%, color-mix(in srgb, var(--cyan) 13%, transparent), transparent 65%),
+    radial-gradient(520px 380px at 88% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%);
+  animation: neb-drift 52s ease-in-out infinite alternate;
+}
+
+/* ---- لوحة العلامة: حبر أعمق وطبقات ضوء مصنوعة ---- */
+@media (min-width: 1024px) {
+  .auth-brand-panel {
+    background: linear-gradient(166deg, oklch(0.272 0.088 264), oklch(0.183 0.056 265) 54%, oklch(0.128 0.040 266));
+  }
+  /* توهّج سفلي ناعم يوازن ضوء الأعلى */
+  .auth-brand-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(620px 420px at 82% 108%, oklch(0.62 0.15 232 / 0.16), transparent 66%);
+    pointer-events: none;
+  }
+  .auth-brand-inner { gap: 44px; }
+  /* الشعار المطوَّر أكبر، فوق هالة ضوئية مصنوعة بعناية */
+  .auth-modern.auth-v79 .auth-brand-panel .logo-modern {
+    filter:
+      drop-shadow(0 22px 44px oklch(0.55 0.16 235 / 0.38))
+      drop-shadow(0 4px 12px oklch(0.10 0.04 265 / 0.45));
+  }
+  .auth-modern.auth-v79 .auth-brand-panel .logo-modern::before {
+    content: "";
+    position: absolute;
+    inset: -34%;
+    z-index: -1;
+    background: radial-gradient(closest-side, oklch(0.72 0.13 228 / 0.30), transparent 72%);
+    pointer-events: none;
+  }
+  /* إطار الآية: حافة متدرجة مضيئة وسطح أصفى */
+  .auth-verse-frame {
+    border: 1px solid transparent;
+    border-radius: 22px;
+    padding: 30px 32px;
+    background:
+      linear-gradient(oklch(0.235 0.052 265 / 0.88), oklch(0.235 0.052 265 / 0.88)) padding-box,
+      linear-gradient(160deg, oklch(1 0 0 / 0.26), oklch(1 0 0 / 0.07) 55%) border-box;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.10),
+      0 24px 44px -24px oklch(0.05 0.02 265 / 0.55);
+  }
+  .auth-verse-panel { font-size: 27px; }
+  /* بلاطات نقاط القيمة: زجاج متدرج بحافة ضوئية */
+  .auth-brand-point-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 13px;
+    background: linear-gradient(160deg, oklch(1 0 0 / 0.11), oklch(1 0 0 / 0.045));
+    box-shadow:
+      inset 0 0 0 1px oklch(1 0 0 / 0.13),
+      inset 0 1px 0 oklch(1 0 0 / 0.14);
+    color: oklch(0.83 0.085 222);
+  }
+}
+
+/* ---- بطاقة النموذج: سطح أصفى وظل أغنى بطبقات ---- */
+.auth-v79 .auth-form-card {
+  background:
+    linear-gradient(oklch(1 0 0), oklch(0.994 0.004 250)) padding-box,
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 42%, transparent), color-mix(in srgb, var(--border) 85%, transparent) 52%) border-box;
+  box-shadow:
+    0 1px 2px oklch(0.30 0.06 262 / 0.05),
+    0 16px 36px -14px oklch(0.30 0.06 262 / 0.14),
+    0 44px 80px -36px oklch(0.28 0.07 262 / 0.22);
+}
+:root[data-theme="dark"] .auth-v79 .auth-form-card {
+  background:
+    linear-gradient(oklch(0.215 0.024 265), oklch(0.198 0.022 265)) padding-box,
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 36%, transparent), oklch(1 0 0 / 0.08) 52%) border-box;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.07),
+    0 28px 56px -24px oklch(0 0 0 / 0.60);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-v79 .auth-form-card {
+    background:
+      linear-gradient(oklch(0.215 0.024 265), oklch(0.198 0.022 265)) padding-box,
+      linear-gradient(180deg, color-mix(in srgb, var(--accent) 36%, transparent), oklch(1 0 0 / 0.08) 52%) border-box;
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      0 28px 56px -24px oklch(0 0 0 / 0.60);
+  }
+}
+
+/* ---- كتلة العلامة المدمجة: هالة هادئة خلف الشعار ---- */
+.auth-v79 .auth-compact-brand {
+  background: radial-gradient(250px 150px at 50% 26px, color-mix(in srgb, var(--accent) 11%, transparent), transparent 70%);
+}
+
+/* ---- الترحيب والشريط المقسّم: إيقاع أصفى وثمب زنبركي ---- */
+.auth-v79 .auth-title { font-size: 30px; }
+.auth-v79 .auth-seg {
+  background: color-mix(in srgb, var(--surface-alt) 72%, transparent);
+  box-shadow: inset 0 1px 3px oklch(0.30 0.06 262 / 0.06);
+}
+.auth-v79 .auth-seg-thumb {
+  box-shadow:
+    0 2px 8px oklch(0.30 0.06 262 / 0.16),
+    0 1px 2px oklch(0.30 0.06 262 / 0.10),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.65);
+  transition: inset-inline-start 380ms cubic-bezier(0.34, 1.35, 0.4, 1);
+}
+
+/* ---- الحقول: عمق داخلي خفيف وتوهّج تركيز أوضح ---- */
+.auth-v79 .auth-input {
+  box-shadow:
+    inset 0 1px 3px oklch(0.30 0.06 262 / 0.05),
+    0 1px 2px oklch(0.30 0.06 262 / 0.04);
+}
+.auth-v79 .auth-input:focus {
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 6px 18px -8px color-mix(in srgb, var(--accent) 35%, transparent),
+    inset 0 1px 3px oklch(0.30 0.06 262 / 0.03);
+}
+
+/* ---- الزر الأساسي: ظلّ أغنى ولمعة التحويم عادت ---- */
+.auth-v79 .auth-submit::after { display: block; }
+.auth-v79 .auth-submit {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.30),
+    inset 0 -1px 0 oklch(0 0 0 / 0.18),
+    0 18px 38px -12px color-mix(in srgb, var(--accent) 62%, transparent),
+    0 6px 16px -6px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+/* ---- الجوال: تعويض حجم الشعار الأكبر حتى يبقى النموذج
+   كاملًا بلا تمرير على 390×844 ---- */
+@media (max-width: 520px) {
+  .auth-v79 .auth-form-card { padding-top: 18px; }
+  .auth-v79 .auth-compact-brand { margin-bottom: 8px; }
+  .auth-v79 .auth-values-line { margin-top: 10px; }
+  /* زر المعلومات يبقى ملاصقًا لعنوان التذكّر دون أن يأكل حرفًا منه */
+  .auth-v79 .auth-info-btn { margin-inline-start: -8px; }
+}
+
+/* ---- تقليل الحركة: الأورورا تسكن أيضًا ---- */
+@media (prefers-reduced-motion: reduce) {
+  .auth-v79::before { animation: none; }
+  .auth-v79 .auth-seg-thumb { transition: none; }
+}
+
+/* ============================================================
+   v80 — ثلاث قرارات من المالك في طبقة واحدة أخيرة:
+   ١) أزرق الهوية ثابت للأزرار الأساسية والصف النشط: التدرّج
+      الأساسي لا يتبع لون التمييز المختار (العنبري كان يطبع
+      الأزرار بنّيًا/ذهبيًا) — أزرق ملكي ← سماوي دائمًا، في
+      الوضعين. لون التمييز يبقى حرًا في بقية التفاصيل.
+   ٢) نظام أيقونات موحّد حديث: لا أيقونة تنضغط في صف مزدحم،
+      وحركة زنبركية واحدة نظيفة لكل أيقونة تفاعلية في كل
+      الأسطح (قائمة، شريط علوي، كروت، نوافذ، تنبيهات، محرر)،
+      وأيقونات الحالات الفارغة تطفو بهدوء.
+   ٣) تنظيم القائمة الجانبية: شريط أدوات الشجرة بقياس واحد
+      وفواصل ثابتة، وإيقاع صفوف موحّد.
+   ============================================================ */
+:root {
+  --brand: oklch(0.52 0.185 262);
+  --brand-strong: oklch(0.44 0.17 264);
+  --brand-ink: oklch(1 0 0);
+  --grad-brand: linear-gradient(120deg, oklch(0.44 0.17 264) 0%, oklch(0.52 0.185 262) 46%, oklch(0.60 0.135 228) 128%);
+}
+:root[data-theme="dark"] {
+  --brand: oklch(0.74 0.135 256);
+  --brand-strong: oklch(0.84 0.09 252);
+  --brand-ink: oklch(0.12 0.03 258);
+  --grad-brand: linear-gradient(120deg, oklch(0.58 0.16 260) 0%, oklch(0.72 0.14 256) 48%, oklch(0.78 0.11 224) 128%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand: oklch(0.74 0.135 256);
+    --brand-strong: oklch(0.84 0.09 252);
+    --brand-ink: oklch(0.12 0.03 258);
+    --grad-brand: linear-gradient(120deg, oklch(0.58 0.16 260) 0%, oklch(0.72 0.14 256) 48%, oklch(0.78 0.11 224) 128%);
+  }
+}
+
+/* ---- الأزرار الأساسية: أزرق الهوية دائمًا ---- */
+.btn-lux {
+  background: var(--grad-brand);
+  color: var(--brand-ink);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.28),
+    inset 0 -1px 0 oklch(0 0 0 / 0.18),
+    0 16px 36px -12px color-mix(in srgb, var(--brand) 58%, transparent),
+    0 5px 14px -5px color-mix(in srgb, var(--brand) 38%, transparent);
+}
+button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"] {
+  background-image: var(--grad-brand);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    0 14px 30px -10px color-mix(in srgb, var(--brand) 55%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+
+/* ---- الصف النشط في الشجرة: تدرّج أزرق الهوية ---- */
+.nav-item-active {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--brand) 15%, transparent), color-mix(in srgb, var(--brand) 6%, var(--surface)));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--brand) 28%, transparent),
+    0 10px 22px -12px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+.nav-item-active::before {
+  background: linear-gradient(180deg, var(--brand), var(--cyan));
+}
+.nav-item-active .tree-icon {
+  background: var(--grad-brand);
+  color: var(--brand-ink);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    0 10px 20px -10px color-mix(in srgb, var(--brand) 65%, transparent);
+}
+.nav-item-active .tree-count {
+  background: color-mix(in srgb, var(--brand) 15%, transparent);
+  color: var(--brand-strong);
+}
+
+/* ---- نظام الأيقونات الموحّد ---- */
+/* لا أيقونة تنضغط أو تتشوّه داخل صف مرن مزدحم */
+svg.lucide { flex: none; }
+/* زنبرك واحد لكل أيقونة داخل عنصر تفاعلي، في كل الأسطح */
+button svg.lucide,
+[role="button"] svg.lucide,
+a svg.lucide,
+summary svg.lucide {
+  transition: transform 280ms cubic-bezier(0.3, 1.35, 0.4, 1);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  /* النوافذ والقوائم والمحرر: نفس قفزة القائمة الجانبية */
+  .glass-panel button:hover svg.lucide,
+  .glass-panel [role="button"]:hover svg.lucide,
+  [role="menu"] button:hover svg.lucide,
+  [role="menu"] [role="button"]:hover svg.lucide,
+  .sidebar-tools button:hover svg.lucide { transform: translateY(-1px) scale(1.14); }
+  /* أيقونة الحذف تتمايل بخفة بدل القفزة — حركة تعبّر عن معناها */
+  button:hover svg.lucide-trash-2 { transform: rotate(-7deg) scale(1.12); }
+  /* أيقونة النسخ تصعد، وأيقونة الإضافة تدور ربع لفة */
+  button:hover svg.lucide-copy { transform: translateY(-1.5px) scale(1.1); }
+  button:hover svg.lucide-plus { transform: rotate(90deg) scale(1.08); }
+}
+/* تنبيهات التوست: أيقونتها تنبض مرة عند الظهور */
+.toast-card svg.lucide { animation: neb-icon-in 420ms cubic-bezier(0.3, 1.35, 0.4, 1) both; }
+/* الحالات الفارغة: الأيقونة الكبيرة تطفو بهدوء شديد */
+@keyframes neb-icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* حاويات الحالات الفارغة كلها تشترك في نمط pattern-star */
+  .pattern-star svg.lucide { animation: neb-icon-float 4.5s ease-in-out infinite; }
+}
+
+/* ---- شريط أدوات الشجرة: قياس واحد وفواصل ثابتة ---- */
+.sidebar-tools {
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.sidebar-tools > button { border-radius: 10px; height: 34px; }
+.sidebar-tools > button:not(:first-child) { width: 34px; padding: 0; }
+.sidebar-tools > span[aria-hidden="true"] { height: 20px; align-self: center; }
+
+/* ---- أيقونات محرر الرد: بلاطات موحّدة تعبّر عن كل عنصر ---- */
+.editor-label-icon,
+.editor-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  color: var(--brand);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.editor-head-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--grad-brand);
+  color: var(--brand-ink);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    0 6px 14px -6px color-mix(in srgb, var(--brand) 55%, transparent);
+}
+.editor-head-icon-lg { width: 34px; height: 34px; border-radius: 11px; }
+
+/* ---- تقليل الحركة: النظام كله يسكن ---- */
+@media (prefers-reduced-motion: reduce) {
+  button svg.lucide,
+  [role="button"] svg.lucide,
+  a svg.lucide,
+  summary svg.lucide { transition: none; }
+  .toast-card svg.lucide { animation: none; }
+}
+
+/* ============================================================
+   v81 — أربع قرارات من المالك في طبقة أخيرة واحدة:
+   ١) إصلاح حركة القائمة الجانبية بالكامل: لا انتقال عرض إلا
+      على عنصر الـ aside نفسه وبمنحنى هادئ بلا ارتداد، ومحتوى
+      القائمة لا يفيض أفقيًا أثناء الحركة أبدًا. (سحب الحافة
+      نفسه أُعيد بناؤه في App.tsx: كتابة مباشرة على العنصر
+      بلا إعادة رسم، وحفظ مرة واحدة عند الإفلات.)
+   ٢) «الرئيسية» و«المصادر» لا يختفيان مع أي طيّ (بنية الشجرة
+      في App.tsx)، وعلامة «المصادر» ومجلدها تطوّرا: مدار يدور
+      ونقاط تنبض بالتتابع وقلب بلون التمييز.
+   ٣) توحيد الألوان كلها تحت لون التمييز الواحد: قرار v80
+      (أزرق ثابت للأزرار) أُلغي بقرار المالك الأحدث — كل تدرّج
+      وزر وصف نشط وحبة يشتق من اللون المختار، ولا أزرق ثابت
+      ولا ذهبي ثابت في أي عنصر ملوّن.
+   ٤) علامة مائية مبهرة باسم المالك على صفحة الدخول فقط.
+   ============================================================ */
+
+/* ---- ١) حركة القائمة: لا فيض أفقي أثناء تغيير العرض ---- */
+.side-scroll-fade {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+/* ---- ٢) علامة «المصادر» المتطورة: مدار ونبض متتابع ---- */
+.sources-glyph .sources-glyph-orbit {
+  transform-origin: center;
+  transition: transform 560ms cubic-bezier(0.3, 1.3, 0.4, 1);
+}
+.sources-glyph[data-open="true"] .sources-glyph-orbit { transform: rotate(90deg); }
+.sources-glyph-dot { opacity: 0.45; }
+@media (prefers-reduced-motion: no-preference) {
+  .sources-glyph-dot { animation: neb-src-pulse 2.8s ease-in-out infinite; }
+}
+@keyframes neb-src-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .tree-node-sources > [data-tree-row]:hover .sources-glyph .sources-glyph-orbit {
+    transform: rotate(45deg);
+  }
+  .tree-node-sources > [data-tree-row]:hover .sources-glyph-dot { animation-duration: 1.4s; }
+}
+
+/* ---- ٢) بطاقة «المصادر»: إطار متدرج من عائلة لون التمييز
+   وتوهّج ناعم، وبلاطة العلامة تمتلئ بالتدرّج وهي مفتوحة ---- */
+.tree-node-sources > [data-tree-row] {
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)) padding-box,
+    linear-gradient(140deg, color-mix(in srgb, var(--accent) 60%, transparent), var(--border) 55%, color-mix(in srgb, var(--grad-end, var(--cyan)) 50%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-1),
+    inset 0 1px 0 var(--glass-line),
+    0 12px 26px -16px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.tree-node-sources > [data-tree-row][aria-expanded="true"] .tree-icon {
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.25),
+    0 10px 20px -10px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.tree-node-sources > [data-tree-row][aria-expanded="true"] .tree-icon .sources-glyph {
+  color: var(--on-grad);
+}
+
+/* ---- ٣) توحيد الألوان: العلامة = لون التمييز المختار ---- */
+/* نفس خصوصية قواعد v80 أو أعلى + ترتيب لاحق = تلغى القيم
+   الزرقاء الثابتة وتُربط التوكنز بلون التمييز في الوضعين */
+:root, :root[data-theme="dark"] {
+  --brand: var(--accent);
+  --brand-strong: var(--accent-strong);
+  --brand-ink: var(--on-grad);
+  --grad-brand: var(--grad);
+  --cyan-soft: color-mix(in srgb, var(--cyan) 14%, var(--surface));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --brand: var(--accent);
+    --brand-strong: var(--accent-strong);
+    --brand-ink: var(--on-grad);
+    --grad-brand: var(--grad);
+    --cyan-soft: color-mix(in srgb, var(--cyan) 16%, var(--surface));
+  }
+}
+/* «سماوي» الموقع هو الأخ الفاتح للون التمييز: لكل لون مختار
+   درجته من عائلته (الأزرقان يبقيان على درجتهما الحالية) */
+:root[data-accent="teal"] { --cyan: oklch(0.62 0.11 192); }
+:root[data-accent="violet"] { --cyan: oklch(0.60 0.13 322); }
+:root[data-accent="rose"] { --cyan: oklch(0.62 0.13 352); }
+:root[data-accent="amber"] { --cyan: oklch(0.68 0.12 84); }
+:root[data-accent="cyan"] { --cyan: oklch(0.66 0.12 195); }
+:root[data-accent="emerald"] { --cyan: oklch(0.64 0.11 175); }
+:root[data-accent="indigo"] { --cyan: oklch(0.62 0.12 300); }
+:root[data-accent="fuchsia"] { --cyan: oklch(0.64 0.13 340); }
+:root[data-accent="red"] { --cyan: oklch(0.63 0.13 30); }
+:root[data-accent="orange"] { --cyan: oklch(0.66 0.12 55); }
+:root[data-theme="dark"][data-accent="teal"] { --cyan: oklch(0.78 0.10 192); }
+:root[data-theme="dark"][data-accent="violet"] { --cyan: oklch(0.78 0.11 322); }
+:root[data-theme="dark"][data-accent="rose"] { --cyan: oklch(0.78 0.11 352); }
+:root[data-theme="dark"][data-accent="amber"] { --cyan: oklch(0.82 0.11 84); }
+:root[data-theme="dark"][data-accent="cyan"] { --cyan: oklch(0.80 0.10 195); }
+:root[data-theme="dark"][data-accent="emerald"] { --cyan: oklch(0.79 0.10 175); }
+:root[data-theme="dark"][data-accent="indigo"] { --cyan: oklch(0.78 0.11 300); }
+:root[data-theme="dark"][data-accent="fuchsia"] { --cyan: oklch(0.79 0.11 340); }
+:root[data-theme="dark"][data-accent="red"] { --cyan: oklch(0.78 0.11 30); }
+:root[data-theme="dark"][data-accent="orange"] { --cyan: oklch(0.80 0.11 55); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"])[data-accent="teal"] { --cyan: oklch(0.78 0.10 192); }
+  :root:not([data-theme="light"])[data-accent="violet"] { --cyan: oklch(0.78 0.11 322); }
+  :root:not([data-theme="light"])[data-accent="rose"] { --cyan: oklch(0.78 0.11 352); }
+  :root:not([data-theme="light"])[data-accent="amber"] { --cyan: oklch(0.82 0.11 84); }
+  :root:not([data-theme="light"])[data-accent="cyan"] { --cyan: oklch(0.80 0.10 195); }
+  :root:not([data-theme="light"])[data-accent="emerald"] { --cyan: oklch(0.79 0.10 175); }
+  :root:not([data-theme="light"])[data-accent="indigo"] { --cyan: oklch(0.78 0.11 300); }
+  :root:not([data-theme="light"])[data-accent="fuchsia"] { --cyan: oklch(0.79 0.11 340); }
+  :root:not([data-theme="light"])[data-accent="red"] { --cyan: oklch(0.78 0.11 30); }
+  :root:not([data-theme="light"])[data-accent="orange"] { --cyan: oklch(0.80 0.11 55); }
+}
+/* غسلة السديم البنفسجية الثابتة في أرض الموقع تصبح من عائلة
+   لون التمييز أيضًا — لا لون غريب عن المختار في أي مكان */
+.app-shell::before {
+  background:
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 65%);
+}
+:root[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-shell::before {
+    background:
+      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
+      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+      radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%);
+  }
+}
+
+/* ---- ٤) العلامة المائية: اسم المالك على صفحة الدخول فقط ----
+   حروف لاتينية ضخمة بتدرّج من عائلة لون التمييز، ولمعة ضوئية
+   بطيئة تعبرها، خلف نموذج الدخول وفوق الأرض — مبهرة لكنها
+   لا تنافس القراءة (شفافية محسوبة)، ولا تسبب أي تمرير */
+.auth-v81 { overflow-x: clip; }
+.auth-watermark {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 3.5vh;
+  z-index: 0;
+  text-align: center;
+  font-family: "Rubik", "IBM Plex Sans Arabic", sans-serif;
+  font-weight: 800;
+  font-size: clamp(42px, 8.5vw, 118px);
+  line-height: 1.02;
+  white-space: nowrap;
+  color: transparent;
+  background: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--accent) 62%, transparent) 20%,
+    color-mix(in srgb, var(--grad-end, var(--cyan)) 30%, transparent) 42%,
+    oklch(1 0 0 / 0.55) 50%,
+    color-mix(in srgb, var(--grad-end, var(--cyan)) 30%, transparent) 58%,
+    color-mix(in srgb, var(--accent) 62%, transparent) 80%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0.13;
+  pointer-events: none;
+  user-select: none;
+  animation: neb-watermark-sheen 9s ease-in-out infinite;
+}
+:root[data-theme="dark"] .auth-watermark { opacity: 0.18; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-watermark { opacity: 0.18; }
+}
+@keyframes neb-watermark-sheen {
+  0%, 100% { background-position: 110% 0; }
+  50% { background-position: -10% 0; }
+}
+/* النموذج والشريط العلوي فوق العلامة دائمًا */
+.auth-v81 .auth-topbar,
+.auth-v81 .auth-split { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-watermark { animation: none; }
+  .sources-glyph .sources-glyph-orbit { transition: none; }
+}
+
+/* ============================================================
+   v82 — تطوير مبهر لكل الموقع (طلب المالك: «طوّر كل حاجة
+   اكتر… ارفع مستوى كل جزء»). طبقة تنفيذ فقط: عمق وضوء وحركة
+   أرقى على كل الأسطح — بلا أي تغيير سلوك أو بيانات، وبلا
+   إعادة أي عنصر محذوف. كل لون هنا مشتق من لون التمييز
+   المختار (v81)، في الوضعين النهاري والليلي.
+   ============================================================ */
+
+/* ---- لمسات عامة: تحديد النص وأشرطة التمرير بروح الموقع ---- */
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--text);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 32%, var(--border-strong)) transparent;
+}
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--accent) 30%, var(--border-strong));
+}
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 48%, var(--border-strong)); }
+.no-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+
+/* حلقة تركيز احتياطية موحّدة لأي زر أو رابط بلا حلقته الخاصة */
+:where(button, a, [role="button"], summary):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+/* ---- عمق واحد فاخر لكل الأسطح العائمة ---- */
+.float-header {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, var(--glass-line)),
+    0 24px 44px -24px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.modern-sidebar {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 20%, var(--glass-line)),
+    0 28px 52px -26px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.drawer-nav {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 20%, var(--glass-line));
+}
+.glass-panel {
+  box-shadow:
+    var(--shadow-5),
+    inset 0 1px 0 var(--glass-line),
+    0 34px 70px -30px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.details-panel {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 26%, var(--glass-line)),
+    0 30px 60px -28px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+.toast-card {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 var(--glass-line),
+    inset 3px 0 0 color-mix(in srgb, var(--accent) 75%, transparent),
+    0 22px 44px -20px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+[dir="rtl"] .toast-card {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 var(--glass-line),
+    inset -3px 0 0 color-mix(in srgb, var(--accent) 75%, transparent),
+    0 22px 44px -20px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.bulk-dock {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 var(--glass-line),
+    0 24px 48px -22px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+
+/* ---- الهيرو: حافة متدرجة حيّة تتنفس ببطء + توهّج أعمق ---- */
+.verse-hero {
+  background-size: 100% 100%, 230% 230%;
+  animation: neb-hero-edge 14s ease-in-out infinite;
+}
+@keyframes neb-hero-edge {
+  0%, 100% { background-position: 0 0, 0% 40%; }
+  50% { background-position: 0 0, 100% 60%; }
+}
+.hero-strip {
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 24%, var(--glass-line)),
+    0 16px 34px -18px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ---- كروت الردود والمعاينة: ظل ملوّن أعمق عند التحويم ---- */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lux-card:hover {
+    box-shadow:
+      var(--shadow-hover),
+      0 26px 54px -20px color-mix(in srgb, var(--accent) 42%, transparent),
+      0 4px 14px -6px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .pv-card {
+    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), border-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .pv-card:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
+    box-shadow:
+      var(--shadow-hover),
+      0 24px 50px -20px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .copy-cta {
+    transition: box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .copy-cta:hover {
+    box-shadow:
+      0 14px 30px -12px color-mix(in srgb, var(--accent) 50%, transparent),
+      inset 0 1px 0 oklch(1 0 0 / 0.22);
+  }
+}
+
+/* ---- الشجرة: صفوف تتنفس عند التحويم، وعناوين المجموعات
+   تحمل شرارة متدرجة صغيرة قبلها ---- */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .modern-sidebar [data-tree-row]:hover,
+  .drawer-nav [data-tree-row]:hover {
+    background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 75%);
+  }
+}
+.tree-row-group .tree-icon {
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--grad-end, var(--cyan)) 12%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/* ---- شريط التنقل السفلي: النشط حبة متدرجة مضيئة ---- */
+.bottom-nav {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow: 0 -14px 34px -20px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.bottom-nav [aria-current="page"] {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--grad-end, var(--cyan)) 10%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 14px;
+}
+
+/* ---- مبدّلات العرض والحبوب: توهّج ناعم للجزء النشط ---- */
+.seg-thumb, .pill-thumb {
+  box-shadow:
+    var(--shadow-1),
+    0 6px 16px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.modern-switcher {
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 var(--glass-line),
+    0 16px 34px -18px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .pill-btn { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .pill-btn:hover { transform: translateY(-1px); }
+  .pill-btn:active { transform: translateY(0) scale(0.97); }
+}
+
+/* ---- رأس المجلد في المحتوى: بلاطته تلمع بحلقة متدرجة ---- */
+.folder-bar-icon {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 26%, transparent),
+    0 10px 22px -12px color-mix(in srgb, var(--fhue, var(--accent)) 55%, transparent);
+}
+.icon-tile {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 13%, transparent), color-mix(in srgb, var(--grad-end, var(--cyan)) 8%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ---- صفحة الدخول: البطاقة بإطار متدرج من عائلة اللون
+   وظلّ أعمق — فوق العلامة المائية وبلا أي عنصر جديد ---- */
+.auth-v81 .auth-form-card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface-elevated) 96%, transparent), color-mix(in srgb, var(--surface-elevated) 96%, transparent)) padding-box,
+    linear-gradient(150deg, color-mix(in srgb, var(--accent) 62%, transparent), var(--border) 45%, color-mix(in srgb, var(--grad-end, var(--cyan)) 55%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-5),
+    inset 0 1px 0 var(--glass-line),
+    0 40px 80px -34px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ---- تقليل الحركة: طبقة التطوير كلها تسكن ---- */
+@media (prefers-reduced-motion: reduce) {
+  .verse-hero { animation: none; }
+  .verse-hero::before, .verse-hero::after { animation: none; }
+  .pv-card, .copy-cta, .pill-btn { transition: none; }
+}
+
+/* ============================================================
+   v84 — قراران من المالك + تطوير شامل أعلى درجة:
+   ١) الشعار: أُزيل شريط «Concept 02» المتدفق نهائيًا وعادت
+      علامة IS المتشابكة الأصلية التي اختارها المالك من
+      Designer.png — مفرّغة بتدرّج ياقوتي معدني (الأصول في
+      client/src/assets من جديد).
+   ٢) المربعات: نمط الشبكة الهندسي أُزيل من أرض الموقع ومن
+      صفحة الدخول نهائيًا، ومعه حبيبات الدخول ونقاط الحالات
+      الفارغة — الأرض الآن ضوء سديمي ناعم فقط، بلا أي نسيج.
+   ٣) التطوير الشامل: ظلال أعمق بطبقات، زجاج أنقى وأكثر
+      إشراقًا من الأعلى، توهّج معدني حول الشعار، أزرار وبطاقات
+      وألواح بعمق وحضور أعلى — كلها من عائلة لون التمييز
+      المختار، في الوضعين، وبلا أي تغيير سلوك أو بيانات.
+   ============================================================ */
+
+/* ---- الأرض النظيفة: لا حبيبات في الدخول، لا نقاط في الفراغات ---- */
+.auth-v78::after { background-image: none; opacity: 0; }
+.pattern-star { background-image: none; }
+
+/* ---- الأرض السديمية أغنى: بركة ضوء علوية وحضور أعمق ---- */
+.app-shell::before {
+  background:
+    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
+}
+:root[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.13), transparent 65%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-shell::before {
+    background:
+      radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
+      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
+      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
+      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
+      radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.13), transparent 65%);
+  }
+}
+
+/* ---- سلّم ظلال أعمق وأفخم لكل ما يستخدم التوكنز ---- */
+:root, :root[data-theme="light"] {
+  --shadow-2:
+    0 1px 2px oklch(0.30 0.08 262 / 0.06),
+    0 8px 22px -10px oklch(0.30 0.08 262 / 0.12),
+    0 28px 54px -22px oklch(0.35 0.10 262 / 0.22);
+  --shadow-3:
+    0 2px 5px oklch(0.30 0.08 262 / 0.06),
+    0 20px 42px -14px oklch(0.35 0.10 262 / 0.19),
+    0 48px 84px -30px oklch(0.40 0.12 258 / 0.30);
+  --shadow-4:
+    0 12px 26px oklch(0.28 0.08 262 / 0.12),
+    0 60px 110px -34px oklch(0.32 0.10 262 / 0.42);
+  --shadow-5:
+    0 14px 30px oklch(0.26 0.08 262 / 0.14),
+    0 72px 128px -30px oklch(0.30 0.10 262 / 0.52);
+  --glass-bg: oklch(1 0 0 / 0.78);
+  --glow-accent: 0 18px 44px -12px color-mix(in srgb, var(--accent) 62%, transparent);
+}
+:root[data-theme="dark"] {
+  --shadow-2:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 1px 2px oklch(0 0 0 / 0.48),
+    0 26px 50px -22px oklch(0 0 0 / 0.66);
+  --shadow-3:
+    inset 0 1px 0 oklch(1 0 0 / 0.07),
+    0 2px 5px oklch(0 0 0 / 0.48),
+    0 46px 82px -30px oklch(0 0 0 / 0.78);
+  --shadow-4:
+    0 12px 26px oklch(0 0 0 / 0.56),
+    0 60px 110px -34px oklch(0 0 0 / 0.82);
+  --shadow-5:
+    inset 0 1px 0 oklch(1 0 0 / 0.09),
+    0 72px 128px -30px oklch(0 0 0 / 0.9),
+    0 14px 30px oklch(0 0 0 / 0.5);
+  --glass-bg: oklch(0.16 0.034 261 / 0.82);
+  --glow-accent: 0 18px 44px -12px color-mix(in srgb, var(--accent) 56%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --shadow-2:
+      inset 0 1px 0 oklch(1 0 0 / 0.06),
+      0 1px 2px oklch(0 0 0 / 0.48),
+      0 26px 50px -22px oklch(0 0 0 / 0.66);
+    --shadow-3:
+      inset 0 1px 0 oklch(1 0 0 / 0.07),
+      0 2px 5px oklch(0 0 0 / 0.48),
+      0 46px 82px -30px oklch(0 0 0 / 0.78);
+    --shadow-4:
+      0 12px 26px oklch(0 0 0 / 0.56),
+      0 60px 110px -34px oklch(0 0 0 / 0.82);
+    --shadow-5:
+      inset 0 1px 0 oklch(1 0 0 / 0.09),
+      0 72px 128px -30px oklch(0 0 0 / 0.9),
+      0 14px 30px oklch(0 0 0 / 0.5);
+    --glass-bg: oklch(0.16 0.034 261 / 0.82);
+    --glow-accent: 0 18px 44px -12px color-mix(in srgb, var(--accent) 56%, transparent);
+  }
+}
+
+/* ---- الشعار المعدني المستعاد: ظل ياقوتي يتبع الحروف + هالة
+   ضوئية خفيفة خلفه، فيقرأ كقطعة معدن مصقولة لا كصورة مسطّحة ---- */
+.logo-modern {
+  filter:
+    drop-shadow(0 14px 26px oklch(0.32 0.13 262 / 0.38))
+    drop-shadow(0 3px 7px oklch(0.32 0.13 262 / 0.24))
+    drop-shadow(0 0 22px oklch(0.62 0.13 250 / 0.20));
+}
+:root[data-theme="dark"] .logo-modern {
+  filter:
+    drop-shadow(0 14px 28px oklch(0 0 0 / 0.55))
+    drop-shadow(0 3px 8px oklch(0 0 0 / 0.4))
+    drop-shadow(0 0 26px oklch(0.68 0.13 245 / 0.30));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-modern {
+    filter:
+      drop-shadow(0 14px 28px oklch(0 0 0 / 0.55))
+      drop-shadow(0 3px 8px oklch(0 0 0 / 0.4))
+      drop-shadow(0 0 26px oklch(0.68 0.13 245 / 0.30));
+  }
+}
+
+/* ---- الأسطح العائمة: خط ضوء علوي أصفى وظلّ ملوّن أعمق ---- */
+.float-header {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, var(--glass-line)),
+    inset 0 -1px 0 color-mix(in srgb, var(--accent) 8%, transparent),
+    0 28px 52px -26px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+.modern-sidebar {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 28%, var(--glass-line)),
+    0 34px 62px -28px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.glass-panel, .pop-glass {
+  box-shadow:
+    var(--shadow-5),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 24%, var(--glass-line)),
+    0 40px 80px -32px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.details-panel {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 32%, var(--glass-line)),
+    0 36px 68px -30px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.bulk-dock {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 26%, var(--glass-line)),
+    0 26px 50px -22px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.bottom-nav {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 24%, var(--glass-line)),
+    0 -18px 40px -22px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ---- الأزرار الأساسية وزر النسخ: تدرّج أغنى وظلّ ملوّن أعمق
+   ورفعة خفيفة عند التحويم ---- */
+.btn-lux {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.28),
+    inset 0 -1px 0 oklch(0 0 0 / 0.10),
+    0 14px 30px -10px color-mix(in srgb, var(--accent) 58%, transparent);
+}
+.copy-cta {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.22),
+    0 10px 24px -10px color-mix(in srgb, var(--accent) 52%, transparent);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .btn-lux { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), filter 200ms ease; }
+  .btn-lux:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05) saturate(1.04);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.32),
+      inset 0 -1px 0 oklch(0 0 0 / 0.10),
+      0 20px 38px -12px color-mix(in srgb, var(--accent) 66%, transparent);
+  }
+  .btn-lux:active { transform: translateY(0) scale(0.98); }
+}
+
+/* ---- الهيرو: توهّج أعمق وحافة أغنى (الآية تملأ البطاقة كما
+   ضُبطت في v83 — لا تغيير في القياس) ---- */
+.verse-hero {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, var(--glass-line)),
+    0 34px 72px -28px color-mix(in srgb, var(--accent) 46%, transparent);
+}
+
+/* ---- بلاطات الأيقونات: عمق داخلي وحلقة أنقى ---- */
+.icon-tile {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.18),
+    0 8px 18px -10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.folder-bar-icon {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 32%, transparent),
+    inset 0 1px 0 oklch(1 0 0 / 0.20),
+    0 12px 26px -12px color-mix(in srgb, var(--fhue, var(--accent)) 62%, transparent);
+}
+
+/* ---- حقول الإدخال في كل الموقع: توهّج تركيز ناعم موحّد ---- */
+:where(input:not([type="checkbox"], [type="radio"]), textarea, select):focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ---- بطاقة الدخول: ظلّ أعمق فوق الأرض النظيفة ---- */
+.auth-v81 .auth-form-card {
+  box-shadow:
+    var(--shadow-5),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 26%, var(--glass-line)),
+    0 48px 92px -36px color-mix(in srgb, var(--accent) 46%, transparent);
+}
+
+/* ---- تقليل الحركة: اللمسات الجديدة تسكن ---- */
+@media (prefers-reduced-motion: reduce) {
+  .btn-lux { transition: none; }
+  .btn-lux:hover { transform: none; }
+}
+
+/* ============================================================
+   v88 — عودة NEBULA + شعار القوس + تطوير فوقها (طلب المالك:
+   «ارجع لأكتر نسخة قولتلك عليها إنها عاجبتني في كل حاجة —
+   NEBULA — بس طوّرها أكتر في كل حاجة، وغيّر اللوجو لشكل
+   القوس اللي اخترته: أنيق وقيّم ونضيف»).
+   ------------------------------------------------------------
+   · طبقتا الهوية الذهبية (v86/v87) حُذفتا من الملف نهائيًا،
+     فعادت قيم NEBULA الأصلية (v76 + صقل v77 + طبقات v81/v82/
+     v84) هي الحاكمة: أرض سماوية حيّة، زجاج عائم، أزرار
+     بتدرّج لون التمييز المتوهّج، وليل فضاء عميق — والافتراضي
+     عاد الملكي (العنبري الذي فرضه البناء المرفوض رُحّل مرة
+     واحدة في App.tsx).
+   · الشعار علامة Concept 04 كما في لوحة المالك المعتمدة
+     نفسها: حرف I بسيريف عالٍ متشابك مع إطار رفيع مفتوح
+     وزاوية علوية مليانة، وحرف S شريط مزدوج متدفق بقناة
+     رفيعة بين شريطيه — الهندسة متتبَّعة بكسلًا ببكسل من
+     صورة اللوحة (logo-arch-work/trace_board.py) بعد رفض
+     رسمتين يدويتين، شفاف بلا أي خلفية، وألوانه من
+     --logo-* المشتقة من لون التمييز المختار — هذه الطبقة
+     تضبط تقديمه فقط.
+   · التطوير هنا لمسات تنفيذ فوق NEBULA المستعادة: تقديم
+     أنقى للعلامة، توحيد آخر بقعة لون ثابتة في السديم تحت
+     لون التمييز، وعمق إضافي هادئ للأسطح العائمة ليلًا.
+   لا تغيير في أي سلوك أو بيانات.
+   ============================================================ */
+
+/* ---- تقديم علامة القوس: ظلّ ناعم من عائلة لون التمييز
+   يتبع حروف العلامة نفسها، وهالة خفيفة ليلًا — العلامة
+   عارية دائمًا: لا بلاطة ولا خلفية ولا إطار حولها ---- */
+.logo-modern {
+  filter:
+    drop-shadow(0 12px 22px oklch(from var(--accent) 0.32 0.11 h / 0.30))
+    drop-shadow(0 2px 6px oklch(from var(--accent) 0.30 0.10 h / 0.20))
+    drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 16%, transparent));
+}
+:root[data-theme="dark"] .logo-modern {
+  filter:
+    drop-shadow(0 12px 24px oklch(0 0 0 / 0.50))
+    drop-shadow(0 2px 6px oklch(0 0 0 / 0.38))
+    drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 34%, transparent));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-modern {
+    filter:
+      drop-shadow(0 12px 24px oklch(0 0 0 / 0.50))
+      drop-shadow(0 2px 6px oklch(0 0 0 / 0.38))
+      drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 34%, transparent));
+  }
+}
+
+/* ---- السديم: آخر بقعة لون ثابتة (الغسلة البنفسجية في
+   الركن) صارت من عائلة لون التمييز نفسه — لا لون غريب
+   عن الاختيار في أي بقعة من الأرض ---- */
+.app-shell::before {
+  background:
+    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 9%, transparent), transparent 65%);
+}
+:root[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 13%, transparent), transparent 65%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-shell::before {
+    background:
+      radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
+      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
+      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
+      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
+      radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 13%, transparent), transparent 65%);
+  }
+}
+
+/* ---- تطوير ليلي: زجاج أعمق قليلًا وخط ضوء أعلى أنقى على
+   الأسطح العائمة، فيقرأ الليل فضاءً زجاجيًا لا أسطح مسطّحة ---- */
+:root[data-theme="dark"] .float-header,
+:root[data-theme="dark"] .modern-sidebar,
+:root[data-theme="dark"] .glass-panel {
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 24%, var(--glass-line)),
+    0 30px 56px -28px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .float-header,
+  :root:not([data-theme="light"]) .modern-sidebar,
+  :root:not([data-theme="light"]) .glass-panel {
+    box-shadow:
+      var(--shadow-3),
+      inset 0 1px 0 color-mix(in srgb, var(--accent) 24%, var(--glass-line)),
+      0 30px 56px -28px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+}
+
+/* ---- العلامة المائية على صفحة الدخول: مرفوعة قليلًا كما
+   ثبت في v87 حتى تظهر كاملة داخل الصفحة ولا تُقصّ ---- */
+.auth-watermark { bottom: 5vh; }
+
+/* ============================================================
+   v89 — «انت مغيرتش اي حاجة، نفس الموجود»: تشخيص من الأدلة
+   وإصلاح جذري للرؤية.
+   ------------------------------------------------------------
+   المالك فتح الموقع بعد v88 ولقى نفس الشكل المرفوض. سببان
+   اجتمعا:
+   (١) لون التمييز على جهازه فضل «عنبري» — وهو ذهبيّ الهوية
+       المرفوضة نفسه: ترحيل v88 اعتمد على علم منفصل قد يكون
+       اتعلّم بينما القيمة العنبرية نفسها فضلت محفوظة، ففضلت
+       كل العناصر القوية اللون (الأزرار، الصفوف النشطة،
+       الشعار، التوهّجات) ذهبية كما هي. الإصلاح في App.tsx:
+       قاعدة v89 تشفي أي قيمة غريبة للملكي وترحّل العنبري
+       القسري ما لم يكن اختيارًا مقصودًا داخل هذا البناء.
+   (٢) أرض NEBULA المستعادة في v88 كانت أخفت من أن تُقرأ
+       تغييرًا: خلفية شبه بيضاء وغسلات 13–19٪ وأسطح بيضاء —
+       والهوية الذهبية المرفوضة نهارها عاجيّ شبه أبيض أيضًا،
+       فتشابه النهاران على العين.
+   هذه الطبقة تجعل أرض NEBULA مقروءة من أول نظرة: سماء
+   زرقاء حيّة واضحة الزرقة نهارًا، وبرك سديمية أقوى تتنفس
+   خلف الزجاج العائم وتتسرّب من خلاله، وليل فضاء أعمق
+   وأغنى توهّجًا — وكلها من عائلة لون التمييز المختار كما
+   هو مقرّر، بلا أي لون غريب وبلا تغيير سلوك أو بيانات.
+   ============================================================ */
+
+/* ---- نهار سماوي واضح الزرقة: الأرض لم تعد شبه بيضاء،
+   والزجاج أشفّ قليلًا فيتسرّب ضوء السديم من خلال الأسطح
+   العائمة بدل أن تنعزل عنه ---- */
+:root, :root[data-theme="light"] {
+  --bg: oklch(0.938 0.034 250);
+  --bg-sidebar: oklch(0.962 0.024 252 / 0.68);
+  --surface: oklch(1 0 0 / 0.82);
+}
+
+/* ---- ليل فضاء أعمق: قاع أزرق ليلي أخفض وقاعدة قايمة
+   أعمق، فيقرأ الليل عمقًا لا سوادًا مسطّحًا ---- */
+:root[data-theme="dark"] {
+  --bg: oklch(0.070 0.034 265);
+  --bg-sidebar: oklch(0.104 0.034 263 / 0.74);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: oklch(0.070 0.034 265);
+    --bg-sidebar: oklch(0.104 0.034 263 / 0.74);
+  }
+}
+
+/* ---- السديم الحيّ: برك أقوى وغسلة وسطى واسعة تحمل زرقة
+   السماء إلى قلب الصفحة لا أركانها فقط — الأرض كلها
+   سماء، والزجاج يطفو فوقها ---- */
+.app-shell::before {
+  background:
+    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 24%, transparent), transparent 70%),
+    radial-gradient(1150px 780px at 50% 42%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%),
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 32%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 26%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 18%, transparent), transparent 65%);
+}
+:root[data-theme="dark"] .app-shell::before {
+  background:
+    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
+    radial-gradient(1150px 780px at 50% 42%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 72%),
+    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 65%),
+    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 30%, transparent), transparent 65%),
+    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 65%),
+    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 22%, transparent), transparent 65%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app-shell::before {
+    background:
+      radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%),
+      radial-gradient(1150px 780px at 50% 42%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 72%),
+      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 65%),
+      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 30%, transparent), transparent 65%),
+      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 65%),
+      radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 22%, transparent), transparent 65%);
+  }
+}
+
+/* ============================================================
+   v91 — التطوير الشامل الكامل (طلب المالك: «اعمل تطوير كامل
+   وشامل لكل التفاصيل — تطوير وتنظيم لكل حاجة — وخلّي كل
+   حاجة بمنتهى الدقة وكل حاجة غالية جدًا ومتكلفة وشكلها
+   جامد»، النطاق: كل شاشة وكل عنصر وكل تفصيلة).
+   ------------------------------------------------------------
+   طبقة تطوير واحدة منظمة تمسّ كل سطح بالاسم: الهيدر،
+   القائمة، الرئيسية والهيرو، كروت الردود بكل كثافاتها،
+   شريط الفلاتر، المجلدات، المحرر، النوافذ والقوائم، لوحة
+   التفاصيل، التنبيهات، شريط الإجراءات الجماعية، الحالات
+   الفارغة، الهياكل، صفحة الحساب، صفحة الدخول، المعاينة،
+   والموبايل — فوق هوية NEBULA كما هي (أرض سماوية حية،
+   زجاج عائم، تدرّج لون التمييز)، وكل لون مشتق من لون
+   التمييز المختار في الوضعين. لا تغيير في أي سلوك أو
+   بيانات أو بنية — تطوير بصري وتنظيمي فقط.
+   ============================================================ */
+
+/* ============================================================
+   ١) حرفة عامة: حدة نص، أرقام عدّادات منتظمة، وتمييز
+   نتائج البحث بلون التمييز بدل أصفر المتصفح الافتراضي
+   ============================================================ */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+/* كل عدّاد في الموقع بأرقام ثابتة العرض — لا قفز في العرض
+   لما الرقم يتغير (شجرة، أشرطة مجلدات، حبوب الفلاتر) */
+.tree-count, .folder-bar-count, .hero-counter,
+.pill-btn, .seg-btn, .folder-bar-open {
+  font-variant-numeric: tabular-nums;
+}
+/* تمييز كلمة البحث داخل العناوين والمعاينات: غسلة من لون
+   التمييز بحواف ناعمة، والنص بلون النص نفسه دائمًا */
+mark {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: inherit;
+  border-radius: 4px;
+  padding-inline: 1.5px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+:root[data-theme="dark"] mark {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) mark {
+    background: color-mix(in srgb, var(--accent) 34%, transparent);
+  }
+}
+
+/* ============================================================
+   ٢) الهيدر: حقل البحث بئر زجاجي غائر بعمق داخلي، يضيء
+   محيطه بلون التمييز عند التركيز؛ وأزرار الكبسولة أقراص
+   موحّدة اللمس
+   ============================================================ */
+.float-header input {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 88%, transparent), var(--surface));
+  box-shadow:
+    inset 0 2px 5px oklch(0.30 0.08 262 / 0.07),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent),
+    0 8px 22px -10px oklch(0.30 0.08 262 / 0.16);
+}
+.float-header input:focus {
+  background: var(--surface-elevated);
+  box-shadow:
+    inset 0 1px 3px oklch(0.30 0.08 262 / 0.05),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 14px 30px -10px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+:root[data-theme="dark"] .float-header input {
+  box-shadow:
+    inset 0 2px 5px oklch(0 0 0 / 0.35),
+    inset 0 0 0 1px oklch(1 0 0 / 0.07),
+    0 8px 22px -10px oklch(0 0 0 / 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .float-header input {
+    box-shadow:
+      inset 0 2px 5px oklch(0 0 0 / 0.35),
+      inset 0 0 0 1px oklch(1 0 0 / 0.07),
+      0 8px 22px -10px oklch(0 0 0 / 0.5);
+  }
+}
+/* أيقونة البحث داخل الحقل تتلوّن بلون التمييز وهو مفتوح */
+.float-header > div:focus-within > span:first-child { color: var(--accent); }
+/* أقراص أيقونات الكبسولة: ظل خفيف عند التحويم يرفع القرص */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .float-header .lux-btn:not(:has(.logo-modern)):hover {
+    box-shadow: var(--shadow-1), 0 6px 14px -6px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+/* ============================================================
+   ٣) القائمة الجانبية والدرج: إيقاع صفوف موحّد، عناوين
+   مجموعات أهدأ وأوضح، بلاطات أيقونات بعمق داخلي، وعدّادات
+   بحلقة شعرية
+   ============================================================ */
+.modern-sidebar [data-tree-row],
+.drawer-nav [data-tree-row] {
+  border-radius: 12px;
+  min-height: 40px;
+}
+.modern-sidebar .nav-label,
+.drawer-nav .nav-label {
+  font-weight: 700;
+  color: var(--faint);
+}
+/* بلاطة أيقونة الصف: تدرّج من لون موضوع الصف نفسه مع لمعة
+   حدّ علوية وحلقة داخلية — قطعة مصنوعة لا مربع مسطّح */
+.tree-icon {
+  background: linear-gradient(150deg,
+    color-mix(in srgb, var(--fhue, var(--accent)) 17%, var(--surface)) 0%,
+    color-mix(in srgb, var(--fhue, var(--accent)) 7%, var(--surface)) 100%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.45),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 22%, transparent);
+}
+:root[data-theme="dark"] .tree-icon {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.09),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 30%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tree-icon {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.09),
+      inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 30%, transparent);
+  }
+}
+.tree-count {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent);
+}
+/* مقبض تغيير العرض: قرصه يمتلئ بلون التمييز عند الإمساك */
+.sidebar-resize-active .sidebar-resize-grip {
+  background: var(--grad);
+  color: var(--on-grad);
+  border-color: transparent;
+}
+
+/* ============================================================
+   ٤) الهيرو: الآية بتوهّج ضوئي خفيف جدًا خلف حروفها،
+   والعدّاد قرص زجاجي صغير بنقطة حيّة من لون التمييز —
+   البطاقة نفسها كما هي (الآية تملؤها كما ضُبطت)
+   ============================================================ */
+.verse-hero .verse {
+  text-shadow:
+    0 0 26px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 1px 0 oklch(1 0 0 / 0.35);
+}
+:root[data-theme="dark"] .verse-hero .verse {
+  text-shadow:
+    0 0 30px color-mix(in srgb, var(--accent) 26%, transparent),
+    0 1px 0 oklch(0 0 0 / 0.3);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .verse-hero .verse {
+    text-shadow:
+      0 0 30px color-mix(in srgb, var(--accent) 26%, transparent),
+      0 1px 0 oklch(0 0 0 / 0.3);
+  }
+}
+.hero-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, var(--border)),
+    inset 0 1px 0 var(--glass-line),
+    0 8px 18px -10px color-mix(in srgb, var(--accent) 35%, transparent);
+  font-size: 13.5px;
+}
+.hero-counter::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 99px;
+  background: var(--grad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* ============================================================
+   ٥) أزرار الإجراءات الأساسية (جديد/جماعية/حفظ…): رفعة
+   خفيفة وظلّ أعمق عند التحويم للأزرار الممتلئة بلون
+   التمييز، وعمق أصفى للأزرار الثانوية ذات الحدّ
+   ============================================================ */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"] {
+    transition: transform 180ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms ease;
+  }
+  button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"]:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.30),
+      0 20px 38px -12px color-mix(in srgb, var(--accent) 62%, transparent),
+      0 6px 16px -6px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"]:active {
+    transform: translateY(0) scale(0.98);
+  }
+  /* زر ثانوي بحدّ وسطح: يرتفع درجة ويستقبل حلقة التمييز */
+  button[class*="border-[var(--border)]"][class*="bg-[var(--surface)]"]:hover {
+    box-shadow:
+      var(--shadow-1),
+      inset 0 1px 0 var(--glass-line),
+      0 10px 22px -12px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+}
+
+/* ============================================================
+   ٦) شريط الفلاتر: الكبسولة بحافة متدرجة من عائلة لون
+   التمييز (لغة بطاقة «المصادر» وبطاقة الدخول نفسها)،
+   ومسار المبدّل غائر بعمق داخلي، وحبة «المزيد» النشطة
+   بحلقة أوضح
+   ============================================================ */
+.modern-switcher {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface-elevated) 88%, transparent), color-mix(in srgb, var(--surface-elevated) 88%, transparent)) padding-box,
+    linear-gradient(130deg, color-mix(in srgb, var(--accent) 48%, transparent), var(--glass-border) 45%, color-mix(in srgb, var(--grad-end, var(--cyan)) 44%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 var(--glass-line),
+    0 18px 36px -18px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.seg-track {
+  box-shadow:
+    inset 0 2px 5px oklch(0.30 0.08 262 / 0.08),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent);
+}
+:root[data-theme="dark"] .seg-track {
+  box-shadow:
+    inset 0 2px 5px oklch(0 0 0 / 0.35),
+    inset 0 0 0 1px oklch(1 0 0 / 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .seg-track {
+    box-shadow:
+      inset 0 2px 5px oklch(0 0 0 / 0.35),
+      inset 0 0 0 1px oklch(1 0 0 / 0.06);
+  }
+}
+/* شريط التصنيفات المنزلق (موبايل): القرص النشط يرث التدرّج
+   الحيّ وظلّه الملوّن مثل زر «جديد» تمامًا */
+div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
+  background-image: var(--grad);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.26),
+    0 12px 24px -9px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ============================================================
+   ٧) كروت الردود: بلاطة المجلد على الكارت تُعرَّف أخيرًا
+   بتعريف كامل (كانت بلا أي تنسيق — أيقونة عارية على
+   السطح)، وسطح الكارت بخط ضوء علوي، والمختار بعمود
+   تمييز على حافته البادئة
+   ============================================================ */
+/* بلاطة أيقونة مجلد الكارت: نفس لغة بلاطة شريط المجلد —
+   تدرّج من لون المجلد نفسه، لمعة حدّ علوية، حلقة داخلية،
+   وظلّ ملوّن يسقط منها */
+.card-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--fhue, var(--accent)) 26%, var(--surface)) 0%,
+    color-mix(in srgb, var(--fhue, var(--accent)) 12%, var(--surface)) 100%);
+  color: color-mix(in srgb, var(--fhue, var(--accent)) 78%, var(--text));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.5),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 30%, transparent),
+    0 10px 20px -10px color-mix(in srgb, var(--fhue, var(--accent)) 55%, transparent);
+}
+.card-tile-sm { width: 34px; height: 34px; border-radius: 11px; }
+.card-tile > svg { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lux-card:hover .card-tile > svg { transform: scale(1.13) rotate(-3deg); }
+}
+:root[data-theme="dark"] .card-tile {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.10),
+    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 34%, transparent),
+    0 10px 20px -10px color-mix(in srgb, var(--fhue, var(--accent)) 45%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .card-tile {
+    box-shadow:
+      inset 0 1px 0 oklch(1 0 0 / 0.10),
+      inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 34%, transparent),
+      0 10px 20px -10px color-mix(in srgb, var(--fhue, var(--accent)) 45%, transparent);
+  }
+}
+:root[data-icon-style="plain"] .card-tile {
+  background: transparent;
+  box-shadow: none;
+}
+/* سطح الكارت في الراحة: خط ضوء علوي يفصله عن الأرض، وحدّ
+   أنقى قليلًا — الكارت يقرأ قطعة زجاج مصنوعة لا لوحًا */
+.reply-card {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 1px 0 color-mix(in srgb, var(--glass-line) 75%, transparent);
+}
+:root[data-theme="dark"] .reply-card {
+  border-color: oklch(1 0 0 / 0.13);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .reply-card { border-color: oklch(1 0 0 / 0.13); }
+}
+/* الكارت المختار/النشط: عمود تدرّج رفيع على الحافة البادئة
+   فوق حلقة الاختيار الحالية */
+.card-marked {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+    inset 3.5px 0 0 color-mix(in srgb, var(--accent) 85%, transparent);
+}
+[dir="rtl"] .card-marked {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+    inset -3.5px 0 0 color-mix(in srgb, var(--accent) 85%, transparent);
+}
+@media (hover: hover) {
+  .lux-card.card-marked:hover {
+    box-shadow:
+      var(--shadow-hover),
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+      inset 3.5px 0 0 color-mix(in srgb, var(--accent) 85%, transparent);
+  }
+  [dir="rtl"] .lux-card.card-marked:hover {
+    box-shadow:
+      var(--shadow-hover),
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+      inset -3.5px 0 0 color-mix(in srgb, var(--accent) 85%, transparent);
+  }
+}
+/* الكثافة المضغوطة: منطقة المحتوى بأنفاس أرحب قليلًا،
+   وصفّها ينفصل عن زر النسخ بخط شعري عمودي */
+.reply-card .compact-zone { padding-block: 9px; }
+.reply-card .compact-zone + * {
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--border) 65%, transparent);
+}
+[dir="rtl"] .reply-card .compact-zone + * {
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+/* ============================================================
+   ٨) المجلدات: عدّاد شريط المجلد قرص ملوّن بلون المجلد
+   نفسه، والعنوان بوزن أثبت، وكروت المجلدات في المحتوى
+   ترث عمق الكروت نفسه
+   ============================================================ */
+.folder-bar-count {
+  background: color-mix(in srgb, var(--fhue, var(--accent)) 12%, var(--surface-alt));
+  color: color-mix(in srgb, var(--fhue, var(--accent)) 72%, var(--text));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 24%, transparent);
+}
+.folder-bar-title { font-weight: 800; }
+.folder-bar {
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 color-mix(in srgb, var(--glass-line) 80%, transparent);
+}
+
+/* ============================================================
+   ٩) لوحة التفاصيل: مقبض إمساك للموبايل، عنوان أبرز،
+   كتلة نص الرد بحلقة وعمق داخلي، وشرائح الوسوم بحلقة
+   شعرية تتلوّن عند التحويم
+   ============================================================ */
+@media (max-width: 1023px) {
+  .details-panel::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 5px;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--border-strong) 65%, transparent);
+  }
+  .details-panel { padding-top: 26px; }
+}
+.details-panel h2 { font-size: 20px; }
+.details-panel [class*="select-text"] {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent),
+    inset 0 2px 6px oklch(0.30 0.08 262 / 0.05);
+  border-radius: var(--r-md);
+}
+.details-panel [aria-label="الكلمات المفتاحية"] > span {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 65%, transparent);
+  transition: box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .details-panel [aria-label="الكلمات المفتاحية"] > span:hover {
+    color: var(--accent-strong);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
+/* صفوف بيانات اللوحة: فصل أهدأ بين الصفوف */
+.details-panel dl { row-gap: 9px; }
+.details-panel dl dd { color: var(--text); }
+
+/* ============================================================
+   ١٠) النوافذ والمحرر: حافة النوافذ المتدرجة أغنى، ولمعة
+   مقبض خفيفة أعلى أوراق الموبايل، وحقول اللوحات بعمق
+   داخلي موحّد، وشريط أدوات التنسيق مسار غائر، وعناوين
+   النوافذ أثبت
+   ============================================================ */
+.glass-panel {
+  background:
+    linear-gradient(var(--surface-elevated), var(--surface-elevated)) padding-box,
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 66%, transparent), var(--glass-border) 42%, color-mix(in srgb, var(--grad-end, var(--cyan)) 55%, transparent)) border-box;
+}
+@media (max-width: 639px) {
+  /* لمعة مقبض الإمساك أعلى الورقة — طبقة خلفية لا عنصر
+     جديد، فلا يتغير أي سلوك سحب أو إغلاق */
+  .glass-panel {
+    background:
+      radial-gradient(40px 5px at 50% 8px, color-mix(in srgb, var(--border-strong) 55%, transparent), transparent 72%) padding-box,
+      linear-gradient(var(--surface-elevated), var(--surface-elevated)) padding-box,
+      linear-gradient(160deg, color-mix(in srgb, var(--accent) 66%, transparent), var(--glass-border) 42%, color-mix(in srgb, var(--grad-end, var(--cyan)) 55%, transparent)) border-box;
+  }
+}
+.glass-panel h2 { font-weight: 700; }
+/* حقول النوافذ والمحرر: سطح هادئ بعمق داخلي خفيف، وعند
+   التركيز حلقة التمييز الموحّدة (v84) فوق سطح أصفى */
+.glass-panel :where(input:not([type="checkbox"], [type="radio"]), textarea, select) {
+  box-shadow:
+    inset 0 2px 4px oklch(0.30 0.08 262 / 0.05),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+}
+:root[data-theme="dark"] .glass-panel :where(input:not([type="checkbox"], [type="radio"]), textarea, select) {
+  box-shadow:
+    inset 0 2px 4px oklch(0 0 0 / 0.28),
+    inset 0 0 0 1px oklch(1 0 0 / 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .glass-panel :where(input:not([type="checkbox"], [type="radio"]), textarea, select) {
+    box-shadow:
+      inset 0 2px 4px oklch(0 0 0 / 0.28),
+      inset 0 0 0 1px oklch(1 0 0 / 0.05);
+  }
+}
+/* شريط أدوات تنسيق الرد في المحرر: مسار غائر واحد يجمع
+   أزراره بدل أزرار سائبة على السطح */
+.glass-panel [role="toolbar"] {
+  background: var(--surface-alt);
+  border-radius: var(--r-md);
+  padding: 6px;
+  box-shadow:
+    inset 0 2px 5px oklch(0.30 0.08 262 / 0.06),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent);
+}
+/* بلاطات تسميات المحرر: ظلّ ملوّن خفيف يرفعها عن السطح */
+.editor-label-icon {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 4px 10px -4px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ============================================================
+   ١١) القوائم المنبثقة: عناصر بزوايا موحّدة، وأيقونة كل
+   عنصر تتلوّن بلون التمييز عند التحويم (نفس قاعدة
+   النوافذ في v80 — تمتد هنا للزجاج المنبثق كله)
+   ============================================================ */
+[role="menu"] > button, [role="menu"] > [role="button"] { border-radius: 10px; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .pop-glass button:hover svg.lucide,
+  .pop-glass [role="button"]:hover svg.lucide { transform: translateY(-1px) scale(1.14); }
+}
+.pop-glass {
+  box-shadow:
+    var(--shadow-5),
+    inset 0 1px 0 var(--glass-line),
+    0 30px 60px -26px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+/* ============================================================
+   ١٢) التنبيهات وشريط الإجراءات الجماعية: أيقونة التوست
+   في قرص زجاجي صغير، والرصيف الجماعي بخط ضوء متدرج
+   على حافته العلوية
+   ============================================================ */
+.toast-card > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 99px;
+  background: oklch(1 0 0 / 0.10);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.14);
+}
+.bulk-dock {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, var(--glass-line)),
+    0 26px 50px -22px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+/* ============================================================
+   ١٣) الحالات الفارغة والهياكل: الصندوق المنقّط أنعم
+   حدًّا بتوهّج علوي خفيف وعنوان أبرز، ولمعة الهيكل
+   أخفت درجة
+   ============================================================ */
+.pattern-star {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background:
+    radial-gradient(420px 150px at 50% -40px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
+    var(--surface);
+  box-shadow:
+    inset 0 1px 0 var(--glass-line),
+    var(--shadow-1);
+}
+.pattern-star > p.font-semibold { font-size: 16.5px; }
+.skeleton-card::after {
+  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--text) 4.5%, transparent) 50%, transparent 75%);
+}
+
+/* ============================================================
+   ١٤) صفحة الحساب: حلقة الصورة الشخصية تدرّج حيّ كامل
+   (لا لون واحد مسطّح)، وصفوف الحساب داخل نافذته ترث
+   عمق حقول النوافذ الموحّد أعلاه
+   ============================================================ */
+.avatar-face {
+  box-shadow:
+    0 0 0 2px var(--surface-elevated),
+    0 0 0 3.5px color-mix(in srgb, var(--accent) 65%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--grad-end, var(--cyan)) 30%, transparent),
+    0 10px 20px -8px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* ============================================================
+   ١٥) صفحة الدخول: حقول بعمق داخلي ومسار التبويبات
+   غائر، وبلاطات المزايا بحلقة أنقى، والعنوان بثبات
+   أعلى — فوق طبقات v78–v81 كما هي
+   ============================================================ */
+.auth-v81 .auth-input, .auth-v79 .auth-input, .auth-input {
+  box-shadow:
+    inset 0 2px 4px oklch(0.30 0.08 262 / 0.05),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent);
+}
+.auth-v81 .auth-title { font-weight: 800; }
+.auth-v81 .auth-seg {
+  box-shadow:
+    inset 0 2px 5px oklch(0.30 0.08 262 / 0.07),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+}
+:root[data-theme="dark"] .auth-v81 .auth-seg {
+  box-shadow:
+    inset 0 2px 5px oklch(0 0 0 / 0.32),
+    inset 0 0 0 1px oklch(1 0 0 / 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-v81 .auth-seg {
+    box-shadow:
+      inset 0 2px 5px oklch(0 0 0 / 0.32),
+      inset 0 0 0 1px oklch(1 0 0 / 0.05);
+  }
+}
+.auth-v81 .auth-feature-item {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, var(--border)),
+    inset 0 1px 0 var(--glass-line);
+}
+
+/* ============================================================
+   ١٦) صفحة المعاينة: شرائحها ومبدّلها بنفس لغة الموقع
+   الحيّ — الشريحة النشطة بتدرّج خفيف وحلقة تمييز
+   ============================================================ */
+.pv-seg {
+  box-shadow:
+    inset 0 2px 5px oklch(0.30 0.08 262 / 0.07),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 45%, transparent);
+}
+.pv-chip {
+  box-shadow:
+    var(--shadow-1),
+    inset 0 1px 0 var(--glass-line);
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .pv-chip:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong));
+    box-shadow:
+      var(--shadow-2),
+      0 10px 22px -12px color-mix(in srgb, var(--accent) 38%, transparent);
+  }
+}
+
+/* ============================================================
+   ١٧) الموبايل: رصيف التنقّل بوجهة نشطة أبرز (أيقونتها
+   ترتفع درجة داخل قرصها)، كروت بحواف أنعم، وأهداف لمس
+   أرحب في صفوف القائمة داخل الدرج
+   ============================================================ */
+.bottom-nav button {
+  min-height: 54px;
+  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bottom-nav [aria-current="page"] svg.lucide {
+  transform: translateY(-1.5px) scale(1.08);
+}
+.bottom-nav button svg.lucide { transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+@media (max-width: 639px) {
+  .lux-card { border-radius: 18px; }
+  .folder-bar { border-radius: 19px; }
+  /* أزرار إجراءات الكارت المنبثقة عند اللمس: زجاج أعمق */
+  .card-actions.card-actions-open {
+    -webkit-backdrop-filter: blur(16px) saturate(1.45);
+    backdrop-filter: blur(16px) saturate(1.45);
+    box-shadow:
+      var(--shadow-pop),
+      inset 0 1px 0 var(--glass-line);
+  }
+}
+
+/* ============================================================
+   ١٨) تقليل الحركة: لمسات الطبقة الجديدة الحركية تسكن
+   كلها — لا رفعة ولا انزلاق ولا تحوّل
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"],
+  .pv-chip, .bottom-nav button, .bottom-nav button svg.lucide,
+  .card-tile > svg { transition: none; }
+  button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"]:hover { transform: none; }
+  .bottom-nav [aria-current="page"] svg.lucide { transform: none; }
+}

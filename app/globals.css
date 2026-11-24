@@ -1,0 +1,28 @@
+/* Root container sizing for the app shell — the local equivalent of the
+   SDK container styles the artifact relied on
+   (.hatch-space-root[data-hatch-space-root]). The design tokens live in
+   theme.css / tokens.css (imported in layout.tsx, theme first). */
+
+.hatch-space-root[data-hatch-space-root] {
+  --hatch-space-bottom-padding: calc(
+    var(--bottom-padding, 0px) + env(safe-area-inset-bottom, 0px)
+  );
+  box-sizing: border-box;
+  min-height: calc(
+    100% + var(--header-height, 0px) + var(--hatch-space-bottom-padding)
+  );
+  min-height: calc(
+    100dvh + var(--header-height, 0px) + var(--hatch-space-bottom-padding)
+  );
+  padding-top: var(--header-height, 0px);
+  padding-bottom: var(--hatch-space-bottom-padding);
+  background: var(--bg, #f4f7fb);
+  color: var(--text, #0f172a);
+}
+
+@media (prefers-color-scheme: dark) {
+  .hatch-space-root[data-hatch-space-root] {
+    background: var(--bg, #0c111b);
+    color: var(--text, #e5eef9);
+  }
+}
