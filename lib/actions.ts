@@ -5,11 +5,12 @@ import { del as blobDel } from "@vercel/blob";
 
 /* ================= shapes ================= */
 
-/* One image or video attached to a reply (see replyMedia in
-   lib/schema.ts). The bytes live in Vercel Blob; this is only the
+/* One image attached to a reply (see replyMedia in
+   lib/schema.ts). IMAGES ONLY — video was cancelled by the owner
+   2026-11-26. The bytes live in Vercel Blob; this is only the
    reference + display metadata. null = the reply has no media. */
 const mediaShape = z.object({
-  kind: z.enum(["image", "video"]),
+  kind: z.literal("image"),
   blobUrl: z.string(),
   blobPathname: z.string(),
   contentType: z.string(),
@@ -30,7 +31,7 @@ const shortcutShape = z.object({
   extShortcut: z.string(),
   source: z.string(),
   folderId: z.number().nullable(),
-  /* Attached image/video, or null. Joined in listShortcuts /
+  /* Attached image, or null. Joined in listShortcuts /
      listTrash; single-row actions return null (a fresh reply has
      no media, and attach/remove go through their own actions). */
   media: mediaShape.nullable(),
@@ -327,7 +328,7 @@ type MediaRow = typeof schema.replyMedia.$inferSelect;
 
 function toMediaShape(row: MediaRow): z.infer<typeof mediaShape> {
   return {
-    kind: row.kind === "video" ? "video" : "image",
+    kind: "image",
     blobUrl: row.blobUrl,
     blobPathname: row.blobPathname,
     contentType: row.contentType,
@@ -643,36 +644,29 @@ async function assertTriggerAvailable(
 }
 
 /* ================= reply media (Vercel Blob) =================
-   One image or video per reply. The bytes live in Vercel Blob
-   (public URLs); the DB holds only the reference. Limits are
-   enforced BOTH client-side (for instant feedback) and here
-   (the truth — a client can always be bypassed):
-   - image: JPEG/PNG/WebP only, max 8 MB. GIF is excluded v1: it
+   One image per reply. IMAGES ONLY — video was cancelled by the
+   owner 2026-11-26. The bytes live in Vercel Blob (public URLs);
+   the DB holds only the reference. Limits are enforced BOTH
+   client-side (for instant feedback) and here (the truth — a
+   client can always be bypassed):
+   - image: JPEG/PNG/WebP only, max 8 MB. GIF is excluded: it
      would be flattened to PNG on the clipboard anyway.
-   - video: MP4/WebM only, max 50 MB, max 5 minutes. MOV is
-     excluded v1 (its container is not a web-native clipboard or
-     <video> type).
    Pathnames are always `media/<userId>/<shortcutId>/<uuid>.<ext>` —
    never the user's original filename — and the URL must be a
    Vercel Blob public host, so attachMedia can never be used to
    point a reply at an arbitrary third-party URL. */
 export const MEDIA_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-export const MEDIA_VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
 export const MEDIA_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
-export const MEDIA_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
-export const MEDIA_VIDEO_MAX_DURATION_MS = 5 * 60 * 1000;
 /* The pathname shape the client builds (uuid from
    crypto.randomUUID, extension from the file). The upload route
    re-checks the userId/shortcutId prefix against the session. */
-export const MEDIA_PATH_RE = /^media\/(\d+)\/(\d+)\/[0-9a-f-]+\.(jpe?g|png|webp|mp4|webm)$/i;
+export const MEDIA_PATH_RE = /^media\/(\d+)\/(\d+)\/[0-9a-f-]+\.(jpe?g|png|webp)$/i;
 
-export function mediaLimitsFor(kind: "image" | "video"): {
+export function mediaLimitsFor(): {
   contentTypes: readonly string[];
   maxBytes: number;
 } {
-  return kind === "image"
-    ? { contentTypes: MEDIA_IMAGE_TYPES, maxBytes: MEDIA_IMAGE_MAX_BYTES }
-    : { contentTypes: MEDIA_VIDEO_TYPES, maxBytes: MEDIA_VIDEO_MAX_BYTES };
+  return { contentTypes: MEDIA_IMAGE_TYPES, maxBytes: MEDIA_IMAGE_MAX_BYTES };
 }
 
 /** Deletes one Blob object. A failure is logged but never fails
@@ -1846,44 +1840,31 @@ export const Actions = {
 
   attachMedia: defineAction({
     description:
-      "Attaches an already-uploaded image or video (Vercel Blob) to one of the signed-in user's own replies, replacing any media it already had. Re-validates kind, content type, size, pathname shape and Blob host server-side.",
+      "Attaches an already-uploaded image (Vercel Blob) to one of the signed-in user's own replies, replacing any media it already had. Re-validates kind, content type, size, pathname shape and Blob host server-side.",
     request: z.object({
       token: z.string(),
       shortcutId: z.number().int().positive(),
-      kind: z.enum(["image", "video"]),
+      kind: z.literal("image"),
       blobUrl: z.string().min(1).max(500),
       blobPathname: z.string().min(1).max(300),
       contentType: z.string().min(1).max(100),
       byteSize: z.number().int().positive(),
       width: z.number().int().positive().nullable().optional(),
       height: z.number().int().positive().nullable().optional(),
-      durationMs: z.number().int().positive().nullable().optional(),
     }),
     response: z.object({ media: mediaShape }),
     async handler(ctx, args) {
       const db = ctx.db<typeof schema>();
       const me = await requireUser(ctx, args.token);
       await requireOwnedShortcut(ctx, me.id, args.shortcutId);
-      const limits = mediaLimitsFor(args.kind);
+      const limits = mediaLimitsFor();
       if (
         !(limits.contentTypes as readonly string[]).includes(args.contentType)
       ) {
-        throw new Error("نوع الملف ده مش مدعوم — الصور JPG/PNG/WebP والفيديو MP4/WebM بس");
+        throw new Error("نوع الملف ده مش مدعوم — الصور JPG/PNG/WebP بس");
       }
       if (args.byteSize > limits.maxBytes) {
-        throw new Error(
-          args.kind === "image"
-            ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
-            : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
-        );
-      }
-      if (
-        args.kind === "video" &&
-        args.durationMs !== undefined &&
-        args.durationMs !== null &&
-        args.durationMs > MEDIA_VIDEO_MAX_DURATION_MS
-      ) {
-        throw new Error("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر");
+        throw new Error("الصورة أكبر من 8 ميجا — جرّب صورة أصغر");
       }
       /* Pathname must be ours: media/<my id>/<this reply>/<uuid>.<ext>. */
       const pm = MEDIA_PATH_RE.exec(args.blobPathname);
@@ -1918,7 +1899,7 @@ export const Actions = {
         byteSize: args.byteSize,
         width: args.width ?? null,
         height: args.height ?? null,
-        durationMs: args.durationMs ?? null,
+        durationMs: null, /* images carry no duration; the column stays for old rows */
       };
       const existing = await db
         .select()
@@ -1951,7 +1932,7 @@ export const Actions = {
 
   removeMedia: defineAction({
     description:
-      "Removes the image/video attached to one of the signed-in user's own replies and deletes the Blob object when no other reply still references it.",
+      "Removes the image attached to one of the signed-in user's own replies and deletes the Blob object when no other reply still references it.",
     request: z.object({
       token: z.string(),
       shortcutId: z.number().int().positive(),
@@ -1967,7 +1948,7 @@ export const Actions = {
         .where(eq(schema.replyMedia.shortcutId, args.shortcutId))
         .limit(1);
       const old = existing[0] ?? null;
-      if (!old) throw new Error("الرد ده مفيهوش صورة أو فيديو");
+      if (!old) throw new Error("الرد ده مفيهوش صورة");
       await db
         .delete(schema.replyMedia)
         .where(eq(schema.replyMedia.id, old.id));
@@ -1979,7 +1960,7 @@ export const Actions = {
 
   exportFullBackup: defineAction({
     description:
-      "Builds the FULL backup for moving the whole site to a new host: every table (accounts with password hashes, folders with all settings, replies with all fields, favorites and trash state, smart folders, copy history, site config, reply media references) serialized in exactly the full-export shape scripts/import-backup.ts --full imports, plus each profile picture's URL and type so the client can embed its bytes in the downloaded file. Media rows carry URLs only — the bytes are NOT embedded (a single 50 MB video would make the backup un-downloadable). Owner account only (the first account) — the file carries every account's password hash, so it must be kept private. Sessions are never exported: a host move signs everyone out.",
+      "Builds the FULL backup for moving the whole site to a new host: every table (accounts with password hashes, folders with all settings, replies with all fields, favorites and trash state, smart folders, copy history, site config, reply media references) serialized in exactly the full-export shape scripts/import-backup.ts --full imports, plus each profile picture's URL and type so the client can embed its bytes in the downloaded file. Media rows carry URLs only — the bytes are NOT embedded. Owner account only (the first account) — the file carries every account's password hash, so it must be kept private. Sessions are never exported: a host move signs everyone out.",
     request: z.object({ token: z.string() }),
     response: z.object({
       filename: z.string(),
@@ -2114,7 +2095,7 @@ export const Actions = {
         })),
         siteConfig: configRows.map((c) => ({ key: c.key, value: c.value })),
         /* Reply media: URLs only, never bytes — a single 50 MB
-           video would make the backup un-downloadable. The importer
+           the backup un-downloadable. The importer
            restores the rows; a URL that 404s at render time shows a
            "media unavailable" placeholder, never a broken image. */
         media: mediaRows.map((m) => ({

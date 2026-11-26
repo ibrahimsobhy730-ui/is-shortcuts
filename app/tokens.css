@@ -490,7 +490,7 @@
    الأساس: الخط والإيقاع والتركيز
    ============================================================ */
 body {
-  font-family: var(--font-amiri), "Amiri", system-ui, sans-serif;
+  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
   font-size: var(--fs-body);
   line-height: 1.7;
   font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
@@ -498,7 +498,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 h1, h2, h3, .font-display, .folder-bar-title {
-  font-family: var(--font-amiri), "Amiri", system-ui, sans-serif;
+  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
   letter-spacing: 0;
 }
 .verse { font-family: var(--font-amiri), "Amiri", system-ui, sans-serif; }
@@ -3534,7 +3534,7 @@ summary svg.lucide {
   bottom: 3.5vh;
   z-index: 0;
   text-align: center;
-  font-family: var(--font-amiri), "Amiri", system-ui, sans-serif;
+  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
   font-weight: 700;
   font-size: clamp(42px, 8.5vw, 118px);
   line-height: 1.02;

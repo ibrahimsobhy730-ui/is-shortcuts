@@ -14,7 +14,17 @@
    stall watchdog, an XHR fallback (real Content-Length, real
    upload progress) and a server-proxied fallback for small
    images — and every failure maps to a distinct Arabic message
-   here, never a silent spinner. */
+   here, never a silent spinner.
+   IMAGES ONLY (قرار المالك 2026-11-26): video upload was
+   cancelled entirely — every function here takes images only.
+   DIAGNOSABILITY (2026-11-26, live run 23:19–23:28 EET): the
+   server fallback used to throw the route's bare message with no
+   status, so the classifier saw no cause and the UI showed a bare
+   «الرفع متمّش» at stage «الرفع من السيرفر». uploadViaServer now
+   always appends (HTTP <status>) + the Blob error code, so the
+   cause surfaces. The token mint retries once with the session
+   token freshly re-read from storage when the first mint fails
+   with «انتهت الجلسة» while the UI session is alive. */
 
 
 export const BLOB_API_URL = "https://vercel.com/api/blob";
@@ -80,6 +90,7 @@ export function classifyUploadError(e: unknown): UploadFailureKind {
     /\(HTTP (\d{3})\)/.exec(msg);
   if (http) {
     const status = Number(http[1]);
+    if (status === 401) return "token";
     if (status === 403) return "forbidden";
     if (status === 404) return "not-found";
     if (status === 429) return "service";
@@ -94,10 +105,7 @@ export function classifyUploadError(e: unknown): UploadFailureKind {
   return "unknown";
 }
 
-export function uploadErrorMessage(
-  kind: UploadFailureKind,
-  isVideo: boolean,
-): string {
+export function uploadErrorMessage(kind: UploadFailureKind): string {
   switch (kind) {
     case "stalled":
       return "الرفع واقف — مفيش تقدّم، اتأكد من النت وحاول تاني";
@@ -112,13 +120,9 @@ export function uploadErrorMessage(
     case "token-expired":
       return "انتهت صلاحية الرفع — حاول تاني";
     case "content-type":
-      return isVideo
-        ? "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي"
-        : "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي";
+      return "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي";
     case "too-large":
-      return isVideo
-        ? "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر"
-        : "الصورة أكبر من 8 ميجا — جرّب صورة أصغر";
+      return "الصورة أكبر من 8 ميجا — جرّب صورة أصغر";
     case "forbidden":
       return "التخزين رفض الرفع — اتأكد إن مخزن الوسائط مظبوط وحاول تاني";
     case "not-found":
@@ -142,43 +146,76 @@ export function uploadErrorMessage(
    stalled transport — it now aborts after 15s. Returns the
    minted client token (the XHR fallback mints its own fresh one,
    so this return is for callers that need proof the mint works). */
+/* The session token as the browser stores it right now
+   (localStorage when "remember me", sessionStorage otherwise) —
+   fresher than any token a modal captured as a prop when it
+   opened. Used for the one mint retry below. */
+export function readStoredSessionToken(): string {
+  try {
+    if (typeof window === "undefined") return "";
+    return (
+      window.localStorage.getItem("is-session-token") ??
+      window.sessionStorage.getItem("is-session-token") ??
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
 export async function mintClientToken(
   token: string,
   pathname: string,
   shortcutId: number,
-  kind: "image" | "video",
 ): Promise<string> {
-  const res = await fetch("/api/media/upload", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      type: "blob.generate-client-token",
-      payload: {
-        pathname,
-        clientPayload: JSON.stringify({ token, shortcutId, kind }),
-      },
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) {
+  const attempt = async (tok: string): Promise<string> => {
+    const res = await fetch("/api/media/upload", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "blob.generate-client-token",
+        payload: {
+          pathname,
+          clientPayload: JSON.stringify({ token: tok, shortcutId }),
+        },
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      const body: unknown = await res.json().catch(() => null);
+      const msg =
+        body !== null &&
+        typeof body === "object" &&
+        typeof (body as Record<string, unknown>).error === "string"
+          ? ((body as Record<string, unknown>).error as string)
+          : `مش قادر يجهّز الرفع (HTTP ${res.status}) — حاول تاني`;
+      throw new Error(msg);
+    }
     const body: unknown = await res.json().catch(() => null);
-    const msg =
+    const clientToken =
       body !== null &&
       typeof body === "object" &&
-      typeof (body as Record<string, unknown>).error === "string"
-        ? ((body as Record<string, unknown>).error as string)
-        : `مش قادر يجهّز الرفع (HTTP ${res.status}) — حاول تاني`;
-    throw new Error(msg);
+      typeof (body as Record<string, unknown>).clientToken === "string"
+        ? ((body as Record<string, unknown>).clientToken as string)
+        : "";
+    if (!clientToken) throw new Error("مش قادر يجهّز الرفع — حاول تاني");
+    return clientToken;
+  };
+  try {
+    return await attempt(token);
+  } catch (e) {
+    /* Session-ended at mint while the UI session is alive (live
+       run 2026-11-26 23:19–23:28 EET, try 3): the token the modal
+       captured as a prop can be stale — the stored token may have
+       been refreshed since. Retry ONCE with the token freshly
+       re-read from storage; if that fails the same way, the
+       session really is gone and the original message stands. */
+    const msg = e instanceof Error ? e.message : "";
+    if (!/انتهت الجلسة/.test(msg)) throw e;
+    const fresh = readStoredSessionToken();
+    if (!fresh || fresh === token) throw e;
+    return await attempt(fresh);
   }
-  const body: unknown = await res.json().catch(() => null);
-  const clientToken =
-    body !== null &&
-    typeof body === "object" &&
-    typeof (body as Record<string, unknown>).clientToken === "string"
-      ? ((body as Record<string, unknown>).clientToken as string)
-      : "";
-  if (!clientToken) throw new Error("مش قادر يجهّز الرفع — حاول تاني");
-  return clientToken;
 }
 
 /* Preflight (2026-11-26): before starting a doomed upload, ask
@@ -203,7 +240,7 @@ export async function checkBlobReachable(): Promise<boolean> {
    SDK's onUploadProgress suppresses the 100% callback until the
    response arrives, and a sub-64 KiB file sits at 0% (its only
    chunk completes at 100% — suppressed), so the bar froze at 79%
-   for an ~83 KB PNG and at 0% for a small video. This counter
+   for an ~83 KB PNG and at 0% for a small image. This counter
    reports every byte read from the file, so the UI knows exactly
    when all bytes are handed to the transport ("sent, waiting for
    the server") instead of a frozen percentage. */
@@ -318,19 +355,20 @@ export async function uploadViaXhr(
 
 /* Fallback 2 (2026-11-26): the bytes go through our own server
    route, which put()s them with BLOB_READ_WRITE_TOKEN. Serverless
-   bodies cap at ~4.5 MB, so this is images/small files only —
-   videos failing both direct paths get an honest message instead. */
+   bodies cap at ~4.5 MB, so this is images/small files only.
+   DIAGNOSABILITY: the thrown error always carries the HTTP status
+   (and the Blob error code when the route reported one), so
+   classifyUploadError can name the cause instead of returning
+   «unknown» for a bare server message. */
 export async function uploadViaServer(
   token: string,
   shortcutId: number,
-  kind: "image" | "video",
   pathname: string,
   file: File,
 ): Promise<{ url: string; pathname: string }> {
   const form = new FormData();
   form.set("token", token);
   form.set("shortcutId", String(shortcutId));
-  form.set("kind", kind);
   form.set("pathname", pathname);
   form.set("file", file);
   const res = await fetch("/api/media/upload-direct", {
@@ -340,13 +378,22 @@ export async function uploadViaServer(
   });
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
+    const rec =
+      body !== null && typeof body === "object"
+        ? (body as Record<string, unknown>)
+        : null;
     const msg =
-      body !== null &&
-      typeof body === "object" &&
-      typeof (body as Record<string, unknown>).error === "string"
-        ? ((body as Record<string, unknown>).error as string)
-        : `الرفع من السيرفر فشل (HTTP ${res.status}) — حاول تاني`;
-    throw new Error(msg);
+      rec !== null && typeof rec.error === "string"
+        ? rec.error
+        : `الرفع من السيرفر فشل — حاول تاني`;
+    const code =
+      rec !== null && typeof rec.code === "string" && rec.code
+        ? ` — code: ${rec.code}`
+        : "";
+    const status = `(HTTP ${res.status})`;
+    throw new Error(
+      msg.includes("(HTTP") ? `${msg}${code}` : `${msg}${code} ${status}`,
+    );
   }
   const url =
     body !== null && typeof body === "object"

@@ -84,7 +84,7 @@ export function ImportPreviewModal({
           <strong className="text-[var(--text)]">{items.length} رد</strong> — منهم{" "}
           <strong className="text-[var(--text)]">{fresh} جديد</strong> و
           <strong className="text-[var(--text)]"> {dupes.length} رد موجود عندك بالفعل</strong>.
-          لسه ما اتكتبش أي حاجة في مكتبتك. ملف النسخة ده مش بيشمل صور أو فيديو —
+          لسه ما اتكتبش أي حاجة في مكتبتك. ملف النسخة ده مش بيشمل صور —
           الردود المستوردة هتوصل من غير وسائط.
         </p>
         {dupes.length > 0 && (

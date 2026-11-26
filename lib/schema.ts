@@ -247,7 +247,9 @@ export const shortcuts = pgTable("shortcuts", {
     .$defaultFn(() => new Date()),
 });
 
-/* Reply media: one image or video attached to a reply. The bytes
+/* Reply media: one image attached to a reply (images only —
+   video was cancelled by the owner 2026-11-26; the kind column
+   stays, always "image"). The bytes
    live in Vercel Blob (public URLs, see app/api/media/upload);
    this table holds only the reference + display metadata, never
    the bytes. One media per reply (unique shortcut_id); deleting

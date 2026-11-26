@@ -168,12 +168,6 @@ export const FIELDS = {
       "type": "number",
       "step": 1,
       "min": 1
-    },
-    "durationMs": {
-      "name": "durationMs",
-      "type": "number",
-      "step": 1,
-      "min": 1
     }
   },
   "removeMedia": {

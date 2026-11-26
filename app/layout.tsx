@@ -1,24 +1,26 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Amiri } from "next/font/google";
+import { Amiri, Readex_Pro } from "next/font/google";
 import "./globals.css";
 import "./theme.css";
 import "./tokens.css";
 
-/* الخط الوحيد للموقع كله (قرار المالك 2026-11-26): أميري —
-   نفس الخط اللي كانت الآية به قبل توحيد Readex Pro — لكن
-   بعرض نظيف مناسب لواجهة الموقع، لا بشكل رقعة/زخرفي: وزن 400
-   للنص والواجهة، و700 باعتدال للعناوين فقط، بلا معالجات
-   زخرفية. أميري ليس متغيرًا وله وزنان فقط (400/700). يُحمَّل
-   من Google Fonts وقت البناء ويُقدَّم من الموقع نفسه؛
-   display: swap يبقي النص ظاهرًا أثناء التحميل. التكلفة
-   الصريحة: أميري 400+700 × عربي+لاتيني = 248 كيلوبايت إجمالًا
-   (عربي 400: 108 ك، عربي 700: 100 ك، لاتيني 400: 20 ك، لاتيني
-   700: 20 ك) مقابل 54 ك فعليًا لـ Readex — نحو 4.6× (+194 ك).
-   التخفيف: preload لملفّي وزن 400 فقط (روابط <link> أدناه،
-   عناوينها من ناتج البناء)، وملفّا 700 يُحمَّلان عند الطلب؛
-   أول رسم ≈ 128 ك خط بدل 248 ك. الباقي هو ثمن اختيار المالك
-   للخط — غير مخفي. */
+/* الخط (قرار المالك 2026-11-26): Readex Pro هو خط الواجهة
+   الوحيد لكل شيء — نص، عناوين، أزرار، قوائم — نفس الإعداد
+   اللي كان قبل جولة أميري (4 أوزان 400/500/600/700، عربي+
+   لاتيني، self-hosted من البناء نفسه، display: swap). أميري
+   باقٍ للآية فقط («نِعْمَةً مِّنْ عِندِنَا…») كما هي الآن
+   بالظبط، بقرار المالك — لا يظهر في أي سطح تاني. */
+const readexPro = Readex_Pro({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-readex",
+});
+
+/* أميري للآية فقط — نفس الإعداد اللي كانت به (400/700،
+   عربي+لاتيني، preload: false)؛ ملفّا وزن 400 محمّلان
+   مسبقًا أدناه لأن الآية فوق الطيّة في الرئيسية. */
 const amiri = Amiri({
   subsets: ["arabic", "latin"],
   weight: ["400", "700"],
@@ -88,11 +90,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning className={amiri.variable}>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className={`${readexPro.variable} ${amiri.variable}`}>
       <head>
-        {/* Preload the two 400-weight files only (arabic 400 +
-            latin 400 = 128 KB): first paint carries ~128 KB of
-            font instead of 248 KB; the 700 files load on demand.
+        {/* Preload the verse's two 400-weight Amiri files only
+            (arabic 400 + latin 400): the verse sits above the
+            fold on Home, so its font loads with first paint.
             The hrefs are the build-emitted filenames
             (.next/static/media/) — if Amiri is ever re-fetched
             or its subsets change, re-read them from the build

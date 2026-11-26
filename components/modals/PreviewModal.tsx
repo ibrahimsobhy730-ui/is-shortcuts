@@ -42,9 +42,8 @@ export function PreviewModal({
     },
     [],
   );
-  /* Copy-button labels for this reply's media (video wording —
-     see ShortcutCard). */
-  const copyLabels = copyButtonLabels(item.media);
+  /* Copy-button labels for this reply's media (see ShortcutCard). */
+  const copyLabels = copyButtonLabels();
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);

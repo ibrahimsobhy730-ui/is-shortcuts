@@ -319,7 +319,7 @@ try {
          shortcut exists in this database are inserted. */
       let nMedia = 0;
       for (const m of media) {
-        if (m.kind !== "image" && m.kind !== "video") continue;
+        if (m.kind !== "image") continue; /* images only — video rows from old backups are skipped */
         if (typeof m.blobUrl !== "string" || typeof m.blobPathname !== "string") continue;
         const shortcutExists = await client.query(
           "SELECT 1 FROM shortcuts WHERE id = $1",

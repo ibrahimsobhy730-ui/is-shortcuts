@@ -1,24 +1,23 @@
 /* Test-only check of the pure copy-planning helpers in
    components/copy-media.ts (no DOM, no browser, no clipboard):
-   the copy truth table (text only / text+image / text+video),
-   button labels, toast wording, filenames, sizes and durations.
-   The browser parts (ClipboardItem write, canvas conversion,
-   <a download>) live in components/App.tsx and must be verified
-   live; this script proves the decisions they are built on.
+   the copy truth table (text only / text+image), button labels,
+   toast wording and sizes. IMAGES ONLY — video was cancelled by
+   the owner 2026-11-26, so there is no video plan, no video
+   toast and no download step anymore.
+   The browser parts (ClipboardItem write, canvas conversion)
+   live in components/App.tsx and must be verified live; this
+   script proves the decisions they are built on.
    Usage: node scripts/verify-copy-media.mjs */
 
 import {
   planCopy,
-  mediaFileName,
   copyButtonLabels,
   COPY_FILL_NOTE,
   COPY_FAILED_TEXT,
   copyOutcome,
   copySuccessToast,
-  videoCopyToast,
   imageFallbackToast,
   formatMediaSize,
-  formatMediaDuration,
 } from "../components/copy-media.ts";
 
 let pass = 0;
@@ -39,19 +38,9 @@ const IMG = {
   height: 900,
   durationMs: null,
 };
-const VID = {
-  kind: "video",
-  blobUrl: "https://s.public.blob.vercel-storage.com/media/1/87/b.mp4",
-  blobPathname: "media/1/87/b.mp4",
-  contentType: "video/mp4",
-  byteSize: 4000000,
-  width: 1280,
-  height: 720,
-  durationMs: 90000,
-};
 
 try {
-  // ---- planCopy: the truth table.
+  // ---- planCopy: the truth table (text only / text+image).
   check("planCopy text-only", planCopy(null, "عنوان").mode === "text");
   const pImg = planCopy(IMG, "عنوان");
   check(
@@ -59,71 +48,23 @@ try {
     pImg.mode === "text-image" && pImg.imageUrl === IMG.blobUrl,
     pImg.mode,
   );
-  const pVid = planCopy(VID, "عنوان طويل للرد");
   check(
-    "planCopy video mode carries a download name",
-    pVid.mode === "text-video" && pVid.videoUrl === VID.blobUrl && pVid.fileName === "عنوان طويل للرد.mp4",
-    pVid.mode === "text-video" ? pVid.fileName : pVid.mode,
+    "planCopy has no video mode",
+    !("videoUrl" in pImg) && !JSON.stringify(pImg).includes("video"),
   );
-  check(
-    "planCopy video never claims a clipboard video",
-    JSON.stringify(pVid).includes("video") && !JSON.stringify(pVid).includes("clipboard"),
-  );
-
-  // ---- mediaFileName: video download names only (title +
-  // content type; images are never downloaded by the copy flow).
-  check("mediaFileName mp4 ext", mediaFileName("رد سلام", "video/mp4") === "رد سلام.mp4", mediaFileName("رد سلام", "video/mp4"));
-  check("mediaFileName webm ext", mediaFileName("فيديو", "video/webm") === "فيديو.webm");
-  check(
-    "mediaFileName strips slashes",
-    mediaFileName("أ/ب: ج؟", "video/mp4") === "أ-ب- ج؟.mp4",
-    mediaFileName("أ/ب: ج؟", "video/mp4"),
-  );
-  check(
-    "mediaFileName truncates long titles",
-    mediaFileName("x".repeat(100), "video/mp4").length <= 64,
-    `${mediaFileName("x".repeat(100), "video/mp4").length} chars`,
-  );
-  check("mediaFileName empty title", mediaFileName("   ", "video/mp4") === "رد.mp4");
 
   // ---- copyButtonLabels: one definition for every surface.
-  const textL = copyButtonLabels(null);
+  const textL = copyButtonLabels();
   check("text labels", textL.idle === "نسخ الرد" && textL.done === "اتنسخ");
-  const imgL = copyButtonLabels(IMG);
+  const imgL = copyButtonLabels();
   check("image labels same as text", imgL.idle === "نسخ الرد" && imgL.done === "اتنسخ");
-  const vidL = copyButtonLabels(VID);
-  check(
-    "video labels never say the video was copied",
-    vidL.idle === "نسخ النص + تنزيل الفيديو" &&
-      vidL.done === "اتنسخ النص ✓ · الفيديو بينزل" &&
-      !vidL.done.includes("اتنسخ الفيديو"),
-    vidL.done,
-  );
-  const vidShort = copyButtonLabels(VID, true);
-  check(
-    "video short labels",
-    vidShort.idle === "نسخ + تنزيل" && vidShort.done === "اتنسخ ✓",
-    `${vidShort.idle} / ${vidShort.done}`,
-  );
-  const textShort = copyButtonLabels(null, true);
+  const textShort = copyButtonLabels(true);
   check("text short labels", textShort.idle === "نسخ" && textShort.done === "اتنسخ");
 
   // ---- fill-sheet neutral state.
   check("COPY_FILL_NOTE", COPY_FILL_NOTE === "كمّل البيانات…");
 
-  // ---- toasts: honest wording, never "video copied".
-  const toastOk = videoCopyToast("تيست", true);
-  check(
-    "videoCopyToast (downloaded)",
-    toastOk.text === "اتنسخ نص «تيست» — الفيديو بينزل دلوقتي، ابعته من جهازك" && toastOk.kind === "ok",
-    toastOk.text,
-  );
-  const toastBad = videoCopyToast("تيست", false);
-  check(
-    "videoCopyToast (download failed) still honest",
-    toastBad.text === "اتنسخ النص — بس تنزيل الفيديو فشل، جرّب من التفاصيل" && toastBad.kind === "error",
-    toastBad.text,
-  );
+  // ---- toasts: honest wording.
   const toastImg = imageFallbackToast();
   check(
     "imageFallbackToast",
@@ -132,55 +73,37 @@ try {
   );
 
   // ---- copyOutcome: the zero-error decision table (2026-11-26).
-  // Every combination of step results, for every plan. The rule
+  // Every combination of step results, for both plans. The rule
   // under test: the image must land WITH the text for a full
   // success; any failure shows a real error, never a fake
-  // success; a failed text write records no use and (for video)
-  // starts no download.
-  const steps = (combinedOk, textOk, download) => ({ combinedOk, textOk, download });
+  // success; a failed text write records no use.
+  const steps = (combinedOk, textOk) => ({ combinedOk, textOk });
   const pText = planCopy(null, "تيست");
   const pImg2 = planCopy(IMG, "تيست");
-  const pVid2 = planCopy(VID, "تيست");
   check("copySuccessToast", copySuccessToast("تيست").text === "اتنسخ «تيست» — الصقه في أي شات" && copySuccessToast("تيست").kind === "ok");
   check("COPY_FAILED_TEXT", COPY_FAILED_TEXT === "النسخ متعذر هنا");
-  let o = copyOutcome(pText, steps(false, true, "pending"), "تيست");
+  let o = copyOutcome(pText, steps(false, true), "تيست");
   check("outcome text ok", o.button === "copied" && o.toast?.kind === "ok" && o.recordUse === true, JSON.stringify(o));
-  o = copyOutcome(pText, steps(false, false, "pending"), "تيست");
+  o = copyOutcome(pText, steps(false, false), "تيست");
   check("outcome text failed: no success, no use", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.toast?.kind === "error" && o.recordUse === false, JSON.stringify(o));
-  o = copyOutcome(pImg2, steps(true, false, "pending"), "تيست");
+  o = copyOutcome(pImg2, steps(true, false), "تيست");
   check("outcome image combined ok = full success", o.button === "copied" && o.toast?.kind === "ok" && o.recordUse === true, JSON.stringify(o));
-  o = copyOutcome(pImg2, steps(true, true, "pending"), "تيست");
+  o = copyOutcome(pImg2, steps(true, true), "تيست");
   check("outcome image combined wins over text fallback", o.button === "copied" && o.toast?.kind === "ok" && o.recordUse === true, JSON.stringify(o));
-  o = copyOutcome(pImg2, steps(false, true, "pending"), "تيست");
+  o = copyOutcome(pImg2, steps(false, true), "تيست");
   check(
     "outcome image convert/write failed + text ok = text-only + honest error toast, use recorded",
     o.button === "copied" && o.toast?.kind === "error" && o.toast?.text === imageFallbackToast().text && o.recordUse === true,
     JSON.stringify(o),
   );
-  o = copyOutcome(pImg2, steps(false, false, "pending"), "تيست");
+  o = copyOutcome(pImg2, steps(false, false), "تيست");
   check("outcome image + text both failed = failed, no use", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.recordUse === false, JSON.stringify(o));
-  o = copyOutcome(pVid2, steps(false, false, "pending"), "تيست");
-  check("outcome video text failed = failed, no use, no download", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.recordUse === false, JSON.stringify(o));
-  o = copyOutcome(pVid2, steps(false, true, "pending"), "تيست");
-  check("outcome video text ok + download pending = copied, NO toast yet, use recorded", o.button === "copied" && o.toast === null && o.recordUse === true, JSON.stringify(o));
-  o = copyOutcome(pVid2, steps(false, true, true), "تيست");
-  check("outcome video download settled ok", o.button === "copied" && o.toast?.kind === "ok" && o.toast?.text === videoCopyToast("تيست", true).text && o.recordUse === true, JSON.stringify(o));
-  o = copyOutcome(pVid2, steps(false, true, false), "تيست");
-  check(
-    "outcome video download failed = copied text + error toast, use recorded",
-    o.button === "copied" && o.toast?.kind === "error" && o.toast?.text === videoCopyToast("تيست", false).text && o.recordUse === true,
-    JSON.stringify(o),
-  );
 
   // ---- formatting.
   check("formatMediaSize bytes", formatMediaSize(500) === "1 كيلو", formatMediaSize(500));
   check("formatMediaSize KB", formatMediaSize(2048) === "2 كيلو", formatMediaSize(2048));
   check("formatMediaSize MB", formatMediaSize(2600000) === "2.5 ميجا", formatMediaSize(2600000));
   check("formatMediaSize whole MB", formatMediaSize(12582912) === "12 ميجا", formatMediaSize(12582912));
-  check("formatMediaDuration null", formatMediaDuration(null) === "");
-  check("formatMediaDuration 1:05", formatMediaDuration(65000) === "1:05", formatMediaDuration(65000));
-  check("formatMediaDuration 0:05", formatMediaDuration(5000) === "0:05", formatMediaDuration(5000));
-  check("formatMediaDuration 2:05", formatMediaDuration(125000) === "2:05", formatMediaDuration(125000));
 } catch (e) {
   console.log(`ERROR: ${e.stack ?? e.message}`);
   fail++;

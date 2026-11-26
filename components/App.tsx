@@ -8,12 +8,14 @@ import {
   COPY_FILL_NOTE,
   copyButtonLabels,
   copyOutcome,
-  formatMediaDuration,
   formatMediaSize,
-  mediaFileName,
   planCopy,
-  videoCopyToast,
 } from "./copy-media";
+import {
+  buildShareExport,
+  classifyImportEntries,
+  type ImportPlan,
+} from "./share-shortcuts";
 import { PreviewPage } from "./Preview";
 import {
 AlarmClock,
@@ -1176,7 +1178,7 @@ export function FolderSourceControl({
 }
 
 /* ---------- dashboard sections ---------- */
-type Section = "home" | "account" | "privacy";
+type Section = "home" | "account"; /* privacy page removed 2026-11-26: specialization pass — it does not serve shortcuts */
 
 const SECTIONS: Array<{ key: Section; label: string; icon: LucideIcon; tip: string }> = [
   { key: "home", label: "الرئيسية", icon: House, tip: "الرئيسية — كل ردودك ومجلداتك والمفضلة في مكان واحد" },
@@ -1926,9 +1928,9 @@ async function copyText(text: string): Promise<boolean> {
    button reads:
    - "copied": the text landed on the clipboard — and for an image
      reply the image landed WITH it in the same write (the button
-     flips only after the combined write; see copyFilled). For a
-     video reply the file download may still have failed — the
-     toast says so — but the text copy itself succeeded, so the
+     flips only after the combined write; see copyFilled). If the
+     image conversion failed, the copy fell back to text-only and
+     the toast says so — but the text copy itself succeeded, so the
      button flips.
    - "fill": the reply has manual {variables}, so the fill-in sheet
      opened instead — nothing was copied yet. The button flips to
@@ -2001,6 +2003,20 @@ async function writeTextWithImage(text: string, png: Blob): Promise<boolean> {
    same-origin object URL, and click a hidden <a download>.
    Returns false when the download could not start — the caller
    toasts that and offers a retry from the details panel. */
+/* A safe download filename for an attached image, from the reply
+   title + the image type (replaces the old video-aware helper). */
+function imageFileName(title: string, contentType: string): string {
+  const ext =
+    contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+  const clean =
+    title
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 60) || "رد";
+  return `${clean}.${ext}`;
+}
+
 async function downloadMediaFile(url: string, filename: string): Promise<boolean> {
   try {
     const res = await fetch(url, { mode: "cors" });
@@ -2207,6 +2223,31 @@ const EN: Record<string, string> = {
   "حصلت مشكلة في التحميل": "Something went wrong while loading",
   "إعادة المحاولة": "Retry",
   "إلغاء": "Cancel",
+  // shortcuts — completion flow, share/import, first-time tour (2026-11-26)
+  "أكمل اختصاراتك": "Complete your shortcuts",
+  "كل الردود ليها اختصارات ✓": "Every reply has a shortcut ✓",
+  "مفيش اقتراح جاهز للرد ده — دوس على الاختصار واكتب واحد بنفسك.": "No ready suggestion for this reply — tap its shortcut and type one yourself.",
+  "تخطَّ": "Skip",
+  "أقفل": "Close",
+  "صدّر اختصاراتي": "Export my shortcuts",
+  "استورد اختصارات": "Import shortcuts",
+  "الملف ده مفيهوش اختصارات صالحة للاستيراد": "This file has no valid shortcuts to import",
+  "الملف ده مش ملف اختصارات صحيح — جرّب ملف صدّرته من الموقع": "This is not a valid shortcuts file — try a file exported from the site",
+  "هيتضاف": "Will be added",
+  "هيتربط": "Will be linked",
+  "متعارض": "Conflict",
+  "استورد": "Import",
+  "بيتستورد…": "Importing…",
+  "جولة سريعة في الاختصارات": "A quick tour of shortcuts",
+  "١ — اكتب اختصار في البحث": "1 — Type a shortcut in search",
+  "أي كلمة قصيرة — عربي أو إنجليزي أو رمز — اكتبها في البحث اللي فوق.": "Any short word — Arabic, English, or a symbol — type it in the search above.",
+  "٢ — البحث بيكبر ويجيب الرد": "2 — Search grows and brings the reply",
+  "البوكس بيكبر بأنيميشن ويعرض الرد كامل — من غير ما تدوّر في المجلدات.": "The box grows with animation and shows the full reply — no hunting through folders.",
+  "٣ — دوس «نسخ» والرد عندك": "3 — Tap “Copy” and the reply is yours",
+  "ضغطة واحدة والرد في الحافظة — الصقه في أي شات. ولو الرد ليه صورة، بتتنسخ معاه.": "One tap and the reply is on your clipboard — paste it in any chat. If the reply has an image, it copies with it.",
+  "تخطَّ الجولة": "Skip the tour",
+  "التالي": "Next",
+  "ضيف أول رد": "Add your first reply",
   "حفظ": "Save",
   "إغلاق": "Close",
   "حذف": "Delete",
@@ -2217,21 +2258,13 @@ const EN: Record<string, string> = {
   "نسخ الرد": "Copy reply",
   "اتنسخ — الصقه في أي شات": "Copied — paste it in any chat",
   "كمّل البيانات…": "Fill in the details…",
-  // reply media — copy wording (a video is never "copied": the
-  // text is copied and the file downloads with it)
-  "نسخ النص + تنزيل الفيديو": "Copy text + download video",
-  "اتنسخ النص ✓ · الفيديو بينزل": "Text copied ✓ · video downloading",
-  "نسخ + تنزيل": "Copy + download",
-  "اتنسخ ✓": "Copied ✓",
+  // reply media — images only (video was cancelled 2026-11-26)
   "الوسائط مش متاحة دلوقتي": "Media is unavailable right now",
   "فتح الصورة الأصلية": "Open the original image",
-  "فيديو": "Video",
   "صورة": "Image",
   "تنزيل": "Download",
   "بينزّل…": "Downloading…",
   "التنزيل فشل — جرّب تاني": "Download failed — try again",
-  "نسخ رابط الفيديو": "Copy video link",
-  "اتنسخ الرابط": "Link copied",
   // triggers — suggestions, assign, empty state
   "اقتراحات جاهزة — دوس على أي واحدة:": "Ready suggestions — tap one to fill it in:",
   "اختار رد تاني": "Pick another reply",
@@ -2266,9 +2299,9 @@ const EN: Record<string, string> = {
   "القائمة — كل الأقسام والمجموعات والمجلدات": "Menu — all sections, groups and folders",
   "الرجوع إلى الرئيسية": "Back to home",
   "الرئيسية — كل ردودك": "Home — all your replies",
-  "دوّر باسم الرد أو أي كلمة منه": "Search by reply name or any word in it",
+  "اكتب اختصار أو أي كلمة من الرد": "Type a shortcut or any word from the reply",
   "دوّر في الردود": "Search replies",
-  "دوّر باسم الرد أو كلمة منه…": "Search by reply name or a word in it…",
+  "اكتب اختصار أو كلمة من الرد…": "Type a shortcut or a word from the reply…",
   "مسح البحث": "Clear search",
   "فتح لوحة الأوامر والبحث السريع": "Open the quick search panel",
   "بحث وأوامر سريعة في كل الموقع": "Quick search across the whole site",
@@ -2330,7 +2363,6 @@ const EN: Record<string, string> = {
   "السجل": "History",
   "توسيع": "Expand",
   "النسخ": "Backup",
-  "الخصوصية": "Privacy",
   "تغيير عرض القائمة الجانبية بالسحب": "Drag to resize the sidebar",
   "اسحب لتفريد القائمة أو ضمها بالمقاس اللي يناسبك": "Drag to expand or collapse the sidebar to any size you like",
   "توسيع القائمة الجانبية — أو اسحب حافتها لأي عرض": "Expand the sidebar — or drag its edge to any width",
@@ -2342,15 +2374,12 @@ const EN: Record<string, string> = {
   "الأكثر استخداماً": "Most used",
   "سجل النسخ": "Copy history",
   "الكل": "All",
-  "سياسة الخصوصية": "Privacy policy",
   "إضافة جماعية": "Bulk add",
   "ويندوز والنسخ الاحتياطي": "Windows & backup",
   "المكتبة — الرئيسية وكل مجلداتك وردودك، اسحب أي عنصر عشان تنقله أو ترتبه": "The library — home, all your folders and replies; drag any item to move or reorder it",
   "الأدوات — البحث وكل الأدوات في مكان واحد": "Tools — search and every tool in one place",
-  "الحساب — ملفك وسياسة الخصوصية": "Account — your profile and the privacy policy",
   "الرئيسية — كل ردودك مرتبة في مجلداتها، والمفضلة والمستخدمة مؤخراً والأكثر استخداماً من أزرار العرض فوق القائمة": "Home — all your replies arranged in their folders; favorites, recently used and most used are view buttons above the list",
   "ملف AutoHotkey والنسخ الاحتياطية والاستيراد — في آخر الرئيسية": "The AutoHotkey file, backups and import — at the end of Home",
-  "سياسة خصوصية الموقع": "Privacy policy of the site",
   "الرئيسية — كل ردودك ومجلداتك والمفضلة في مكان واحد": "Home — all your replies, folders and favorites in one place",
   // home toolbar & views
   "إضافة اختصار جديد": "Add a new reply",
@@ -2966,13 +2995,20 @@ function AuthPage({
       <div className="auth-in mb-5 flex justify-center" style={{ "--d": "20ms" } as React.CSSProperties}>
         <Logo size={64} />
       </div>
+      {/* Entry-wow (2026-11-26): the verse as ONE quiet line under
+          the logo — the same verse as the home H1, in Amiri, with
+          the thin gradient rule from .auth-verse separating logo
+          from verse. No panel, no block: the form stays the hero. */}
+      <div className="auth-in mb-1 flex justify-center" style={{ "--d": "30ms" } as React.CSSProperties}>
+        <p dir="rtl" lang="ar" className="verse auth-verse text-center">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
+      </div>
       <div className="auth-in auth-greeting" style={{ "--d": "40ms" } as React.CSSProperties}>
         <h1 className="auth-title">
           {mode === "login" ? (lang === "en" ? "Welcome back" : "أهلاً بعودتك") : lang === "en" ? "Your private IS account" : "حسابك الخاص في IS"}
         </h1>
         <p className="auth-subtitle">
           {mode === "login"
-            ? lang === "en" ? "Sign in to reach your saved shortcuts." : "سجّل دخولك عشان توصل لاختصاراتك المحفوظة"
+            ? lang === "en" ? "Type a shortcut — get the reply instantly." : "اكتب اختصار — وخد الرد فورًا"
             : lang === "en" ? "Create your account and keep your shortcuts private to you." : "اعمل حسابك واحفظ اختصاراتك الخاصة بيك"}
         </p>
       </div>
@@ -3278,18 +3314,18 @@ function AuthPage({
             )}
           </div>
         ) : (
-          <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed" data-tip={lang === "en" ? "Agree to the terms of use and privacy policy" : "الموافقة على شروط الاستخدام وسياسة الخصوصية"}>
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed" data-tip={lang === "en" ? "Agree to the terms of use" : "الموافقة على شروط الاستخدام"}>
             <input
               type="checkbox"
-              aria-label={lang === "en" ? "I agree to the terms of use and privacy policy" : "أوافق على شروط الاستخدام وسياسة الخصوصية"}
+              aria-label={lang === "en" ? "I agree to the terms of use" : "أوافق على شروط الاستخدام"}
               checked={terms}
               onChange={(e) => setTerms(e.target.checked)}
               className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--accent)]"
             />
             <span>
               {lang === "en"
-                ? "I agree to the terms of use and privacy policy — my replies are private to me, saved in my account, and no other account can reach them."
-                : "أوافق على شروط الاستخدام وسياسة الخصوصية — اختصاراتي خاصة بيا ومحفوظة في حسابي، ومفيش أي حساب تاني يقدر يوصل لها."}
+                ? "I agree to the terms of use — my replies are private to me, saved in my account, and no other account can reach them."
+                : "أوافق على شروط الاستخدام — اختصاراتي خاصة بيا ومحفوظة في حسابي، ومفيش أي حساب تاني يقدر يوصل لها."}
             </span>
           </label>
         )}
@@ -3876,6 +3912,30 @@ function Workspace({
     () => shortcutsQuery.data?.shortcuts ?? [],
     [shortcutsQuery.data],
   );
+  /* First-time tour (2026-11-26): a new account (0 replies) gets
+     a short 3-step tour of the shortcut flow — type a trigger,
+     the preview grows, copy in one tap. One tap skips it forever
+     (localStorage), and it never shows once the library has
+     replies. Gated on the shortcuts query having loaded, so the
+     owner's 88 replies never flash the tour. */
+  const [tourStep, setTourStep] = useState(0);
+  const [tourDismissed, setTourDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem("is-tour-dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const tourOpen =
+    !shortcutsQuery.isPending && shortcuts.length === 0 && !tourDismissed;
+  const dismissTour = () => {
+    setTourDismissed(true);
+    try {
+      window.localStorage.setItem("is-tour-dismissed", "1");
+    } catch {
+      /* storage unavailable — the tour just shows again next visit */
+    }
+  };
 
   /* #2/#3 — every reply's OTHER triggers, computed once per
      library change and stable by id: the old `otherTriggers()`
@@ -4085,6 +4145,29 @@ function Workspace({
       showToast(e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني", "error"),
   });
 
+  /* Import (share/import shortcuts): create a reply that does not
+     exist yet in my library, from a teammate's export file. The
+     server re-validates the trigger's uniqueness — a taken trigger
+     fails here instead of overwriting. */
+  const importCreateMut = useMutation({
+    mutationFn: async (v: {
+      title: string;
+      body: string;
+      category: string;
+      trigger: string;
+    }) =>
+      await api.createShortcut({
+        token,
+        title: v.title,
+        body: v.body,
+        category: v.category,
+        trigger: v.trigger,
+      }),
+    onSuccess: invalidate,
+    onError: (e) =>
+      showToast(e instanceof Error ? e.message : "الاستيراد متمّش — حاول تاني", "error"),
+  });
+
   const togglePin = useMutation({
     mutationFn: async (s: Shortcut) =>
       await api.togglePin({ token, id: s.id, pinned: !s.pinned }),
@@ -4283,8 +4366,7 @@ function Workspace({
      button had no guard of its own — it does now — and this
      is the second lock for every surface). Only ever called after
      the TEXT actually landed: a failed copy records nothing, and
-     a video download or an image conversion is never a separate
-     use. */
+     an image conversion is never a separate use. */
   const recordCopyUse = useCallback(
     (s: Shortcut) => {
       if (!recordingRef.current.has(s.id)) {
@@ -4303,22 +4385,18 @@ function Workspace({
      the image while the UI claims success (zero-error requirement
      2026-11-26 — the old text-first instant flip is gone on
      purpose: a first copy waits a beat for the conversion, repeat
-     copies are instant from the PNG cache). Text+video copies the
-     text and DOWNLOADS the video in the same tap — the video is
-     never put on the clipboard (no video MIME type exists in the
-     Clipboard API) and the UI never claims it was.
+     copies are instant from the PNG cache).
      Failure matrix (decided by copyOutcome, exhaustively tested):
      text-write fails → the whole action fails, error toast, NO use
-     recorded, NO download started. Text ok + image fails → text-only
-     fallback + honest toast, use recorded once. Text ok + download
-     fails → error toast + retry from details, use recorded once. */
+     recorded. Text ok + image fails → text-only fallback + honest
+     toast, use recorded once. */
   const copyFilled = useCallback(
     async (s: Shortcut, text: string): Promise<CopyResult> => {
-      const plan = planCopy(s.media, s.title);
+      const plan = planCopy(s.media);
       if (plan.mode === "text") {
         const out = copyOutcome(
           plan,
-          { combinedOk: false, textOk: await copyText(text), download: "pending" },
+          { combinedOk: false, textOk: await copyText(text) },
           s.title,
         );
         if (out.recordUse) recordCopyUse(s);
@@ -4326,38 +4404,16 @@ function Workspace({
           showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
         return out.button;
       }
-      if (plan.mode === "text-image") {
-        /* Convert first, then ONE combined write. No text-only
-           write happens before the image is ready — an early paste
-           can never lose the image. */
-        const png = await convertImageToPng(plan.imageUrl);
-        const combinedOk = png ? await writeTextWithImage(text, png) : false;
-        const textOk = combinedOk ? false : await copyText(text);
-        const out = copyOutcome(plan, { combinedOk, textOk, download: "pending" }, s.title);
-        if (out.recordUse) recordCopyUse(s);
-        if (out.toast)
-          showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
-        return out.button;
-      }
-      /* text-video: the text write decides the button and the use;
-         the download runs in the background and its own toast
-         reports it when it settles — success or failure, never
-         silence. A failed text write starts no download at all. */
-      const textOk = await copyText(text);
-      const out = copyOutcome(
-        plan,
-        { combinedOk: false, textOk, download: "pending" },
-        s.title,
-      );
-      if (!out.recordUse) {
-        if (out.toast) showToast(out.toast.text, "error");
-        return out.button;
-      }
-      recordCopyUse(s);
-      void downloadMediaFile(plan.videoUrl, plan.fileName).then((downloaded) => {
-        const toast = videoCopyToast(s.title, downloaded);
-        showToast(toast.text, toast.kind === "error" ? "error" : undefined);
-      });
+      /* text-image (the only other plan): convert first, then ONE
+         combined write. No text-only write happens before the image
+         is ready — an early paste can never lose the image. */
+      const png = await convertImageToPng(plan.imageUrl);
+      const combinedOk = png ? await writeTextWithImage(text, png) : false;
+      const textOk = combinedOk ? false : await copyText(text);
+      const out = copyOutcome(plan, { combinedOk, textOk }, s.title);
+      if (out.recordUse) recordCopyUse(s);
+      if (out.toast)
+        showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
       return out.button;
     },
     [recordCopyUse, showToast],
@@ -5257,11 +5313,10 @@ function Workspace({
       kind: "group",
       label: "الحساب",
       icon: I.user,
-      tip: "الحساب — ملفك وسياسة الخصوصية",
+      tip: "الحساب — ملفك وجلساتك",
       depth: 0,
       children: [
         pageNode("p:account", "حسابي", I.user, "حسابي — الاسم وكلمة المرور والجلسات", section === "account", null, () => goSection("account")),
-        pageNode("p:privacy", "سياسة الخصوصية", I.shield, "سياسة خصوصية الموقع", section === "privacy", null, () => goSection("privacy")),
         pageNode("p:logout", "تسجيل الخروج", I.logout, "تسجيل الخروج من الجهاز ده", false, null, onLogout),
       ],
     },
@@ -5412,11 +5467,6 @@ function Workspace({
   type Crumb = { label: string; run?: () => void };
   const crumbs: Crumb[] = (() => {
     if (section === "account") return [{ label: "الحساب" }, { label: "حسابي" }];
-    if (section === "privacy")
-      return [
-        { label: "الحساب", run: () => goSection("account") },
-        { label: "سياسة الخصوصية" },
-      ];
     if (search.trim())
       return [
         { label: "المكتبة", run: goHome },
@@ -5834,7 +5884,6 @@ function Workspace({
         "p:bulk": "جماعية",
         "p:home-tools": "النسخ",
         "p:account": "حسابي",
-        "p:privacy": "الخصوصية",
         "p:logout": "خروج",
       };
       const railBtn = (
@@ -5981,7 +6030,6 @@ function Workspace({
           {railPageBtn("p:home-tools")}
           {railCaption(t("الحساب"))}
           {railPageBtn("p:account")}
-          {railPageBtn("p:privacy")}
           {railPageBtn("p:logout")}
           <button
             type="button"
@@ -6759,7 +6807,7 @@ function Workspace({
           >
             <Logo size={40} />
           </button>
-          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-2xl flex-1 focus-within:max-w-[44rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("دوّر باسم الرد أو أي كلمة منه")}>
+          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-2xl flex-1 focus-within:max-w-[44rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
             <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
               <Icon d={I.search} size={19} />
             </span>
@@ -6774,7 +6822,7 @@ function Workspace({
               onFocus={() => {
                 if (section !== "home") setSection("home");
               }}
-              placeholder={t("دوّر باسم الرد أو كلمة منه…")}
+              placeholder={t("اكتب اختصار أو كلمة من الرد…")}
               className={`h-11 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[15px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[var(--border)] shadow-[0_6px_20px_-8px_rgba(13,42,82,0.18)]"}`}
             />
             {search && (
@@ -7959,6 +8007,9 @@ function Workspace({
               onSaveTrigger={async (s, trigger) => {
                 await updateTriggerMut.mutateAsync({ s, trigger });
               }}
+              onCreateShortcut={async (v) => {
+                await importCreateMut.mutateAsync(v);
+              }}
               onPickTrigger={(trigger) => pickTrigger(trigger)}
             />
           ) : view === "trash" ? (
@@ -8507,12 +8558,12 @@ function Workspace({
             <p className="mt-3 text-sm leading-relaxed text-[var(--dim)]">
               نزّل نسخة احتياطية من مكتبتك واحتفظ بيها، أو استورد اختصارات من ملف نسخة
               سابقة — المكرر منها بيتخطى لوحده. النسخة العادية مش بتشمل الصور
-              والفيديو — دي في «تصدير نسخة كاملة» بس، وهناك كروابط مش كملفات.
+              — دي في «تصدير نسخة كاملة» بس، وهناك كروابط مش كملفات.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                aria-label="تنزيل نسخة احتياطية JSON" data-tip="تنزيل نسخة احتياطية من مكتبتك (JSON) — مش بتشمل الصور والفيديو، دي في النسخة الكاملة بس"
+                aria-label="تنزيل نسخة احتياطية JSON" data-tip="تنزيل نسخة احتياطية من مكتبتك (JSON) — مش بتشمل الصور، دي في النسخة الكاملة بس"
                 onClick={() => {
                   noteBackup();
                   downloadText(
@@ -8542,7 +8593,7 @@ function Workspace({
               </button>
               <button
                 type="button"
-                aria-label="تصدير نسخة كاملة من الموقع كله" data-tip="نسخة كاملة من الموقع كله: الحسابات والمجلدات والردود وسلة المهملات والصور — لنقل الموقع كله لمكان تاني. الصور والفيديو المرفقة بالردود كروابط بس، مش الملفات نفسها"
+                aria-label="تصدير نسخة كاملة من الموقع كله" data-tip="نسخة كاملة من الموقع كله: الحسابات والمجلدات والردود وسلة المهملات والصور — لنقل الموقع كله لمكان تاني. الصور المرفقة بالردود كروابط بس، مش الملفات نفسها"
                 onClick={() => fullBackupMut.mutate()}
                 disabled={fullBackupMut.isPending}
                 className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)] disabled:opacity-60"
@@ -8640,24 +8691,10 @@ function Workspace({
           />
         )}
 
-        {section === "privacy" && (
-          <PrivacySection onBack={() => setSection("home")} />
-        )}
-
         <footer className="mt-16 flex flex-wrap items-center justify-center gap-2.5 text-xs text-[var(--dim)]">
           <Logo size={20} />
           <span aria-hidden="true" className="text-[var(--faint)]">·</span>
           <span>مكتبة {displayName} الخاصة</span>
-          <span aria-hidden="true" className="text-[var(--faint)]">·</span>
-          <button
-            type="button"
-            aria-label="فتح سياسة الخصوصية"
-            data-tip="سياسة خصوصية الموقع"
-            onClick={() => setSection("privacy")}
-            className="lux-btn font-bold text-[var(--dim)] hover:text-[var(--text)]"
-          >
-            سياسة الخصوصية
-          </button>
         </footer>
       </main>
       </div>
@@ -8730,6 +8767,109 @@ function Workspace({
             showToast("اتحفظ الاختصار");
           }}
         />
+      )}
+      {tourOpen && (
+        <div
+          className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] p-4 sm:items-center"
+          onClick={dismissTour}
+        >
+          <div
+            role="dialog"
+            aria-label={t("جولة سريعة في الاختصارات")}
+            className="animate-rise w-full max-w-md rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-[16px] font-extrabold">
+                <span className="editor-head-icon">
+                  <Icon d={I.shortcut} size={15} />
+                </span>
+                {t("جولة سريعة في الاختصارات")}
+              </p>
+              <button
+                type="button"
+                aria-label={t("إغلاق")}
+                onClick={dismissTour}
+                className="lux-btn rounded-full p-2 text-[var(--dim)] hover:text-[var(--text)]"
+              >
+                <Icon d={I.x} size={16} />
+              </button>
+            </div>
+            <ol className="mt-4 flex flex-col gap-3">
+              {[
+                {
+                  title: t("١ — اكتب اختصار في البحث"),
+                  body: t("أي كلمة قصيرة — عربي أو إنجليزي أو رمز — اكتبها في البحث اللي فوق."),
+                },
+                {
+                  title: t("٢ — البحث بيكبر ويجيب الرد"),
+                  body: t("البوكس بيكبر بأنيميشن ويعرض الرد كامل — من غير ما تدوّر في المجلدات."),
+                },
+                {
+                  title: t("٣ — دوس «نسخ» والرد عندك"),
+                  body: t("ضغطة واحدة والرد في الحافظة — الصقه في أي شات. ولو الرد ليه صورة، بتتنسخ معاه."),
+                },
+              ].map((step, i) => (
+                <li
+                  key={step.title}
+                  className={`rounded-[var(--radius)] border px-3.5 py-3 transition-[border-color,background-color] duration-200 ${
+                    tourStep === i
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                      : "border-[var(--border)] bg-[var(--surface-alt)]"
+                  }`}
+                >
+                  <p className="text-sm font-extrabold">{step.title}</p>
+                  <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--dim)]">
+                    {step.body}
+                  </p>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-4 flex items-center gap-2">
+              <div className="flex gap-1.5" aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={`h-1.5 rounded-full transition-[width] duration-200 ${
+                      tourStep === i
+                        ? "w-5 bg-[var(--accent)]"
+                        : "w-1.5 bg-[var(--border-strong)]"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={dismissTour}
+                className="lux-btn rounded-full px-3 py-2 text-sm font-bold text-[var(--dim)] hover:text-[var(--text)]"
+              >
+                {t("تخطَّ الجولة")}
+              </button>
+              {tourStep < 2 ? (
+                <button
+                  type="button"
+                  onClick={() => setTourStep((v) => Math.min(2, v + 1))}
+                  className="lux-btn rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
+                >
+                  {t("التالي")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    dismissTour();
+                    setEditor({ open: true, item: null });
+                  }}
+                  className="lux-btn flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
+                >
+                  <Icon d={I.plus} size={15} />
+                  {t("ضيف أول رد")}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
       {accountOpen && (
         <AccountModal
@@ -10580,84 +10720,6 @@ export function importKeyOf(title: string, body: string): string {
 
 
 
-/* The published privacy policy texts (Arabic + English) — the
-   same texts the privacy page renders. */
-const PRIVACY_POLICY_AR = `سياسة خصوصية موقع IS
-
-آخر تحديث: نوفمبر 2026
-
-موقع IS («الموقع») منصة لإدارة الاختصارات النصية. السياسة دي بتشرح ببساطة إيه البيانات اللي بنتعامل معاها وليه.
-
-١) البيانات اللي بنجمعها
-• بيانات الحساب اللي بتسجل بيها على الموقع: الاسم، البريد الإلكتروني، رقم الموبايل (اختياري)، وكلمة المرور — وكلمة المرور بتتحفظ مشفرة ببصمة تجزئة مع ملح (salted hash)، مش كنص صريح أبداً.
-• ردودك: العنوان ونص الرد والتصنيف والوسوم وعدد مرات الاستخدام — دي المحتوى اللي انت بتحفظه بنفسك على حسابك.
-• سجل النسخ: وقت نسخ كل رد، عشان تقدر ترجع للي استخدمته.
-• على جهازك بس: رمز جلسة تسجيل الدخول وتفضيلات العرض — عشان تفضل مسجل دخولك وتفضل إعداداتك زي ما هي.
-
-٢) إزاي بنستخدم بياناتك
-بياناتك بتخدم حسابك انت بس: عرض ردودك ونسخها وتنظيمها. مفيش أي بيانات بتروح لأي طرف تالت، ومفيش تتبع إعلاني ولا تحليلات من أطراف خارجية، ومفيش بيع بيانات — لا دلوقتي ولا بعدين.
-
-٣) حقوقك
-تقدر تعدل ردودك أو تمسحها في أي وقت من الموقع، وتسجيل خروجك بيمسح رمز الجلسة من جهازك. لحذف حسابك وبياناته من الموقع كلياً، تواصل مع مالك الموقع من خلال الموقع نفسه.
-
-٤) التعديلات
-لو السياسة اتغيرت، هنحدث التاريخ اللي فوق وننشر النسخة الجديدة هنا على الموقع.`;
-
-const PRIVACY_POLICY_EN = `IS Site — Privacy Policy
-
-Last updated: November 2026
-
-The IS site (the "Site") is a text-shortcut management platform. This policy explains, plainly, what data we handle and why.
-
-1) Data we collect
-• Account data you register with on the Site: your name, email address, optional mobile number, and password — passwords are stored only as a salted hash, never in plain text.
-• Your replies: the title, reply text, category, tags, and usage counts — content you save yourself on your account.
-• Copy history: when each reply was copied, so you can see what you used.
-• On your device only: your sign-in session token and display preferences — so you stay signed in and your settings stay as you left them.
-
-2) How we use your data
-Your data serves your account only: showing, copying, and organizing your replies. No data goes to any third party. There is no advertising tracking, no third-party analytics, and no sale of data — ever.
-
-3) Your rights
-You can edit or delete your replies at any time on the Site, and signing out removes the session token from your device. To delete your account and its data from the Site entirely, contact the Site owner through the Site.
-
-4) Changes
-If this policy changes, we will update the date above and publish the new version here on the Site.`;
-
-/* ---------- privacy policy page ----------
-   The site's own privacy policy, published on the site itself.
-   Arabic first (the site's language), then the English version. */
-function PrivacySection({ onBack }: { onBack: () => void }) {
-  return (
-    <section className="animate-page pt-5 lg:pt-8">
-      <button
-        type="button"
-        aria-label="رجوع للرئيسية"
-        data-tip="رجوع للرئيسية"
-        onClick={onBack}
-        className="lux-btn lux-row inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
-      >
-        <Icon d={I.chevron} size={16} />
-        رجوع للرئيسية
-      </button>
-      <h1 className="mt-5 flex items-center gap-2.5 text-[26px] font-bold leading-snug">
-        <span className="text-[var(--accent)]">
-          <Icon d={I.shield} size={24} />
-        </span>
-        سياسة الخصوصية
-      </h1>
-      <div className="elev-card mt-5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-        <p className="whitespace-pre-wrap text-[15px] leading-[2]">{PRIVACY_POLICY_AR}</p>
-      </div>
-      <div className="elev-card mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-        <p dir="ltr" className="whitespace-pre-wrap text-left text-[15px] leading-[1.9]">
-          {PRIVACY_POLICY_EN}
-        </p>
-      </div>
-    </section>
-  );
-}
-
 /* ---------- smart-variable fill-in ----------
    When a reply contains placeholders the user must supply ({الاسم}،
    {السنة الدراسية}، أي {…} تاني), copying opens this sheet: one field
@@ -11164,32 +11226,28 @@ function AccountSection({
    pointerdown so a layer behind it (e.g. the details panel's
    click-outside close) never fires with it. */
 /* ---------- reply media ----------
-   One image or video attached to a reply (Vercel Blob). Three
-   shared pieces, so every surface renders media the same way:
-   - MediaBadge: the tiny image/play marker beside a title
+   One image attached to a reply (Vercel Blob). IMAGES ONLY —
+   video was cancelled by the owner 2026-11-26. Three shared
+   pieces, so every surface renders media the same way:
+   - MediaBadge: the tiny image marker beside a title
      (compact card, Shortcuts rows, shortcut bar, history rows).
    - ReplyMediaThumb: the 16:9 thumb on comfortable/grid cards;
      tap opens the full preview.
    - ReplyMediaBlock: the full block in the details panel, the
      preview modal and the search preview — image (tap opens the
-     original in a new tab) or video player with controls + meta
-     (size, duration/dimensions) + download. Video only, details
-     panel: «نسخ رابط الفيديو» — a link, never the default copy.
+     original in a new tab) + meta (size, dimensions) + download.
    A URL that 404s shows "media unavailable", never a broken-image
-   icon (onError on <img>/<video>). Lucide glyphs throughout —
+   icon (onError on <img>). Lucide glyphs throughout —
    the site's icon language, not emoji. */
 export function MediaBadge({ media }: { media: Shortcut["media"] }) {
   if (!media) return null;
   return (
     <span
       aria-hidden="true"
-      title={media.kind === "video" ? "فيديو مرفق" : "صورة مرفقة"}
+      title="صورة مرفقة"
       className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-alt)] px-1.5 py-0.5 text-[var(--dim)]"
     >
-      <Icon d={media.kind === "video" ? I.play : I.image} size={12} />
-      {media.kind === "video" && media.durationMs ? (
-        <span className="text-[10px] font-bold">{formatMediaDuration(media.durationMs)}</span>
-      ) : null}
+      <Icon d={I.image} size={12} />
     </span>
   );
 }
@@ -11229,37 +11287,14 @@ export function ReplyMediaThumb({
       aria-label={`معاينة وسائط رد ${title}`}
       className="lux-btn relative block aspect-video w-full overflow-hidden rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-alt)]"
     >
-      {media.kind === "image" ? (
-        <img
-          src={media.blobUrl}
-          alt=""
-          crossOrigin="anonymous"
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <video
-          src={media.blobUrl}
-          preload="metadata"
-          muted
-          playsInline
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
-        />
-      )}
-      {media.kind === "video" && (
-        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white">
-            <Icon d={I.play} size={18} />
-          </span>
-        </span>
-      )}
-      {media.kind === "video" && media.durationMs ? (
-        <span className="absolute bottom-2 end-2 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white">
-          {formatMediaDuration(media.durationMs)}
-        </span>
-      ) : null}
+      <img
+        src={media.blobUrl}
+        alt=""
+        crossOrigin="anonymous"
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="h-full w-full object-cover"
+      />
     </button>
   );
 }
@@ -11267,14 +11302,10 @@ export function ReplyMediaThumb({
 export function ReplyMediaBlock({
   media,
   title,
-  showCopyLink = false,
   compact = false,
 }: {
   media: NonNullable<Shortcut["media"]>;
   title: string;
-  /* Details panel only: a «نسخ رابط الفيديو» button — a link,
-     never the default copy. */
-  showCopyLink?: boolean;
   /* Search preview: shorter media so the grown panel stays
      comfortable. */
   compact?: boolean;
@@ -11283,9 +11314,6 @@ export function ReplyMediaBlock({
   const [failed, setFailed] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [dlError, setDlError] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const linkTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(linkTimer.current), []);
   const doDownload = async () => {
     if (downloading) return;
     setDownloading(true);
@@ -11293,19 +11321,12 @@ export function ReplyMediaBlock({
     try {
       const ok = await downloadMediaFile(
         media.blobUrl,
-        mediaFileName(title, media.contentType),
+        imageFileName(title, media.contentType),
       );
       if (!ok) setDlError(true);
     } finally {
       setDownloading(false);
     }
-  };
-  const copyLink = async () => {
-    const ok = await copyText(media.blobUrl);
-    if (!ok) return;
-    setLinkCopied(true);
-    window.clearTimeout(linkTimer.current);
-    linkTimer.current = window.setTimeout(() => setLinkCopied(false), 2000);
   };
   if (failed) {
     return (
@@ -11315,61 +11336,35 @@ export function ReplyMediaBlock({
       </div>
     );
   }
-  const meta =
-    media.kind === "video"
-      ? [formatMediaDuration(media.durationMs), formatMediaSize(media.byteSize)]
-          .filter(Boolean)
-          .join(" · ")
-      : [
-          media.width && media.height ? `${media.width}×${media.height}` : "",
-          formatMediaSize(media.byteSize),
-        ]
-          .filter(Boolean)
-          .join(" · ");
+  const meta = [
+    media.width && media.height ? `${media.width}×${media.height}` : "",
+    formatMediaSize(media.byteSize),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)]">
-      {media.kind === "image" ? (
-        <a
-          href={media.blobUrl}
-          target="_blank"
-          rel="noreferrer"
-          aria-label={t("فتح الصورة الأصلية")}
-        >
-          <img
-            src={media.blobUrl}
-            alt=""
-            crossOrigin="anonymous"
-            onError={() => setFailed(true)}
-            className={`w-full bg-[var(--surface)] object-contain ${compact ? "max-h-64" : "max-h-80"}`}
-          />
-        </a>
-      ) : (
-        <video
+      <a
+        href={media.blobUrl}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={t("فتح الصورة الأصلية")}
+      >
+        <img
           src={media.blobUrl}
-          controls
-          preload="metadata"
-          playsInline
+          alt=""
+          crossOrigin="anonymous"
           onError={() => setFailed(true)}
-          className={`w-full bg-black ${compact ? "max-h-64" : "max-h-80"}`}
+          className={`w-full bg-[var(--surface)] object-contain ${compact ? "max-h-64" : "max-h-80"}`}
         />
-      )}
+      </a>
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-[var(--dim)]">
-          <Icon d={media.kind === "video" ? I.play : I.image} size={13} />
-          {media.kind === "video" ? t("فيديو") : t("صورة")}
+          <Icon d={I.image} size={13} />
+          {t("صورة")}
           {meta ? <span className="truncate">· {meta}</span> : null}
         </span>
         <span className="ms-auto flex shrink-0 items-center gap-2">
-          {showCopyLink && media.kind === "video" && (
-            <button
-              type="button"
-              onClick={() => void copyLink()}
-              className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--dim)] hover:text-[var(--text)]"
-            >
-              {linkCopied ? <Icon d={I.check} size={13} /> : <Icon d={I.link} size={13} />}
-              {linkCopied ? t("اتنسخ الرابط") : t("نسخ رابط الفيديو")}
-            </button>
-          )}
           <button
             type="button"
             onClick={() => void doDownload()}
@@ -11780,12 +11775,10 @@ export const ShortcutCard = memo(function ShortcutCard({
      (head / body / foot), not a decoration. */
   const cardFolder = folders?.find((f) => f.id === item.folderId) ?? null;
   const CatIcon = categoryMeta(item.category).icon;
-  /* Copy-button labels for this reply's media: a video reply's
-     button says «نسخ النص + تنزيل الفيديو» at rest and «اتنسخ
-     النص ✓ · الفيديو بينزل» on success — never a bare «اتنسخ»
-     that could read as "the video was copied". */
-  const copyLabels = copyButtonLabels(item.media);
-  const copyLabelsShort = copyButtonLabels(item.media, true);
+  /* Copy-button labels for this reply's media (image replies
+     copy text+image in one write — see copy-media.ts). */
+  const copyLabels = copyButtonLabels();
+  const copyLabelsShort = copyButtonLabels(true);
   const doCopyClick = async () => {
     if (copying) return;
     setCopying(true);
@@ -11824,9 +11817,7 @@ export const ShortcutCard = memo(function ShortcutCard({
      fills with the accent gradient while its card is hovered or
      focused, ripples from the pointer on press, and morphs to
      the check + «اتنسخ» for 2.0s on success (the glass toast
-     confirms it too). A video reply's button reads «نسخ النص +
-     تنزيل الفيديو» at rest — the video downloads with the copy,
-     it is never claimed to be "copied". When the copy opens the
+     confirms it too). When the copy opens the
      fill-in sheet instead, the button shows the neutral
      «كمّل البيانات…» for 2.0s. In the compact row it becomes the
      floating pill below. */
@@ -12163,7 +12154,7 @@ export const ShortcutCard = memo(function ShortcutCard({
               </button>
             </div>
           </div>
-      {/* Attached image/video: a 16:9 thumb above the body — tap
+      {/* Attached image: a 16:9 thumb above the body — tap
           opens the full preview. Compact rows get only the small
           badge beside the title. */}
       {item.media && (
@@ -12977,9 +12968,9 @@ function TriggerRow({
     },
     [],
   );
-  /* Copy-button labels for this reply's media (video wording —
-     see ShortcutCard; short form — the row button is small). */
-  const copyLabels = copyButtonLabels(s.media, true);
+  /* Copy-button labels for this reply's media (see ShortcutCard;
+     short form — the row button is small). */
+  const copyLabels = copyButtonLabels(true);
 
   const doCopy = async () => {
     if (copying) return;
@@ -13236,10 +13227,8 @@ function SearchTriggerPreview({
     const copied = copiedId === s.id;
     const filling = fillId === s.id;
     const copying = copyingId === s.id;
-    /* A video reply's button says «نسخ النص + تنزيل الفيديو» —
-       never a bare «اتنسخ» that could read as "the video was
-       copied". Small (extras) buttons take the short form. */
-    const labels = copyButtonLabels(s.media, !big);
+    /* Small (extras) buttons take the short form. */
+    const labels = copyButtonLabels(!big);
     return (
       <button
         type="button"
@@ -13333,7 +13322,7 @@ function SearchTriggerPreview({
                 <p className="trig-stage trig-stage-2 mt-2 text-[16px] font-extrabold leading-snug">
                   {best.title}
                 </p>
-                {/* Attached image/video, between title and body —
+                {/* Attached image, between title and body —
                     same stage as the body, so they reveal together. */}
                 {best.media && (
                   <div className="trig-stage trig-stage-3 mt-2.5">
@@ -13795,8 +13784,9 @@ function StarterLibraryPicker({
   if (!libQuery.data?.isOwner) return null;
   return (
     <section
+      id="starter-library"
       aria-label={t("مكتبة بداية")}
-      className="animate-card-in overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
+      className="animate-card-in scroll-mt-4 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
     >
       <div className="flex items-start gap-2.5 px-4 py-3.5">
         <span className="editor-head-icon mt-0.5 shrink-0">
@@ -13929,6 +13919,396 @@ function StarterLibraryPicker({
   );
 }
 
+/* ---------- «أكمل اختصاراتك» ----------
+   Guided completion: the trigger-less replies, most-used first,
+   one at a time, with the easiest suggested trigger one tap away.
+   One tap assigns + auto-advances (the list shrinks, the next
+   reply slides in); «تخطَّ» skips. The progress line counts the
+   whole library (X of Y replies have shortcuts) so the coverage
+   is visible at a glance. */
+function CompleteShortcutsPanel({
+  withoutTrigger,
+  withCount,
+  total,
+  takenTriggersById,
+  onSaveTrigger,
+}: {
+  withoutTrigger: Shortcut[];
+  withCount: number;
+  total: number;
+  takenTriggersById: Map<number, string[]>;
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
+}) {
+  const { lang, t } = useLang();
+  const ordered = useMemo(
+    () =>
+      [...withoutTrigger].sort(
+        (a, b) => b.usageCount - a.usageCount || a.id - b.id,
+      ),
+    [withoutTrigger],
+  );
+  const [open, setOpen] = useState(true);
+  const [idx, setIdx] = useState(0);
+  const [busy, setBusy] = useState(false);
+  /* The list shrinks as triggers are assigned — clamp the cursor. */
+  useEffect(() => {
+    setIdx((i) =>
+      ordered.length === 0 ? 0 : Math.min(i, ordered.length - 1),
+    );
+  }, [ordered.length]);
+  const current = ordered[idx] ?? null;
+  const suggestions = useMemo(
+    () =>
+      current
+        ? suggestTriggers(current, takenTriggersById.get(current.id) ?? [], "")
+        : [],
+    [current, takenTriggersById],
+  );
+  const pct = total > 0 ? Math.round((withCount / total) * 100) : 100;
+  if (ordered.length === 0) {
+    return (
+      <div className="animate-card-in flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <span className="text-[var(--accent)]">
+          <Icon d={I.check} size={16} />
+        </span>
+        <p className="text-sm font-bold">{t("كل الردود ليها اختصارات ✓")}</p>
+      </div>
+    );
+  }
+  return (
+    <section
+      aria-label={t("أكمل اختصاراتك")}
+      className="animate-card-in overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="lux-btn flex w-full items-center gap-2.5 px-4 py-3.5 text-start"
+      >
+        <span className="editor-head-icon shrink-0">
+          <Icon d={I.sparkles} size={15} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-extrabold">
+            {t("أكمل اختصاراتك")}
+          </span>
+          <span className="mt-0.5 block text-[13px] leading-relaxed text-[var(--dim)]">
+            {lang === "en"
+              ? `${withCount} of ${total} replies have shortcuts — one tap each.`
+              : `${withCount} من ${total} رد ليهم اختصار — دوسة واحدة لكل رد.`}
+          </span>
+        </span>
+        <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+          {pct}٪
+        </span>
+        <span
+          className={`shrink-0 text-[var(--dim)] transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <Icon d={I.chevron} size={16} />
+        </span>
+      </button>
+      {open && current && (
+        <div className="border-t border-[var(--border)] px-4 py-3">
+          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-alt)]">
+            <span
+              className="block h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="mt-3 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-extrabold">
+                {current.title}
+              </p>
+              <p className="mt-0.5 text-[13px] text-[var(--dim)]">
+                {current.category}
+                {current.usageCount > 0
+                  ? ` · ${lang === "en" ? `copied ${current.usageCount} times` : `اتنسخ ${current.usageCount} مرة`}`
+                  : ""}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+              {idx + 1} / {ordered.length}
+            </span>
+          </div>
+          {suggestions.length > 0 ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {suggestions.map((sug) => (
+                <button
+                  key={sug}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (busy) return;
+                    setBusy(true);
+                    void onSaveTrigger(current, sug).finally(() =>
+                      setBusy(false),
+                    );
+                  }}
+                  className="lux-btn trig-chip"
+                >
+                  <Icon d={I.shortcut} size={13} />
+                  <span dir="auto">{sug}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-[13px] leading-relaxed text-[var(--dim)]">
+              {t("مفيش اقتراح جاهز للرد ده — دوس على الاختصار واكتب واحد بنفسك.")}
+            </p>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busy || ordered.length <= 1}
+              onClick={() => setIdx((i) => (i + 1) % ordered.length)}
+              className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-bold disabled:opacity-60"
+            >
+              {t("تخطَّ")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="lux-btn rounded-full px-3 py-2 text-sm font-bold text-[var(--dim)] hover:text-[var(--text)]"
+            >
+              {t("أقفل")}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- مشاركة الاختصارات واستيرادها ----------
+   Export MY triggers as a JSON file (trigger → title + body +
+   category) for the team; import a teammate's file into my own
+   account. Rules, enforced here AND by the server (updateShortcut
+   / createShortcut re-validate uniqueness): only FREE triggers
+   are imported — a trigger I already have is shown as a conflict
+   and skipped, never overwritten. A trigger whose reply I already
+   have (same title + body) is LINKED to my reply; otherwise the
+   reply is created with its trigger. A clear before/after summary
+   closes the flow. */
+function ShareShortcutsRow({
+  shortcuts,
+  onSaveTrigger,
+  onCreateShortcut,
+}: {
+  shortcuts: Shortcut[];
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
+  onCreateShortcut: (input: {
+    title: string;
+    body: string;
+    category: string;
+    trigger: string;
+  }) => Promise<void>;
+}) {
+  const { lang, t } = useLang();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [plan, setPlan] = useState<ImportPlan[] | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [done, setDone] = useState<{
+    ok: number;
+    skipped: number;
+    failed: number;
+  } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const withTrigger = useMemo(
+    () => shortcuts.filter((s) => s.trigger),
+    [shortcuts],
+  );
+
+  const exportAll = () => {
+    downloadText(
+      "is-shortcuts-triggers.json",
+      JSON.stringify(buildShareExport(withTrigger), null, 2),
+      "application/json;charset=utf-8",
+    );
+  };
+
+  const onFile = async (f: File | undefined) => {
+    if (!f) return;
+    setImportError(null);
+    setDone(null);
+    setPlan(null);
+    try {
+      const raw: unknown = JSON.parse(await f.text());
+      const plans = classifyImportEntries(raw, shortcuts);
+      if (!plans) {
+        setImportError(t("الملف ده مفيهوش اختصارات صالحة للاستيراد"));
+        return;
+      }
+      setPlan(plans);
+    } catch {
+      setImportError(
+        t("الملف ده مش ملف اختصارات صحيح — جرّب ملف صدّرته من الموقع"),
+      );
+    }
+  };
+
+  const runImport = async () => {
+    if (!plan || importing) return;
+    setImporting(true);
+    let ok = 0;
+    let failed = 0;
+    const skipped = plan.filter((p) => p.status === "conflict").length;
+    for (const p of plan) {
+      if (p.status === "conflict") continue;
+      try {
+        if (p.status === "link" && p.existingId !== undefined) {
+          const s = shortcuts.find((x) => x.id === p.existingId);
+          if (!s) {
+            failed++;
+            continue;
+          }
+          await onSaveTrigger(s, p.entry.trigger);
+        } else {
+          await onCreateShortcut(p.entry);
+        }
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+    setPlan(null);
+    setDone({ ok, skipped, failed });
+    setImporting(false);
+  };
+
+  const creates = plan?.filter((p) => p.status === "create").length ?? 0;
+  const links = plan?.filter((p) => p.status === "link").length ?? 0;
+  const conflicts = plan?.filter((p) => p.status === "conflict").length ?? 0;
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={withTrigger.length === 0}
+          onClick={exportAll}
+          className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold hover:border-[var(--border-strong)] disabled:opacity-60"
+        >
+          <Icon d={I.download} size={15} />
+          {t("صدّر اختصاراتي")}
+          <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+            {withTrigger.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold hover:border-[var(--border-strong)]"
+        >
+          <Icon d={I.upload} size={15} />
+          {t("استورد اختصارات")}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          aria-label={t("استورد اختصارات")}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            void onFile(f);
+          }}
+        />
+      </div>
+      {importError && (
+        <p role="alert" className="mt-2 text-[13px] font-bold text-[var(--danger)]">
+          {importError}
+        </p>
+      )}
+      {plan && (
+        <div className="animate-card-in mt-3 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-3">
+            <p className="flex-1 text-sm font-extrabold">
+              {lang === "en"
+                ? `${creates + links} to import · ${conflicts} conflicts skipped`
+                : `${creates + links} هيتستوردوا · ${conflicts} متعارض متخطّي`}
+            </p>
+            <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+              {plan.length}
+            </span>
+          </div>
+          <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto overscroll-contain px-3 py-2">
+            {plan.slice(0, 8).map((p, i) => (
+              <li
+                key={`${p.entry.trigger}-${i}`}
+                className="flex items-center gap-2 rounded-[10px] px-2 py-1.5 text-[13px]"
+              >
+                <span dir="auto" className="trig-chip shrink-0">
+                  {p.entry.trigger}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-bold">
+                  {p.entry.title}
+                </span>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                    p.status === "conflict"
+                      ? "bg-[var(--danger-soft)] text-[var(--danger)]"
+                      : "bg-[var(--accent-soft)] text-[var(--accent)]"
+                  }`}
+                >
+                  {p.status === "create"
+                    ? t("هيتضاف")
+                    : p.status === "link"
+                      ? t("هيتربط")
+                      : t("متعارض")}
+                </span>
+              </li>
+            ))}
+            {plan.length > 8 && (
+              <li className="px-2 py-1 text-center text-[12px] font-bold text-[var(--dim)]">
+                {lang === "en"
+                  ? `and ${plan.length - 8} more`
+                  : `و${plan.length - 8} كمان`}
+              </li>
+            )}
+          </ul>
+          <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border)] px-4 py-3">
+            <button
+              type="button"
+              disabled={importing || creates + links === 0}
+              onClick={() => void runImport()}
+              className="lux-btn flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+            >
+              {importing ? (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  {t("بيتستورد…")}
+                </>
+              ) : (
+                <>
+                  <Icon d={I.check} size={15} />
+                  {t("استورد")}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={importing}
+              onClick={() => setPlan(null)}
+              className="lux-btn rounded-full px-3 py-2.5 text-sm font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
+            >
+              {t("إلغاء")}
+            </button>
+          </div>
+        </div>
+      )}
+      {done && (
+        <p role="status" className="mt-2 text-[13px] font-bold text-[var(--dim)]">
+          {lang === "en"
+            ? `Imported ${done.ok} · skipped ${done.skipped} conflicts${done.failed > 0 ? ` · ${done.failed} failed` : ""}`
+            : `اتستورد ${done.ok} · اتخطّى ${done.skipped} متعارض${done.failed > 0 ? ` · ${done.failed} فشل` : ""}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ShortcutsView({
   token,
   shortcuts,
@@ -13936,6 +14316,7 @@ function ShortcutsView({
   query,
   onCopy,
   onSaveTrigger,
+  onCreateShortcut,
   onPickTrigger,
 }: {
   token: string;
@@ -13944,10 +14325,26 @@ function ShortcutsView({
   query: string;
   onCopy: (s: Shortcut) => Promise<CopyResult>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
+  /* Import: create a reply that does not exist yet in my library
+     (title + body + trigger from a teammate's export file). */
+  onCreateShortcut: (input: {
+    title: string;
+    body: string;
+    category: string;
+    trigger: string;
+  }) => Promise<void>;
   /* Tapping a card row types its trigger into the search box,
      so the search box grows into that reply's preview. */
   onPickTrigger: (trigger: string) => void;
 }) {
+  /* The starter-library picker lives at the bottom of this long
+     view — the jump link below scrolls to it. Same queryKey as
+     the picker itself, so this shares its cache (no extra fetch)
+     and only the owner ever sees the link. */
+  const starterQuery = useQuery({
+    queryKey: ["starterLibrary", token],
+    queryFn: () => api.getStarterLibrary({ token }),
+  });
   const { lang, t } = useLang();
   const q = query.trim();
   const searching = q.length > 0;
@@ -14050,6 +14447,42 @@ function ShortcutsView({
       {/* «كارت اختصاراتك» — every trigger → reply in one card,
           copyable as plain text in one tap. */}
       <MyShortcutsCard items={allTriggers} onAddFirst={jumpToFirstFree} onPickTrigger={onPickTrigger} query={q} />
+      {/* «أكمل اختصاراتك» — guided completion, most-used first,
+          one tap per reply. */}
+      <CompleteShortcutsPanel
+        withoutTrigger={withoutTrigger}
+        withCount={withTrigger.length}
+        total={shortcuts.length}
+        takenTriggersById={takenTriggersById}
+        onSaveTrigger={onSaveTrigger}
+      />
+      {/* Share + import + the starter-library jump link. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <ShareShortcutsRow
+          shortcuts={shortcuts}
+          onSaveTrigger={onSaveTrigger}
+          onCreateShortcut={onCreateShortcut}
+        />
+        {starterQuery.data?.isOwner && (
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById("starter-library")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold hover:border-[var(--border-strong)]"
+          >
+            <Icon d={Library} size={15} />
+            {t("مكتبة بداية")}
+            <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+              {lang === "en"
+                ? `${starterQuery.data.chosen.length} picked`
+                : `مختار ${starterQuery.data.chosen.length}`}
+            </span>
+          </button>
+        )}
+      </div>
       {withTrigger.length === 0 && withoutTrigger.length > 0 && !searching ? (
         /* No triggers yet: one clear line saying what a shortcut
            is, plus one obvious first action — no lecture. */

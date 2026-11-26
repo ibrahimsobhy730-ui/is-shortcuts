@@ -1,5 +1,6 @@
-/* Test-only end-to-end check of reply media (images + video on
-   replies, Vercel Blob references) against pg-mem (an in-memory
+/* Test-only end-to-end check of reply media (IMAGES ONLY — video
+   was cancelled by the owner 2026-11-26; replies, Vercel Blob
+   references) against pg-mem (an in-memory
    Postgres emulator — no real Neon instance is available in this
    VM). It applies drizzle/0001_init.sql, then exercises the
    handlers exactly as /api/actions would call them:
@@ -119,7 +120,6 @@ const imgArgs = (token, sid, uid, extra = {}) => ({
   byteSize: 123456,
   width: 1600,
   height: 900,
-  durationMs: null,
   ...extra,
 });
 
@@ -192,34 +192,32 @@ try {
     imgArgs(tokenA, sid, uidA, { blobUrl: "https://evil.example.com/x.jpg" }),
   );
   check("attachMedia rejects non-Blob host", !!errHost, errHost ?? "");
-  const errDur = await callThrows("attachMedia", {
+  const errVideoKind = await callThrows("attachMedia", {
     token: tokenA,
     shortcutId: sid,
     kind: "video",
-    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.mp4`,
-    blobPathname: `media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.mp4`,
-    contentType: "video/mp4",
-    byteSize: 1000000,
+    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.png`,
+    blobPathname: `media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.png`,
+    contentType: "image/png",
+    byteSize: 100000,
     width: 1280,
     height: 720,
-    durationMs: 6 * 60 * 1000,
   });
-  check("attachMedia rejects video over 5 min", !!errDur, errDur ?? "");
+  check("attachMedia rejects kind video (images only)", !!errVideoKind, errVideoKind ?? "");
 
-  // ---- replace: video over the image (old row replaced, not doubled).
+  // ---- replace: a second image over the first (old row replaced, not doubled).
   const replaced = await call("attachMedia", {
     token: tokenA,
     shortcutId: sid,
-    kind: "video",
-    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.mp4`,
-    blobPathname: `media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.mp4`,
-    contentType: "video/mp4",
-    byteSize: 4000000,
+    kind: "image",
+    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.png`,
+    blobPathname: `media/${uidA}/${sid}/bbbbbbbb-1111-2222-3333-444444444444.png`,
+    contentType: "image/png",
+    byteSize: 100000,
     width: 1280,
     height: 720,
-    durationMs: 90000,
   });
-  check("attachMedia replaces image with video", replaced.media?.kind === "video");
+  check("attachMedia replaces image with image", replaced.media?.kind === "image");
   check("replace keeps one media row", (await mediaRows()).length === 1);
 
   // ---- remove: ownership + happy path.
@@ -363,24 +361,14 @@ try {
   const msgs = new Set();
   let allArabic = true;
   for (const k of kinds) {
-    for (const v of [false, true]) {
-      const m = uploadErrorMessage(k, v);
-      if (!m || !/[\u0600-\u06FF]/.test(m)) allArabic = false;
-      msgs.add(m);
-    }
+    const m = uploadErrorMessage(k);
+    if (!m || !/[\u0600-\u06FF]/.test(m)) allArabic = false;
+    msgs.add(m);
   }
-  check("uploadErrorMessage: every kind has a distinct Arabic message", allArabic && msgs.size === kinds.length + 2, `${msgs.size} distinct of ${kinds.length + 2}`);
+  check("uploadErrorMessage: every kind has a distinct Arabic message", allArabic && msgs.size === kinds.length, `${msgs.size} distinct of ${kinds.length}`);
   check(
     "uploadErrorMessage stalled vs aborted differ",
-    uploadErrorMessage("stalled", false) !== uploadErrorMessage("aborted", false),
-  );
-  check(
-    "uploadErrorMessage content-type differs by kind",
-    uploadErrorMessage("content-type", false) !== uploadErrorMessage("content-type", true),
-  );
-  check(
-    "uploadErrorMessage too-large differs by kind",
-    uploadErrorMessage("too-large", false) !== uploadErrorMessage("too-large", true),
+    uploadErrorMessage("stalled") !== uploadErrorMessage("aborted"),
   );
   // ---- upload diagnostics (2026-11-26): one failure, one diagnosis ----
   check(
@@ -413,9 +401,37 @@ try {
       /setMediaError\(withStage\(base\)\);/.test(editorSrc),
   );
   check(
-    "video failures surface a SPECIFIC classified cause before the generic video line",
-    /else if \(\s*classified === "content-type"/.test(editorSrc) &&
-      editorSrc.indexOf('classified === "content-type"') < editorSrc.indexOf("الفيديو مش راضي يترفع من المتصفح ده"),
+    "failures surface a SPECIFIC classified cause before the generic line",
+    /else if \(\s*classified === "content-type"/.test(editorSrc),
+  );
+  check(
+    "editor has no video fallback line left (video cancelled)",
+    !editorSrc.includes("الفيديو مش راضي يترفع") &&
+      !editorSrc.includes('kind === "video"') &&
+      !editorSrc.includes("measureVideo"),
+  );
+  // ---- upload diagnosability (2026-11-26): the server fallback
+  // used to throw a bare message with no cause, so the UI showed
+  // a bare «الرفع متمّش» at stage «الرفع من السيرفر». The error
+  // must now carry the HTTP status + Blob code, and the mint must
+  // retry once with a freshly re-read session token.
+  const mediaUploadSrc = readFileSync(join(root, "components", "media-upload.ts"), "utf8");
+  check(
+    "uploadViaServer appends the HTTP status to thrown errors",
+    mediaUploadSrc.includes("(HTTP ${res.status})"),
+  );
+  check(
+    "classify maps HTTP 401 to token (mint session errors)",
+    classifyUploadError(new Error("انتهت الجلسة (HTTP 401)")) === "token",
+  );
+  check(
+    "mintClientToken retries once with the stored session token",
+    mediaUploadSrc.includes("readStoredSessionToken") &&
+      mediaUploadSrc.includes("انتهت الجلسة"),
+  );
+  check(
+    "upload-direct route answers put() failures with status + code",
+    readFileSync(join(root, "app", "api", "media", "upload-direct", "route.ts"), "utf8").includes("blob_put_failed"),
   );
 
 } catch (e) {

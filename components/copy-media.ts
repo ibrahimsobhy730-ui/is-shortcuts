@@ -1,26 +1,22 @@
 /* Pure copy-planning helpers for reply media — no DOM, no React,
    so the decision logic is unit-testable in Node (see
    scripts/verify-copy-media.mjs). The browser-only steps
-   (clipboard write, image→PNG conversion, file download) live in
+   (clipboard write, image→PNG conversion) live in
    components/App.tsx next to copyText and call these planners.
 
-   The truth table (the Clipboard API has no video MIME type, so a
-   video is NEVER put on the clipboard — that is a spec fact, not
-   a gap):
+   IMAGES ONLY (قرار المالك 2026-11-26): video upload was
+   cancelled entirely — no video copy/download path exists anywhere
+   in the app anymore. The truth table:
    - text only            → writeText(text)
    - text + image         → ONE ClipboardItem({ "text/plain", "image/png" })
                             in ONE write(); the image is converted to
                             PNG first (JPEG/WebP are not portable
                             clipboard image types). Paste into
                             WhatsApp Web / Chatwoot is EXPECTED to
-                            take the richest format — unverified live.
-   - text + video         → writeText(text) only + the video file
-                            DOWNLOADS in the same tap. One action,
-                            two honest outcomes. The UI must NEVER
-                            say the video was "copied". */
+                            take the richest format — unverified live. */
 
 export type MediaRef = {
-  kind: "image" | "video";
+  kind: "image";
   blobUrl: string;
   blobPathname: string;
   contentType: string;
@@ -32,44 +28,25 @@ export type MediaRef = {
 
 export type CopyPlan =
   | { mode: "text" }
-  | { mode: "text-image"; imageUrl: string }
-  | { mode: "text-video"; videoUrl: string; fileName: string };
+  | { mode: "text-image"; imageUrl: string };
 
 /** Which copy the reply needs, from its attached media (if any). */
-export function planCopy(media: MediaRef, title: string): CopyPlan {
+export function planCopy(media: MediaRef): CopyPlan {
   if (!media) return { mode: "text" };
   if (media.kind === "image") return { mode: "text-image", imageUrl: media.blobUrl };
-  return {
-    mode: "text-video",
-    videoUrl: media.blobUrl,
-    fileName: mediaFileName(title, media.contentType),
-  };
-}
-
-/** A safe download filename from the reply title + the video type. */
-export function mediaFileName(title: string, contentType: string): string {
-  const ext = contentType === "video/webm" ? "webm" : "mp4";
-  const clean =
-    title
-      .replace(/[\\/:*?"<>|]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 60) || "رد";
-  return `${clean}.${ext}`;
+  return { mode: "text" };
 }
 
 /** Copy-button labels for a reply with this media. short = the
     compact row pill, where space is tight — the full honest
     sentence still rides in the toast. */
-export function copyButtonLabels(
-  media: MediaRef,
-  short = false,
-): { idle: string; done: string } {
-  if (media?.kind === "video") {
-    return short
-      ? { idle: "نسخ + تنزيل", done: "اتنسخ ✓" }
-      : { idle: "نسخ النص + تنزيل الفيديو", done: "اتنسخ النص ✓ · الفيديو بينزل" };
-  }
+/* Labels no longer depend on the media: an image reply copies
+   exactly like a text reply (one combined write) — the parameter
+   is gone so no caller can pass a video-shaped value. */
+export function copyButtonLabels(short = false): {
+  idle: string;
+  done: string;
+} {
   return short
     ? { idle: "نسخ", done: "اتنسخ" }
     : { idle: "نسخ الرد", done: "اتنسخ" };
@@ -80,24 +57,6 @@ export function copyButtonLabels(
     happened yet, and the button must say so instead of flipping
     to «اتنسخ» or staying silent. */
 export const COPY_FILL_NOTE = "كمّل البيانات…";
-
-/** Toast after a video copy: the text landed; the video is
-    downloading (or the download failed — the text is still copied
-    and the use is still recorded). */
-export function videoCopyToast(
-  title: string,
-  downloaded: boolean,
-): { text: string; kind: "ok" | "error" } {
-  return downloaded
-    ? {
-        text: `اتنسخ نص «${title}» — الفيديو بينزل دلوقتي، ابعته من جهازك`,
-        kind: "ok",
-      }
-    : {
-        text: "اتنسخ النص — بس تنزيل الفيديو فشل، جرّب من التفاصيل",
-        kind: "error",
-      };
-}
 
 /** Toast when the image could not be converted/copied but the
     text did land: the copy fell back to text-only, honestly. */
@@ -119,8 +78,8 @@ export function copySuccessToast(title: string): { text: string; kind: "ok" } {
 export const COPY_FAILED_TEXT = "النسخ متعذر هنا";
 
 /* The zero-error copy decision (متطلب المالك 2026-11-26: نسبة
-   خطأ صفر — الصورة/الفيديو يتنسخ مع الكلام). The browser steps
-   (clipboard write, image→PNG conversion, file download) live in
+   خطأ صفر — الصورة تتنسخ مع الكلام). The browser steps
+   (clipboard write, image→PNG conversion) live in
    components/App.tsx; THIS function is the single place that
    decides what those steps mean — so it is pure, exhaustively
    tested (scripts/verify-copy-media.mjs), and no path in the app
@@ -131,20 +90,12 @@ export const COPY_FAILED_TEXT = "النسخ متعذر هنا";
      text write; only if that lands too is the copy a (text-only)
      success — with the honest imageFallbackToast, never the
      success line. If the text write also fails, the whole action
-     failed: no success state, no use recorded.
-   - text-video: the text write decides the button and the use;
-     the download is reported by its own toast when it settles
-     (videoCopyToast). The button NEVER says the video was
-     "copied" — its done label says the text was copied and the
-     video is downloading. While the download is still pending
-     there is no toast yet (toast: null). */
+     failed: no success state, no use recorded. */
 export type MediaCopySteps = {
   /** ONE ClipboardItem carrying text+image landed (image only). */
   combinedOk: boolean;
   /** A plain-text clipboard write landed. */
   textOk: boolean;
-  /** Video download: "pending" while it runs, then settled. */
-  download: "pending" | boolean;
 };
 
 export function copyOutcome(
@@ -161,27 +112,14 @@ export function copyOutcome(
       ? { button: "copied", toast: copySuccessToast(title), recordUse: true }
       : { button: "failed", toast: { text: COPY_FAILED_TEXT, kind: "error" }, recordUse: false };
   }
-  if (plan.mode === "text-image") {
-    if (steps.combinedOk) {
-      return { button: "copied", toast: copySuccessToast(title), recordUse: true };
-    }
-    if (steps.textOk) {
-      return { button: "copied", toast: imageFallbackToast(), recordUse: true };
-    }
-    return { button: "failed", toast: { text: COPY_FAILED_TEXT, kind: "error" }, recordUse: false };
+  /* text-image */
+  if (steps.combinedOk) {
+    return { button: "copied", toast: copySuccessToast(title), recordUse: true };
   }
-  /* text-video */
-  if (!steps.textOk) {
-    return { button: "failed", toast: { text: COPY_FAILED_TEXT, kind: "error" }, recordUse: false };
+  if (steps.textOk) {
+    return { button: "copied", toast: imageFallbackToast(), recordUse: true };
   }
-  if (steps.download === "pending") {
-    return { button: "copied", toast: null, recordUse: true };
-  }
-  return {
-    button: "copied",
-    toast: videoCopyToast(title, steps.download),
-    recordUse: true,
-  };
+  return { button: "failed", toast: { text: COPY_FAILED_TEXT, kind: "error" }, recordUse: false };
 }
 
 /** Human file size for the media UI ("2.4 ميجا", "380 كيلو"). */
@@ -192,13 +130,4 @@ export function formatMediaSize(bytes: number): string {
   }
   const kb = Math.max(1, Math.round(bytes / 1024));
   return `${kb} كيلو`;
-}
-
-/** "1:23" style duration for the video badge / details. */
-export function formatMediaDuration(ms: number | null | undefined): string {
-  if (!ms || ms <= 0) return "";
-  const total = Math.round(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }

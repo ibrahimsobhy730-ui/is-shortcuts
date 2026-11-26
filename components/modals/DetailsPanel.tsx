@@ -126,9 +126,8 @@ export function DetailsPanel({
   const tags = parseTags(item.tags);
   const actBtn =
     "lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]";
-  /* Copy-button labels for this reply's media (video wording —
-     see ShortcutCard). */
-  const copyLabels = copyButtonLabels(item.media);
+  /* Copy-button labels for this reply's media (see ShortcutCard). */
+  const copyLabels = copyButtonLabels();
   return (
     <div
       ref={panelRef}
@@ -242,12 +241,10 @@ export function DetailsPanel({
         </p>
       </div>
 
-      {/* Attached image/video, full block: player + meta + download,
-          and (video only) «نسخ رابط الفيديو» — a link, never the
-          default copy. */}
+      {/* Attached image, full block: image + meta + download. */}
       {item.media && (
         <div className="mt-3">
-          <ReplyMediaBlock media={item.media} title={item.title} showCopyLink />
+          <ReplyMediaBlock media={item.media} title={item.title} />
         </div>
       )}
 

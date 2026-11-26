@@ -18,10 +18,15 @@ import { MEDIA_STORAGE_NOT_CONFIGURED } from "../upload/route";
    this route, which put()s them with BLOB_READ_WRITE_TOKEN.
    Serverless request bodies cap at ~4.5 MB, so this route takes
    images/small files only (4 MB hard cap, multipart overhead
-   included) — videos failing both direct paths get an honest
-   message instead of a spinner, never a fake success.
+   included) — IMAGES ONLY (video upload was cancelled by the
+   owner 2026-11-26).
    The same validations as the token route run first: session,
-   reply ownership, pathname shape, kind + content-type + size. */
+   reply ownership, pathname shape, content-type + size.
+   DIAGNOSABILITY (2026-11-26): a put() failure used to surface
+   only the SDK's bare message, so the client classifier saw no
+   cause. Failures from put() now answer 502 with { error, status,
+   code } — the code is the Blob API code when the message carries
+   one, else "blob_put_failed". */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,18 +44,15 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   const token = form.get("token");
   const shortcutIdRaw = form.get("shortcutId");
-  const kindRaw = form.get("kind");
   const pathnameRaw = form.get("pathname");
   const file = form.get("file");
   const shortcutId =
     typeof shortcutIdRaw === "string" ? Number(shortcutIdRaw) : NaN;
-  const kind = kindRaw === "video" ? "video" : kindRaw === "image" ? "image" : null;
   if (
     typeof token !== "string" ||
     !token ||
     !Number.isInteger(shortcutId) ||
     shortcutId <= 0 ||
-    !kind ||
     typeof pathnameRaw !== "string" ||
     !(file instanceof File)
   ) {
@@ -69,29 +71,46 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (!pm || Number(pm[1]) !== user.id || Number(pm[2]) !== shortcutId) {
       throw new Error("مسار الملف مش صحيح");
     }
-    const limits = mediaLimitsFor(kind);
+    const limits = mediaLimitsFor();
     if (!(limits.contentTypes as readonly string[]).includes(file.type)) {
       throw new Error(
-        kind === "image"
-          ? "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"
-          : "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي",
+        "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي",
       );
     }
     if (file.size > limits.maxBytes || file.size > SERVER_UPLOAD_MAX_BYTES) {
       throw new Error(
         file.size > SERVER_UPLOAD_MAX_BYTES
           ? "الملف كبير على الرفع من السيرفر — جرّب من المتصفح مباشرة"
-          : kind === "image"
-            ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
-            : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
+          : "الصورة أكبر من 8 ميجا — جرّب صورة أصغر",
       );
     }
-    const blob = await put(pathname, file, {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: file.type,
-    });
-    return NextResponse.json({ url: blob.url, pathname: blob.pathname });
+    try {
+      const blob = await put(pathname, file, {
+        access: "public",
+        addRandomSuffix: false,
+        contentType: file.type,
+      });
+      return NextResponse.json({ url: blob.url, pathname: blob.pathname });
+    } catch (putError) {
+      /* put() throws only the error, discarding the Blob API's
+         code — recover the code from the message when it carries
+         one, so the client classifier can name the cause. */
+      if (putError instanceof BlobAccessError) throw putError;
+      const putMsg =
+        putError instanceof Error ? putError.message : "الرفع متمّش";
+      const codeMatch =
+        /(store_not_found|not_allowed|unknown_error|service_unavailable|rate_limited)/i.exec(
+          putMsg,
+        );
+      return NextResponse.json(
+        {
+          error: putMsg,
+          status: 502,
+          code: codeMatch?.[1] ? codeMatch[1].toLowerCase() : "blob_put_failed",
+        },
+        { status: 502 },
+      );
+    }
   } catch (error) {
     if (error instanceof BlobAccessError) {
       return NextResponse.json(

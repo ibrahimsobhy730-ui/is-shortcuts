@@ -9,12 +9,12 @@
    ============================================================ */
 
 @theme {
-  /* الخط الوحيد (2026-11-26): أميري لكل شيء — نص، عناوين،
-     آية، علامة مائية، وحتى مواضع font-mono (أرقام/لاتيني)؛
-     system-ui في آخر القائمة شبكة أمان للحروف التي لا يملكها
-     أميري أصلًا فقط (✓ ← → ⋯ ✦ ℹ والإيموجي) — لا خط نص ثانٍ. */
-  --font-sans: var(--font-amiri), "Amiri", system-ui, sans-serif;
-  --font-mono: var(--font-amiri), "Amiri", system-ui, sans-serif;
+  /* الخط الوحيد للواجهة (2026-11-26): Readex Pro لكل شيء —
+     نص، عناوين، أزرار، وحتى مواضع font-mono (أرقام/لاتيني)؛
+     «Segoe UI» وTahoma شبكة أمان للحروف النادرة. الآية وحدها
+     بأميري (انظر .verse في tokens.css). */
+  --font-sans: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --font-mono: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
   --text-xs: 12px;
   --text-xs--line-height: 18px;
   --text-sm: 14px;

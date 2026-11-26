@@ -12,16 +12,17 @@ import {
   MEDIA_PATH_RE,
 } from "@/lib/actions";
 
-/* Client-upload token route for reply media (images + video).
+/* Client-upload token route for reply media (IMAGES ONLY —
+   video upload was cancelled by the owner 2026-11-26).
    The browser sends its file STRAIGHT to Vercel Blob — the bytes
    never pass through this function (a Serverless Function caps
-   request bodies at ~4.5 MB on Hobby; videos go to 50 MB). This
-   route only mints a short-lived, tightly-scoped token:
-   - the client sends its session token + shortcutId + kind as
+   request bodies at ~4.5 MB on Hobby). This route only mints a
+   short-lived, tightly-scoped token:
+   - the client sends its session token + shortcutId as
      clientPayload (see the editor's uploadMedia);
    - onBeforeGenerateToken resolves the session, checks the reply
      really belongs to this user, and scopes the token to that
-     reply's pathname prefix and the kind's allowlist + size cap.
+     reply's pathname prefix and the image allowlist + size cap.
    The DB row is written afterwards by the attachMedia action —
    never by the upload-completed callback (that callback is an
    inbound POST from Vercel's infrastructure and never arrives on
@@ -37,7 +38,7 @@ export const dynamic = "force-dynamic";
 /** The Arabic string the editor shows when Blob storage is not
     connected on the server yet. */
 export const MEDIA_STORAGE_NOT_CONFIGURED =
-  "التخزين مش متظبط على السيرفر — الصور والفيديو مش متاحين دلوقتي";
+  "التخزين مش متظبط على السيرفر — الصور مش متاحة دلوقتي";
 
 type MediaPayload = {
   token?: unknown;
@@ -64,8 +65,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         const token = typeof payload.token === "string" ? payload.token : "";
         const shortcutId =
           typeof payload.shortcutId === "number" ? payload.shortcutId : 0;
-        const kind = payload.kind === "video" ? "video" : payload.kind === "image" ? "image" : null;
-        if (!token || !shortcutId || !kind) {
+        if (!token || !shortcutId) {
           throw new Error("بيانات الرفع ناقصة — سجّل دخولك وحاول تاني");
         }
         const ctx = createCtx();
@@ -79,7 +79,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         if (!pm || Number(pm[1]) !== user.id || Number(pm[2]) !== shortcutId) {
           throw new Error("مسار الملف مش صحيح");
         }
-        const limits = mediaLimitsFor(kind);
+        const limits = mediaLimitsFor();
         return {
           allowedContentTypes: [...limits.contentTypes],
           maximumSizeInBytes: limits.maxBytes,

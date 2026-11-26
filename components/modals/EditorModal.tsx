@@ -354,8 +354,11 @@ export function EditorModal({
   };
 
   /* ---------- reply media ----------
-     An image/video attached to THIS reply (existing replies only —
+     An image attached to THIS reply (existing replies only —
      a new reply has no id yet, so attach needs it saved first).
+     IMAGES ONLY — video upload was cancelled by the owner
+     2026-11-26. The image is copied WITH the reply text in one
+     clipboard write (see copy-media.ts).
      The file goes straight from the browser to Vercel Blob
      (upload() + the /api/media/upload token route); attachMedia
      then records the reference. Media is NOT part of
@@ -378,7 +381,6 @@ export function EditorModal({
      exact hint until the store exists. */
   const [mediaStorageDown, setMediaStorageDown] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
 
   /* Downscale an image to at most 1600px on the longest edge
      (same canvas pattern as the avatar flow, which uses 512px),
@@ -415,29 +417,7 @@ export function EditorModal({
       img.src = url;
     });
 
-  /* Measure a video's duration + dimensions from its metadata
-     (no upload involved). */
-  const measureVideo = (file: File): Promise<{ durationMs: number; width: number; height: number }> =>
-    new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const v = document.createElement("video");
-      v.preload = "metadata";
-      v.onloadedmetadata = () => {
-        URL.revokeObjectURL(url);
-        resolve({
-          durationMs: Math.round(v.duration * 1000),
-          width: v.videoWidth,
-          height: v.videoHeight,
-        });
-      };
-      v.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("unreadable video"));
-      };
-      v.src = url;
-    });
-
-  const uploadMediaFile = async (file: File, kind: "image" | "video") => {
+  const uploadMediaFile = async (file: File) => {
     if (!item) return;
     setMediaError(null);
     setMediaStorageDown(false);
@@ -448,29 +428,16 @@ export function EditorModal({
        withStage is applied to every error this function shows. */
     let stage = "التحقق من الملف";
     const withStage = (m: string) => `${m} — المرحلة: ${stage}`;
-    const allowed =
-      kind === "image"
-        ? ["image/jpeg", "image/png", "image/webp"]
-        : ["video/mp4", "video/webm"];
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
     if (!allowed.includes(file.type)) {
       setMediaError(
-        withStage(
-          kind === "image"
-            ? "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"
-            : "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي",
-        ),
+        withStage("الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"),
       );
       return;
     }
-    const cap = kind === "image" ? 8 * 1024 * 1024 : 50 * 1024 * 1024;
+    const cap = 8 * 1024 * 1024;
     if (file.size > cap) {
-      setMediaError(
-        withStage(
-          kind === "image"
-            ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
-            : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
-        ),
-      );
+      setMediaError(withStage("الصورة أكبر من 8 ميجا — جرّب صورة أصغر"));
       return;
     }
     /* Preflight: the Blob endpoint either answers from this
@@ -478,7 +445,7 @@ export function EditorModal({
        upload instead of parking the bar at 79% / 0%. */
     stage = "فحص الاتصال";
     if (!(await checkBlobReachable())) {
-      setMediaError(withStage(uploadErrorMessage("unreachable", kind === "video")));
+      setMediaError(withStage(uploadErrorMessage("unreachable")));
       return;
     }
     setMediaUploading(true);
@@ -486,12 +453,11 @@ export function EditorModal({
     setMediaWaiting(false);
     /* Timeout + stall watchdog (2026-11-26 — the old code had
        neither, so a transport stall became an infinite silent
-       stall): the direct PUT aborts after 30s (images) / 120s
-       (videos), and if no byte is read for ~15s while bytes
-       remain, the watchdog aborts it as "stalled". Once all bytes
-       are read, only the overall timeout still applies — the
-       server is answering, just slowly. */
-    const timeoutMs = kind === "image" ? 30000 : 120000;
+       stall): the direct PUT aborts after 30s, and if no byte is
+       read for ~15s while bytes remain, the watchdog aborts it as
+       "stalled". Once all bytes are read, only the overall timeout
+       still applies — the server is answering, just slowly. */
+    const timeoutMs = 30000;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
     const stalled = { current: false };
@@ -516,45 +482,29 @@ export function EditorModal({
       let upFile = file;
       let width: number | null = null;
       let height: number | null = null;
-      let durationMs: number | null = null;
       stage = "تجهيز الملف";
-      if (kind === "image") {
-        const prepared = await prepareImage(file);
-        upFile = prepared.file;
-        width = prepared.width;
-        height = prepared.height;
-      } else {
-        const meta = await measureVideo(file);
-        durationMs = meta.durationMs;
-        width = meta.width || null;
-        height = meta.height || null;
-        if (durationMs > 5 * 60 * 1000) {
-          setMediaError(withStage("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر"));
-          return;
-        }
-      }
+      const prepared = await prepareImage(file);
+      upFile = prepared.file;
+      width = prepared.width;
+      height = prepared.height;
       const ext =
         upFile.type === "image/png"
           ? "png"
           : upFile.type === "image/webp"
             ? "webp"
-            : upFile.type === "video/webm"
-              ? "webm"
-              : upFile.type === "video/mp4"
-                ? "mp4"
-                : "jpg";
+            : "jpg";
       const pathname = `media/${userId}/${item.id}/${crypto.randomUUID()}.${ext}`;
       /* Probe first so the server's exact error surfaces (see
          mintClientToken), then the real client upload. */
       stage = "تجهيز الرفع";
-      await mintClientToken(token, pathname, item.id, kind);
+      await mintClientToken(token, pathname, item.id);
       let blob: { url: string; pathname: string };
       try {
         stage = "الرفع المباشر";
         blob = await upload(pathname, countedStream(upFile, onRead), {
           access: "public",
           handleUploadUrl: "/api/media/upload",
-          clientPayload: JSON.stringify({ token, shortcutId: item.id, kind }),
+          clientPayload: JSON.stringify({ token, shortcutId: item.id }),
           abortSignal: controller.signal,
         });
       } catch (directErr) {
@@ -588,7 +538,7 @@ export function EditorModal({
         );
         try {
           stage = "تجهيز الرفع";
-          const freshToken = await mintClientToken(token, pathname, item.id, kind);
+          const freshToken = await mintClientToken(token, pathname, item.id);
           stage = "الرفع البديل";
           blob = await uploadViaXhr(
             pathname,
@@ -599,11 +549,11 @@ export function EditorModal({
             freshController.signal,
           );
         } catch (xhrErr) {
-          if (kind === "video" || upFile.size > 4 * 1024 * 1024) {
+          if (upFile.size > 4 * 1024 * 1024) {
             throw xhrErr;
           }
           stage = "الرفع من السيرفر";
-          blob = await uploadViaServer(token, item.id, kind, pathname, upFile);
+          blob = await uploadViaServer(token, item.id, pathname, upFile);
         } finally {
           window.clearTimeout(freshTimeout);
         }
@@ -612,14 +562,13 @@ export function EditorModal({
       const saved = await api.attachMedia({
         token,
         shortcutId: item.id,
-        kind,
+        kind: "image",
         blobUrl: blob.url,
         blobPathname: blob.pathname,
         contentType: upFile.type,
         byteSize: upFile.size,
         width,
         height,
-        durationMs,
       });
       setMedia(saved.media);
       queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
@@ -628,17 +577,17 @@ export function EditorModal({
       if (msg.includes("التخزين مش متظبط")) setMediaStorageDown(true);
       /* Error wording, in priority order: a stalled watchdog;
          the server's own Arabic message, verbatim (503, validation,
-         attach errors); a SPECIFIC classified cause (forbidden,
-         too-large, token…) — the old code hid those behind the
-         generic video line when fallbacks had been tried; the
-         generic video line only for unclassified failures;
-         otherwise the mapped English SDK/transport error. Every
-         branch carries the stage — one failure, one diagnosis.
-         Never a generic spinner, never a silent failure. */
+         attach errors — now carrying (HTTP <status>) + code, so the
+         classifier names the cause); a SPECIFIC classified cause
+         (forbidden, too-large, token…) — never the generic line
+         when a cause is known; otherwise the mapped English
+         SDK/transport error. Every branch carries the stage — one
+         failure, one diagnosis. Never a generic spinner, never a
+         silent failure. */
       const classified = classifyUploadError(e);
       let base: string;
       if (stalled.current) {
-        base = uploadErrorMessage("stalled", kind === "video");
+        base = uploadErrorMessage("stalled");
       } else if (/[\u0600-\u06FF]/.test(msg)) {
         base = msg;
       } else if (
@@ -650,11 +599,9 @@ export function EditorModal({
         classified === "not-found" ||
         classified === "service"
       ) {
-        base = uploadErrorMessage(classified, kind === "video");
-      } else if (kind === "video" && triedFallback.current) {
-        base = "الفيديو مش راضي يترفع من المتصفح ده";
+        base = uploadErrorMessage(classified);
       } else {
-        base = uploadErrorMessage(classified, kind === "video");
+        base = uploadErrorMessage(classified);
       }
       setMediaError(withStage(base));
     } finally {
@@ -820,20 +767,19 @@ export function EditorModal({
             </div>
           </div>
 
-          {/* الوسائط: صورة أو فيديو مرفقين بالرد — بيتنسخوا مع النص
-              (الصورة في نفس النسخة، والفيديو بينزل مع النسخ).
-              الإرفاق والمسح mutations مستقلة — مش جزء من حفظ
-              الرد ولا المسودة ولا الحفظ التلقائي. */}
+          {/* الوسائط: صورة مرفقة بالرد — بتتنسخ مع النص في نسخة
+              واحدة. الإرفاق والمسح mutations مستقلة — مش جزء من
+              حفظ الرد ولا المسودة ولا الحفظ التلقائي. */}
           <div className="mt-6">
             {sectionHead(I.image, "الوسائط")}
             <div className="mt-3 flex flex-col gap-3">
               {!item ? (
                 <p className="text-[13px] leading-relaxed text-[var(--dim)]">
-                  احفظ الرد الأول، وبعدين تقدر تضيف صورة أو فيديو من هنا — الوسائط بتتربط بالرد بعد ما يتحفظ.
+                  احفظ الرد الأول، وبعدين تقدر تضيف صورة من هنا — الوسائط بتتربط بالرد بعد ما يتحفظ.
                 </p>
               ) : mediaStorageDown ? (
                 <p role="alert" className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-3.5 py-3 text-[13px] font-bold leading-relaxed text-[var(--dim)]">
-                  التخزين مش متظبط على السيرفر — الصور والفيديو مش متاحين دلوقتي
+                  التخزين مش متظبط على السيرفر — الصور مش متاحة دلوقتي
                 </p>
               ) : media ? (
                 <>
@@ -847,15 +793,6 @@ export function EditorModal({
                     >
                       <Icon d={I.image} size={15} />
                       استبدال بصورة
-                    </button>
-                    <button
-                      type="button"
-                      disabled={mediaUploading || mediaRemoving}
-                      onClick={() => videoInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
-                    >
-                      <Icon d={I.play} size={15} />
-                      استبدال بفيديو
                     </button>
                     <button
                       type="button"
@@ -886,18 +823,9 @@ export function EditorModal({
                       <Icon d={I.image} size={15} />
                       أضف صورة
                     </button>
-                    <button
-                      type="button"
-                      disabled={mediaUploading}
-                      onClick={() => videoInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
-                    >
-                      <Icon d={I.play} size={15} />
-                      أضف فيديو
-                    </button>
                   </div>
                   <p className="text-xs leading-relaxed text-[var(--dim)]">
-                    صورة JPG أو PNG أو WebP لحد 8 ميجا (بتتصغّر لـ 1600px قبل الرفع) — فيديو MP4 أو WebM لحد 50 ميجا و5 دقايق. الـ GIF والـ MOV مش مدعومين دلوقتي. الصورة بتتنسخ مع النص في نسخة واحدة، والفيديو بينزل على جهازك مع النسخ.
+                    صورة JPG أو PNG أو WebP لحد 8 ميجا (بتتصغّر لـ 1600px قبل الرفع). الـ GIF مش مدعوم دلوقتي. الصورة بتتنسخ مع النص في نسخة واحدة.
                   </p>
                 </>
               )}
@@ -929,19 +857,7 @@ export function EditorModal({
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   e.target.value = "";
-                  if (f) void uploadMediaFile(f, "image");
-                }}
-              />
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/mp4,video/webm"
-                className="hidden"
-                aria-label="اختيار فيديو"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) void uploadMediaFile(f, "video");
+                  if (f) void uploadMediaFile(f);
                 }}
               />
             </div>
