@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "./safe-area";
@@ -1152,11 +1152,35 @@ function triggerError(raw: string, taken: readonly string[] = []): string | null
   return null;
 }
 
+/** Recency order for triggers — «آخر اختصارات استخدمتها»: the
+    replies used most RECENTLY first (lastUsedAt, stamped by every
+    real copy), then the never-used ones below in their existing
+    usage order (usageCount desc, then id). Copy history already
+    records every copy with a timestamp, and lastUsedAt is that
+    stamp per reply — no new schema was needed for this. */
+function sortTriggersRecency<
+  T extends { lastUsedAt: string | null; usageCount: number; id: number },
+>(list: readonly T[]): T[] {
+  const recent = list
+    .filter((s) => s.lastUsedAt)
+    .sort(
+      (a, b) =>
+        new Date(b.lastUsedAt as string).getTime() -
+          new Date(a.lastUsedAt as string).getTime() ||
+        b.usageCount - a.usageCount ||
+        a.id - b.id,
+    );
+  const never = list
+    .filter((s) => !s.lastUsedAt)
+    .sort((a, b) => b.usageCount - a.usageCount || a.id - b.id);
+  return [...recent, ...never];
+}
+
 /* Stopwords never make a trigger — too generic to name a reply.
    Compared on the normalized form (إ/ا and ة/ه folded), so «إلى»
    matches «الي» and «إن»/«أن» match «ان». */
 const TRIGGER_STOPWORDS = new Set([
-  "في", "من", "الي", "على", "عن", "مع", "بعد", "قبل", "بين",
+  "في", "من", "الي", "علي", "عن", "مع", "بعد", "قبل", "بين",
   "ان", "ما", "لا", "لم", "لن", "هو", "هي", "هذا", "هذه",
   "ذلك", "تلك", "كان", "يكون", "كل", "اي", "او", "ثم", "لكن",
   "اذا", "عند", "لدى", "اذ", "حتى", "منذ",
@@ -1173,8 +1197,12 @@ const TRIGGER_STOPWORDS = new Set([
     is checked FREE (not used by any of the user's other replies,
     and not the reply's own current trigger). While the user types,
     only candidates that complete the typed text are shown, so the
-    list behaves like live completions; with an empty field the
-    easiest candidates are shown as-is. One tap fills the field. */
+    list behaves like live completions — but it NEVER goes empty
+    while typing: when narrowing matches nothing, the easiest
+    candidates from the reply itself are shown instead (same
+    free/own rules), so there is always something one tap away.
+    With an empty field the easiest candidates are shown as-is.
+    One tap fills the field. */
 function suggestTriggers(
   item: { title: string; body: string; trigger?: string | null },
   taken: readonly string[] = [],
@@ -1251,6 +1279,12 @@ function suggestTriggers(
   };
   const ranked = typedNorm ? cands.filter(startsTyped) : cands;
   for (const c of ranked) push(c);
+  /* Never go empty while typing: when narrowing matches nothing
+     (e.g. «تر» completes no word of «تيست»), fall back to the
+     easiest candidates from the reply itself — the same free /
+     own / already-typed rules, enforced by push() — so the list
+     always offers something one tap away. */
+  if (out.length === 0) for (const c of cands) push(c);
   return out.slice(0, 3);
 }
 
@@ -2108,6 +2142,24 @@ const EN: Record<string, string> = {
   "اتلغى آخر نقل": "Last move undone",
   "اتعاد النقل": "Move redone",
   "اسحب المجلد على مجلد تاني أو على مجموعة «المجلدات»": "Drag the folder onto another folder or the Folders group",
+  // shortcuts: last-used bar, your shortcuts card, starter library
+  "آخر اختصارات استخدمتها": "Your most recently used shortcuts",
+  "لسه ما اتستخدمتش": "Not used yet",
+  "كارت اختصاراتك": "Your shortcuts card",
+  "اقفل كارت اختصاراتك": "Close your shortcuts card",
+  "افتح كارت اختصاراتك": "Open your shortcuts card",
+  "لسه مفيش اختصارات — أول ما تضيف واحد هيظهر هنا": "No shortcuts yet — the first one you add shows up here",
+  "لسه مفيش اختصارات في الكارت": "No shortcuts in the card yet",
+  "أول ما تضيف اختصار لأي رد، هيظهر هنا — والكارت كله هيتنسخ بضغطة واحدة.": "As soon as you give a reply a shortcut, it shows up here — and the whole card copies in one tap.",
+  "انسخ الكارت كله": "Copy the whole card",
+  "اتنسخ الكارت كله": "Whole card copied",
+  "مكتبة بداية": "Starter library",
+  "اختار الردود اللي أي حساب جديد هيبدأ بيها — بتتنسخ في مكتبته هو، وردودك بتفضل زي ما هي.": "Pick the replies every new account starts with — they are copied into their own library, and yours stays exactly as it is.",
+  "لسه مخترتش ولا رد — الحسابات الجديدة هتبدأ من صفحة فاضية لحد ما تختار.": "You haven't picked any replies yet — new accounts start from an empty page until you choose.",
+  "دوّر في ردودك": "Search your replies",
+  "دوّر في ردودك…": "Search your replies…",
+  "احفظ مكتبة البداية": "Save the starter library",
+  "امسح الاختيار": "Clear selection",
 };
 
 type LangState = {
@@ -7321,6 +7373,7 @@ function Workspace({
         <section className="mt-4">
           {view === "shortcuts" ? (
             <ShortcutsView
+              token={token}
               shortcuts={shortcuts}
               folders={folders}
               query={search}
@@ -11567,9 +11620,16 @@ function TriggerIcon({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
+          /* Open-only: the pill never toggles itself shut — a tap
+             always opens the editor. A toggle meant a stray second
+             event in the same gesture (or a re-tap while the first
+             open was still settling) closed it again, so the first
+             tap sometimes "did nothing". Closing is the Cancel /
+             save / Escape / tap-outside paths. */
+          if (open) return;
           setValue(item.trigger ?? "");
           setError(null);
-          setOpen((v) => !v);
+          setOpen(true);
         }}
         className={`trig-icon lux-btn ${justSaved ? "trig-icon-saved " : ""}${
           has ? "" : "trig-icon-empty "
@@ -11579,6 +11639,10 @@ function TriggerIcon({
            motion so 88 pills never move in lockstep. */
         style={{ "--trig-delay": `${(item.id % 7) * 0.4}s` } as React.CSSProperties}
       >
+        {/* The travelling sheen — a real element, not ::after:
+            the button's ::after belongs to its tooltip (data-tip),
+            whose rule erased the old ::after sheen entirely. */}
+        <span className="trig-sheen" aria-hidden="true" />
         <span className="trig-zap flex shrink-0">
           <Icon d={I.zap} size={size === "compact" ? 13 : 14} />
         </span>
@@ -11772,6 +11836,22 @@ function ShortcutCard({
 }) {
   const { lang, t } = useLang();
   const [dragArmedCard, setDragArmedCard] = useState(false);
+  /* The grip arms the drag on mousedown and disarms on its own
+     mouseup — but a release outside the grip never fires that
+     mouseup, leaving the card draggable: the next press on the
+     card can then start a native drag instead of a click (a drag
+     swallows the click that follows it). A window-level pointerup
+     always disarms, so the arm can never get stuck. */
+  useEffect(() => {
+    if (!dragArmedCard) return;
+    const disarm = () => setDragArmedCard(false);
+    window.addEventListener("pointerup", disarm);
+    window.addEventListener("blur", disarm);
+    return () => {
+      window.removeEventListener("pointerup", disarm);
+      window.removeEventListener("blur", disarm);
+    };
+  }, [dragArmedCard]);
   const [expanded, setExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -11929,6 +12009,14 @@ function ShortcutCard({
       draggable={!!dnd && dragArmedCard}
       onDragStart={(e) => {
         if (!dnd) return;
+        /* Drag starts at the grip only: a press on the trigger
+           pill, a button or the title must never start a native
+           drag — a drag swallows the click that follows it, so
+           the first tap on the pill sometimes "did nothing". */
+        if (!(e.target as HTMLElement).closest(".tree-grip")) {
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.effectAllowed = "move";
         try {
           e.dataTransfer.setData("text/plain", item.title);
@@ -12464,21 +12552,28 @@ function usePopoverDismiss(
     | Array<React.RefObject<HTMLElement | null>>,
   close: () => void,
 ) {
+  /* The roots array and the close callback are fresh objects on
+     every render — listing them as effect deps re-subscribed the
+     document listener after every render while open. They live in
+     refs instead, so the listener is attached once per open. */
+  const rootsRef = useRef(Array.isArray(ref) ? ref : [ref]);
+  rootsRef.current = Array.isArray(ref) ? ref : [ref];
+  const closeRef = useRef(close);
+  closeRef.current = close;
   useEffect(() => {
     if (!open) return;
     /* A popover floated in a portal lives outside its trigger's
        subtree, so «inside» means inside ANY of the given roots —
        the trigger's and the floated panel's alike. */
-    const roots = Array.isArray(ref) ? ref : [ref];
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (roots.some((r) => r.current?.contains(t))) return;
-      close();
+      if (rootsRef.current.some((r) => r.current?.contains(t))) return;
+      closeRef.current();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        close();
+        closeRef.current();
       }
     };
     document.addEventListener("mousedown", onDown);
@@ -12487,7 +12582,7 @@ function usePopoverDismiss(
       document.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey, true);
     };
-  }, [open, ref, close]);
+  }, [open]);
 }
 
 /* The rows themselves: «بدون مجلد» (the top level) first, then
@@ -13492,7 +13587,385 @@ function SearchTriggerPreview({
   );
 }
 
+/* ---------- your shortcuts card ----------
+   «كارت اختصاراتك»: one luxurious NEBULA card in the Shortcuts
+   section listing ALL the user's triggers → replies, most
+   recently used first (the same recency order as the shortcut
+   bar). One tap on «انسخ الكارت كله» copies the whole list as
+   plain text — one `trigger → title` line per shortcut — for
+   sharing anywhere. Copying the card never records a use (it
+   copies no reply, only the list). Empty state: the elegant
+   empty card, never fake rows. The card opens/closes with a
+   staged animation (literal cubic-bezier only) and the copy
+   button flips to the check + «اتنسخ» with a success glow for
+   2s — the same flip the reply copy buttons use. */
+function MyShortcutsCard({
+  items,
+  onAddFirst,
+}: {
+  items: Shortcut[];
+  onAddFirst: () => void;
+}) {
+  const { lang, t } = useLang();
+  const [open, setOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const text = useMemo(
+    () => items.map((s) => `${s.trigger} → ${s.title}`).join("\n"),
+    [items],
+  );
+  const copyAll = async () => {
+    if (copying || items.length === 0) return;
+    setCopying(true);
+    const ok = await copyText(text);
+    setCopying(false);
+    if (!ok) return; /* never show a false «اتنسخ» */
+    setCopied(true);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <section
+      aria-label={t("كارت اختصاراتك")}
+      className="animate-card-in overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
+    >
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? t("اقفل كارت اختصاراتك") : t("افتح كارت اختصاراتك")}
+          className="lux-btn flex min-w-0 flex-1 items-center gap-2.5 text-start"
+        >
+          <span className="editor-head-icon shrink-0">
+            <Icon d={I.zap} size={15} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-extrabold">
+              {t("كارت اختصاراتك")}
+            </span>
+            <span className="block truncate text-xs text-[var(--dim)]">
+              {items.length === 0
+                ? t("لسه مفيش اختصارات — أول ما تضيف واحد هيظهر هنا")
+                : lang === "en"
+                  ? `${items.length} shortcuts — most recently used first`
+                  : `${items.length} اختصار — آخر استخدام الأول`}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+            {items.length}
+          </span>
+          <span
+            aria-hidden="true"
+            className="shrink-0 text-[var(--dim)]"
+            style={{
+              display: "flex",
+              transform: open ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          >
+            <Icon d={I.chevron} size={16} />
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label={copied ? t("اتنسخ الكارت كله") : t("انسخ الكارت كله")}
+          aria-live="polite"
+          aria-busy={copying}
+          disabled={items.length === 0 || copying}
+          onClick={() => void copyAll()}
+          className={`btn-lux flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-bold disabled:opacity-60 ${copied ? "btn-lux-success copy-success" : ""}`}
+        >
+          {copying ? (
+            <>
+              <span className="spinner" aria-hidden="true" />
+              {t("بيتنسخ…")}
+            </>
+          ) : copied ? (
+            <>
+              <span className="animate-copy-pop flex">
+                <Icon d={I.check} size={15} />
+              </span>
+              {t("اتنسخ")}
+            </>
+          ) : (
+            <>
+              <Icon d={I.copy} size={15} />
+              {t("انسخ الكارت كله")}
+            </>
+          )}
+        </button>
+      </div>
+      {open &&
+        (items.length === 0 ? (
+          <div className="border-t border-[var(--border)] px-4 py-6 text-center">
+            <p className="flex items-center justify-center gap-1.5 text-sm font-bold">
+              <Icon d={I.zap} size={15} />
+              {t("لسه مفيش اختصارات في الكارت")}
+            </p>
+            <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-[var(--dim)]">
+              {t("أول ما تضيف اختصار لأي رد، هيظهر هنا — والكارت كله هيتنسخ بضغطة واحدة.")}
+            </p>
+            <button
+              type="button"
+              onClick={onAddFirst}
+              className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
+            >
+              <Icon d={I.zap} size={15} />
+              {t("ضيف أول اختصار")}
+            </button>
+          </div>
+        ) : (
+          <ul className="max-h-80 overflow-y-auto border-t border-[var(--border)] p-2">
+            {items.map((s, i) => (
+              <li
+                key={s.id}
+                className="trig-stage"
+                style={{ animationDelay: `${Math.min(i, 12) * 35}ms` } as React.CSSProperties}
+              >
+                <div className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-[var(--surface-alt)]">
+                  <span dir="auto" className="trig-chip shrink-0">
+                    {s.trigger}
+                  </span>
+                  <span aria-hidden="true" className="shrink-0 text-[var(--faint)]">
+                    →
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-bold">
+                      {s.title}
+                    </span>
+                    <span className="block truncate text-xs text-[var(--dim)]">
+                      {s.category}
+                    </span>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ))}
+    </section>
+  );
+}
+
+/* ---------- starter library picker (owner only) ----------
+   «مكتبة بداية»: the owner picks, from his own library, the
+   replies every new account starts with. The choice is stored in
+   site_config ("starter_library") and registration copies the
+   chosen replies into the new account's own library — existing
+   accounts are never touched, and until the owner picks a set new
+   accounts start from the guided empty state. Non-owners never
+   see this card (the server answers isOwner false for them).
+   No reply is invented here: the list is the owner's own library,
+   grouped the way the library itself is ordered. */
+function StarterLibraryPicker({
+  token,
+  shortcuts,
+  folders,
+}: {
+  token: string;
+  shortcuts: Shortcut[];
+  folders: FolderRowT[];
+}) {
+  const { lang, t } = useLang();
+  const queryClient = useQueryClient();
+  const libQuery = useQuery({
+    queryKey: ["starterLibrary", token],
+    queryFn: () => api.getStarterLibrary({ token }),
+  });
+  const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<number[]>([]);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(savedTimer.current), []);
+  const chosenIds = libQuery.data?.chosen.map((c) => c.id) ?? [];
+  useEffect(() => {
+    setSelected(chosenIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libQuery.data]);
+  const saveMut = useMutation({
+    mutationFn: async (ids: number[]) =>
+      await api.setStarterLibrary({ token, shortcutIds: ids }),
+    onSuccess: () => {
+      setSaveError(null);
+      setSaved(true);
+      window.clearTimeout(savedTimer.current);
+      savedTimer.current = window.setTimeout(() => setSaved(false), 2000);
+      void queryClient.invalidateQueries({
+        queryKey: ["starterLibrary", token],
+      });
+    },
+    onError: (e) =>
+      setSaveError(e instanceof Error ? e.message : "الحفظ متمّش — حاول تاني"),
+  });
+  const groups = useMemo(() => {
+    const q = filter.trim();
+    const list = shortcuts.filter(
+      (s) => !q || searchScore(s, q) >= 0,
+    );
+    const rank = new Map<string, number>();
+    folders.forEach((f, i) => {
+      if (!rank.has(f.name)) rank.set(f.name, i);
+    });
+    const map = new Map<string, Shortcut[]>();
+    for (const s of list) {
+      const arr = map.get(s.category) ?? [];
+      arr.push(s);
+      map.set(s.category, arr);
+    }
+    for (const arr of map.values())
+      arr.sort((a, b) => a.title.localeCompare(b.title, "ar"));
+    return [...map.entries()]
+      .sort(
+        ([a], [b]) =>
+          (rank.get(a) ?? 10000) - (rank.get(b) ?? 10000) ||
+          a.localeCompare(b, "ar"),
+      )
+      .map(([name, items]) => ({ name, items }));
+  }, [shortcuts, folders, filter]);
+  /* Not the owner (or still loading / failed): the picker simply
+     does not exist — it is an owner surface, not a gated error. */
+  if (!libQuery.data?.isOwner) return null;
+  return (
+    <section
+      aria-label={t("مكتبة بداية")}
+      className="animate-card-in overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
+    >
+      <div className="flex items-start gap-2.5 px-4 py-3.5">
+        <span className="editor-head-icon mt-0.5 shrink-0">
+          <Icon d={Library} size={15} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-extrabold">{t("مكتبة بداية")}</p>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--dim)]">
+            {t("اختار الردود اللي أي حساب جديد هيبدأ بيها — بتتنسخ في مكتبته هو، وردودك بتفضل زي ما هي.")}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+          {lang === "en"
+            ? `${selected.length} picked`
+            : `مختار ${selected.length}`}
+        </span>
+      </div>
+      {chosenIds.length === 0 && (
+        <p className="border-t border-[var(--border)] px-4 py-2.5 text-[13px] font-semibold text-[var(--dim)]">
+          {t("لسه مخترتش ولا رد — الحسابات الجديدة هتبدأ من صفحة فاضية لحد ما تختار.")}
+        </p>
+      )}
+      <div className="border-t border-[var(--border)] px-4 py-3">
+        <input
+          aria-label={t("دوّر في ردودك")}
+          dir="auto"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder={t("دوّر في ردودك…")}
+          className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+        />
+        <div className="mt-3 max-h-80 overflow-y-auto pe-1">
+          {groups.map((g) => (
+            <div key={g.name} className="mb-3">
+              <p className="mb-1.5 text-xs font-extrabold text-[var(--faint)]">
+                {g.name} · {g.items.length}
+              </p>
+              <ul className="flex flex-col gap-1">
+                {g.items.map((s, i) => {
+                  const on = selected.includes(s.id);
+                  return (
+                    <li
+                      key={s.id}
+                      className={i < 6 ? "trig-stage" : undefined}
+                      style={
+                        i < 6
+                          ? ({ animationDelay: `${i * 35}ms` } as React.CSSProperties)
+                          : undefined
+                      }
+                    >
+                      <label className="lux-btn flex cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-[var(--surface-alt)]">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() =>
+                            setSelected((prev) =>
+                              on
+                                ? prev.filter((x) => x !== s.id)
+                                : [...prev, s.id],
+                            )
+                          }
+                          className="h-4 w-4 shrink-0 accent-[var(--accent)]"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-bold">
+                          {s.title}
+                        </span>
+                        {s.trigger && (
+                          <span dir="auto" className="trig-chip shrink-0">
+                            {s.trigger}
+                          </span>
+                        )}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {groups.length === 0 && (
+            <p className="py-4 text-center text-sm text-[var(--dim)]">
+              {t("مفيش رد بيطابق بحثك")}
+            </p>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            aria-label={t("احفظ مكتبة البداية")}
+            aria-live="polite"
+            aria-busy={saveMut.isPending}
+            disabled={saveMut.isPending}
+            onClick={() => saveMut.mutate(selected)}
+            className={`btn-lux flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold disabled:opacity-60 ${saved ? "btn-lux-success copy-success" : ""}`}
+          >
+            {saveMut.isPending ? (
+              <>
+                <span className="spinner" aria-hidden="true" />
+                {t("بيتحفظ…")}
+              </>
+            ) : saved ? (
+              <>
+                <span className="animate-copy-pop flex">
+                  <Icon d={I.check} size={15} />
+                </span>
+                {t("اتحفظت")}
+              </>
+            ) : (
+              <>
+                <Icon d={I.check} size={15} />
+                {t("احفظ مكتبة البداية")}
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected([])}
+            disabled={selected.length === 0}
+            className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold hover:border-[var(--border-strong)] disabled:opacity-60"
+          >
+            {t("امسح الاختيار")}
+          </button>
+        </div>
+        {saveError && (
+          <p role="alert" className="mt-2 text-xs font-semibold text-[var(--danger)]">
+            {saveError}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ShortcutsView({
+  token,
   shortcuts,
   folders,
   query,
@@ -13500,6 +13973,7 @@ function ShortcutsView({
   onSaveTrigger,
   onPickTrigger,
 }: {
+  token: string;
   shortcuts: Shortcut[];
   folders: FolderRowT[];
   query: string;
@@ -13512,6 +13986,12 @@ function ShortcutsView({
   const { lang, t } = useLang();
   const q = query.trim();
   const searching = q.length > 0;
+  /* The card lists ALL the user's triggers, most recently used
+     first — independent of the search filter below. */
+  const allTriggers = useMemo(
+    () => sortTriggersRecency(shortcuts.filter((s) => s.trigger)),
+    [shortcuts],
+  );
   const withTrigger = useMemo(
     () =>
       shortcuts
@@ -13592,6 +14072,9 @@ function ShortcutsView({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* «كارت اختصاراتك» — every trigger → reply in one card,
+          copyable as plain text in one tap. */}
+      <MyShortcutsCard items={allTriggers} onAddFirst={jumpToFirstFree} />
       {/* The user's triggers as one-tap chips — no separate box:
           tapping a chip types it into the search box above, and
           the search box grows into that reply's preview. */}
@@ -13720,6 +14203,10 @@ function ShortcutsView({
           )}
         </>
       )}
+      {/* Owner only: «مكتبة بداية» — the starter set for new
+          accounts, picked from his own library. Renders nothing
+          for anyone else. */}
+      <StarterLibraryPicker token={token} shortcuts={shortcuts} folders={folders} />
     </div>
   );
 }
@@ -13764,12 +14251,22 @@ function ShortcutBar({
   const matches = useMemo(() => {
     const q = query.trim();
     const list = shortcuts.filter((s) => s.trigger);
-    if (!q) return [...list].sort((a, b) => b.usageCount - a.usageCount || a.id - b.id);
+    /* Empty query: «آخر اختصارات استخدمتها» first — most recent
+       copy first (lastUsedAt), never-used below in usage order.
+       While typing, relevance still rules. */
+    if (!q) return sortTriggersRecency(list);
     return [...list]
       .filter((s) => searchScore(s, q) >= 0)
       .sort((a, b) => searchScore(b, q) - searchScore(a, q));
   }, [shortcuts, query]);
   const top = matches.slice(0, 8);
+  /* Section split for the empty-query list: where the
+     recently-used rows end and the never-used ones begin. -1 when
+     one side is absent, so no label renders for it. */
+  const firstNeverIdx =
+    query.trim() === "" ? top.findIndex((s) => !s.lastUsedAt) : -1;
+  const hasRecent =
+    query.trim() === "" && top.some((s) => s.lastUsedAt);
   if (!open) return null;
   const copyAndClose = async (s: Shortcut) => {
     if (copyingId !== null) return;
@@ -13829,9 +14326,19 @@ function ShortcutBar({
           </p>
         ) : (
           <ul className="max-h-[50vh] overflow-y-auto p-1.5">
+            {hasRecent && (
+              <li aria-hidden="true" className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold text-[var(--faint)]">
+                {t("آخر اختصارات استخدمتها")}
+              </li>
+            )}
             {top.map((s, i) => (
+              <Fragment key={s.id}>
+                {firstNeverIdx === i && (
+                  <li aria-hidden="true" className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold text-[var(--faint)]">
+                    {t("لسه ما اتستخدمتش")}
+                  </li>
+                )}
               <li
-                key={s.id}
                 /* Staged entrance on open only (empty query): while
                    the user types, results must land instantly. */
                 className={query.trim() === "" ? "trig-stage trig-stage-1" : undefined}
@@ -13871,6 +14378,7 @@ function ShortcutBar({
                   )}
                 </button>
               </li>
+              </Fragment>
             ))}
           </ul>
         )}

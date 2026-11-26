@@ -1,5 +1,5 @@
 import { defineAction, z, type ActionsModule, type Ctx } from "./ctx.ts";
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as schema from "./schema.ts";
 
 /* ================= shapes ================= */
@@ -1222,6 +1222,112 @@ async function seedForUser(ctx: Ctx, userId: number): Promise<number> {
   return SEED.length;
 }
 
+/* ================= starter library (owner-chosen) =================
+   The owner picks the starter set from his OWN library in the UI
+   (Shortcuts section, owner only) — no starter reply is ever
+   invented here. The choice is one site_config entry
+   ("starter_library": JSON array of the owner's shortcut ids, in
+   the order he picked them). On every new-account registration the
+   chosen replies are copied into the new user's own library as
+   their own rows (their own user_id, fresh usage counters, no
+   folder — the category name travels with the reply). Existing
+   accounts are never touched, and until the owner picks a set the
+   value is absent and new accounts start with the guided empty
+   state. No new table: site_config already exists. */
+
+const STARTER_LIBRARY_KEY = "starter_library";
+
+/** The site owner — the first account, the same convention as
+    exportFullBackup / resetUsageStats / importContentPackForOwner. */
+async function getOwnerId(ctx: Ctx): Promise<number | null> {
+  const db = ctx.db<typeof schema>();
+  const rows = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .orderBy(asc(schema.users.id))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+/** Throws unless the caller is the owner (first account). */
+async function requireOwner(ctx: Ctx, me: UserRow): Promise<number> {
+  const ownerId = await getOwnerId(ctx);
+  if (!ownerId || ownerId !== me.id) {
+    throw new Error("مكتبة البداية متاحة لحساب صاحب الموقع بس");
+  }
+  return ownerId;
+}
+
+/** The owner's chosen starter ids, in his order — [] when nothing
+    was chosen yet, or the stored value is corrupt. */
+async function readStarterLibraryIds(ctx: Ctx): Promise<number[]> {
+  const db = ctx.db<typeof schema>();
+  const rows = await db
+    .select({ value: schema.siteConfig.value })
+    .from(schema.siteConfig)
+    .where(eq(schema.siteConfig.key, STARTER_LIBRARY_KEY))
+    .limit(1);
+  const raw = rows[0]?.value;
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (x): x is number =>
+        typeof x === "number" && Number.isInteger(x) && x > 0,
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** Copies the owner's chosen starter replies into a brand-new
+    account's own library. Returns how many were copied (0 when no
+    set was chosen yet, or the new account IS the owner — he never
+    seeds from himself). The copies are the new user's own rows:
+    usage counters start at zero and the replies are theirs to edit
+    or delete; the owner's rows are never touched. */
+async function seedStarterLibraryForUser(
+  ctx: Ctx,
+  userId: number,
+): Promise<number> {
+  const db = ctx.db<typeof schema>();
+  const ownerId = await getOwnerId(ctx);
+  if (!ownerId || ownerId === userId) return 0;
+  const ids = await readStarterLibraryIds(ctx);
+  if (ids.length === 0) return 0;
+  const src = await db
+    .select()
+    .from(schema.shortcuts)
+    .where(
+      and(
+        eq(schema.shortcuts.userId, ownerId),
+        inArray(schema.shortcuts.id, ids),
+        isNull(schema.shortcuts.deletedAt),
+      ),
+    );
+  const byId = new Map(src.map((r) => [r.id, r]));
+  let n = 0;
+  for (const id of ids) {
+    const r = byId.get(id);
+    if (!r) continue;
+    await db.insert(schema.shortcuts).values({
+      userId,
+      title: r.title,
+      body: r.body,
+      category: r.category,
+      tags: r.tags,
+      trigger: r.trigger,
+      extShortcut: r.extShortcut,
+      source: r.source,
+      pinned: r.pinned,
+      favorite: r.favorite,
+    });
+    n += 1;
+  }
+  return n;
+}
+
 /* ================= actions ================= */
 
 export const Actions = {
@@ -1302,6 +1408,12 @@ export const Actions = {
       if (allUsers.length === 1) {
         await seedForUser(ctx, user.id);
       }
+      /* Every new account also starts with the owner's chosen starter
+         library when he has picked one (copies of his replies, as
+         the new user's own rows); when nothing is chosen yet this
+         copies nothing and the account starts with the guided empty
+         state. Existing accounts are never touched. */
+      await seedStarterLibraryForUser(ctx, user.id);
       const token = await createSession(ctx, user.id);
       ctx.invalidateQueries();
       return { ok: true, token, user: await toUserShape(ctx, user), error: null };
@@ -2298,6 +2410,104 @@ export const Actions = {
       const seeded = await seedForUser(ctx, me.id);
       ctx.invalidateQueries();
       return { seeded };
+    },
+  }),
+
+  /* Starter library — the set of replies the owner chose (in the
+     Shortcuts section) for every new account to start with. The
+     content is his choice only: these actions never invent a
+     reply. getStarterLibrary answers for anyone (non-owners get
+     isOwner false and an empty list, so the picker never renders
+     for them); setStarterLibrary is owner-only and validates every
+     id against the owner's own live library. */
+  getStarterLibrary: defineAction({
+    description:
+      "Reads the owner-chosen starter library: whether the caller is the owner, and the chosen replies in the owner's order. Non-owners get isOwner false and an empty list.",
+    request: z.object({ token: z.string() }),
+    response: z.object({
+      isOwner: z.boolean(),
+      chosen: z.array(
+        z.object({
+          id: z.number(),
+          title: z.string(),
+          category: z.string(),
+        }),
+      ),
+    }),
+    async handler(ctx, args) {
+      const db = ctx.db<typeof schema>();
+      const me = await requireUser(ctx, args.token);
+      const ownerId = await getOwnerId(ctx);
+      if (!ownerId || ownerId !== me.id) {
+        return { isOwner: false, chosen: [] };
+      }
+      const ids = await readStarterLibraryIds(ctx);
+      if (ids.length === 0) return { isOwner: true, chosen: [] };
+      const rows = await db
+        .select()
+        .from(schema.shortcuts)
+        .where(
+          and(
+            eq(schema.shortcuts.userId, me.id),
+            inArray(schema.shortcuts.id, ids),
+            isNull(schema.shortcuts.deletedAt),
+          ),
+        );
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      return {
+        isOwner: true,
+        chosen: ids
+          .filter((id) => byId.has(id))
+          .map((id) => {
+            const r = byId.get(id)!;
+            return { id: r.id, title: r.title, category: r.category };
+          }),
+      };
+    },
+  }),
+
+  setStarterLibrary: defineAction({
+    description:
+      "Owner-only: replaces the starter library with the given replies from the owner's own library (empty list clears it). New accounts then start with copies of exactly these replies; existing accounts are never touched.",
+    request: z.object({
+      token: z.string(),
+      shortcutIds: z.array(z.number().int().positive()).max(100),
+    }),
+    response: z.object({ saved: z.number() }),
+    async handler(ctx, args) {
+      const db = ctx.db<typeof schema>();
+      const me = await requireUser(ctx, args.token);
+      await requireOwner(ctx, me);
+      const ids = [...new Set(args.shortcutIds)];
+      if (ids.length > 0) {
+        const rows = await db
+          .select({ id: schema.shortcuts.id })
+          .from(schema.shortcuts)
+          .where(
+            and(
+              eq(schema.shortcuts.userId, me.id),
+              inArray(schema.shortcuts.id, ids),
+              isNull(schema.shortcuts.deletedAt),
+            ),
+          );
+        const ok = new Set(rows.map((r) => r.id));
+        if (ids.some((id) => !ok.has(id))) {
+          throw new Error(
+            "فيه ردود من اللي اخترتها مش في مكتبتك — اختار من ردودك بس",
+          );
+        }
+      }
+      const value = JSON.stringify(ids);
+      /* Delete + insert instead of an upsert: works identically on
+         real Postgres and on the pg-mem test harness. */
+      await db
+        .delete(schema.siteConfig)
+        .where(eq(schema.siteConfig.key, STARTER_LIBRARY_KEY));
+      await db
+        .insert(schema.siteConfig)
+        .values({ key: STARTER_LIBRARY_KEY, value });
+      ctx.invalidateQueries();
+      return { saved: ids.length };
     },
   }),
 
