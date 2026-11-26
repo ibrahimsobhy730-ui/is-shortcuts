@@ -5,6 +5,7 @@ import {
 } from "@vercel/blob/client";
 import { BlobAccessError } from "@vercel/blob";
 import { createCtx } from "@/lib/ctx";
+import { blobReadWriteToken } from "@/lib/blob-token";
 import {
   getSessionUser,
   requireOwnedShortcut,
@@ -27,7 +28,8 @@ import {
    never by the upload-completed callback (that callback is an
    inbound POST from Vercel's infrastructure and never arrives on
    localhost; attachMedia is the single source of truth).
-   When no Blob store is connected yet (no BLOB_READ_WRITE_TOKEN),
+   When no Blob store is connected yet (no Blob token configured —
+   neither PUBLIC_BLOB_READ_WRITE_TOKEN nor BLOB_READ_WRITE_TOKEN),
    handleUpload throws BlobAccessError — answered here as 503 with
    the exact Arabic string the editor shows verbatim, never a fake
    success. */
@@ -55,6 +57,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     const response = await handleUpload({
       body,
       request,
+      /* The token is resolved by lib/blob-token.ts: the Public
+         store's PUBLIC_BLOB_READ_WRITE_TOKEN first, falling back
+         to the legacy BLOB_READ_WRITE_TOKEN. Without this the SDK
+         would read BLOB_READ_WRITE_TOKEN from the environment —
+         which still points at the old Private store. */
+      token: blobReadWriteToken(),
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         let payload: MediaPayload = {};
         try {

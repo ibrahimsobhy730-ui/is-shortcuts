@@ -2,6 +2,7 @@ import { defineAction, z, type ActionsModule, type Ctx } from "./ctx.ts";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as schema from "./schema.ts";
 import { del as blobDel } from "@vercel/blob";
+import { blobReadWriteToken } from "./blob-token.ts";
 
 /* ================= shapes ================= */
 
@@ -673,11 +674,14 @@ export function mediaLimitsFor(): {
     the caller's removal — an orphaned object is harmless (same
     tolerance as removeAvatar), and the DB row is the source of
     truth for what the site shows. Without a Blob store connected
-    (no BLOB_READ_WRITE_TOKEN) this throws BlobAccessError at once,
-    which is caught here too. */
+    (no Blob token configured — neither
+    PUBLIC_BLOB_READ_WRITE_TOKEN nor BLOB_READ_WRITE_TOKEN) this
+    throws BlobAccessError at once, which is caught here too.
+    The token is resolved by lib/blob-token.ts so deletes hit the
+    same Public store uploads go to. */
 async function deleteBlobObject(pathname: string): Promise<void> {
   try {
-    await blobDel(pathname);
+    await blobDel(pathname, { token: blobReadWriteToken() });
   } catch (e) {
     console.error(
       `reply media: blob del failed for ${pathname}:`,

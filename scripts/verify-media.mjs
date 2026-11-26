@@ -10,8 +10,9 @@
    object (refcount guard), unique-shortcut + case-insensitive
    trigger index, cascade on permanent delete, starter library
    never copies media, full backup carries media URLs only.
-   The real Blob del() is NOT exercised here: with no
-   BLOB_READ_WRITE_TOKEN it throws BlobAccessError at once, which
+   The real Blob del() is NOT exercised here: with no Blob token
+   configured (neither PUBLIC_BLOB_READ_WRITE_TOKEN nor
+   BLOB_READ_WRITE_TOKEN) it throws BlobAccessError at once, which
    the handlers catch and log (same tolerance as removeAvatar) —
    live verification must confirm Blob objects disappear (the URL
    404s) after a permanent delete.
@@ -31,6 +32,7 @@ import {
   parseStoreIdFromClientToken,
   uploadErrorMessage,
 } from "../components/media-upload.ts";
+import { blobReadWriteToken } from "../lib/blob-token.ts";
 
 const root = join(import.meta.dirname, "..");
 const mem = newDb();
@@ -110,6 +112,34 @@ const mediaFor = async (sid) =>
   (await pool.query("SELECT * FROM reply_media WHERE shortcut_id = $1", [sid])).rows[0] ?? null;
 
 const BLOB_HOST = "store123.public.blob.vercel-storage.com";
+
+// Blob token lookup (lib/blob-token.ts): the Public store's
+// PUBLIC_BLOB_READ_WRITE_TOKEN wins over the legacy
+// BLOB_READ_WRITE_TOKEN (which still points at the old Private
+// store); undefined when neither is set. Env is restored after.
+const savedPublicToken = process.env.PUBLIC_BLOB_READ_WRITE_TOKEN;
+const savedLegacyToken = process.env.BLOB_READ_WRITE_TOKEN;
+process.env.PUBLIC_BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_public_test";
+process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_legacy_test";
+check(
+  "blob token prefers PUBLIC_BLOB_READ_WRITE_TOKEN",
+  blobReadWriteToken() === "vercel_blob_rw_public_test",
+);
+delete process.env.PUBLIC_BLOB_READ_WRITE_TOKEN;
+check(
+  "blob token falls back to BLOB_READ_WRITE_TOKEN",
+  blobReadWriteToken() === "vercel_blob_rw_legacy_test",
+);
+delete process.env.BLOB_READ_WRITE_TOKEN;
+check(
+  "blob token undefined when neither is set",
+  blobReadWriteToken() === undefined,
+);
+if (savedPublicToken !== undefined)
+  process.env.PUBLIC_BLOB_READ_WRITE_TOKEN = savedPublicToken;
+if (savedLegacyToken !== undefined)
+  process.env.BLOB_READ_WRITE_TOKEN = savedLegacyToken;
+
 const imgArgs = (token, sid, uid, extra = {}) => ({
   token,
   shortcutId: sid,

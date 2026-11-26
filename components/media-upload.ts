@@ -354,7 +354,8 @@ export async function uploadViaXhr(
 }
 
 /* Fallback 2 (2026-11-26): the bytes go through our own server
-   route, which put()s them with BLOB_READ_WRITE_TOKEN. Serverless
+   route, which put()s them with the resolved Blob token
+   (lib/blob-token.ts: PUBLIC_BLOB_READ_WRITE_TOKEN first). Serverless
    bodies cap at ~4.5 MB, so this is images/small files only.
    DIAGNOSABILITY: the thrown error always carries the HTTP status
    (and the Blob error code when the route reported one), so

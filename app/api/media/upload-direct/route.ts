@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { BlobAccessError } from "@vercel/blob";
 import { createCtx } from "@/lib/ctx";
+import { blobReadWriteToken } from "@/lib/blob-token";
 import {
   getSessionUser,
   requireOwnedShortcut,
@@ -15,7 +16,8 @@ import { MEDIA_STORAGE_NOT_CONFIGURED } from "../upload/route";
    to Vercel Blob (see /api/media/upload + uploadMediaFile); when
    that direct path stalls or fails in a given browser, the editor
    retries once over XHR, and then here: the bytes travel through
-   this route, which put()s them with BLOB_READ_WRITE_TOKEN.
+   this route, which put()s them with the resolved Blob token
+   (lib/blob-token.ts: PUBLIC_BLOB_READ_WRITE_TOKEN first).
    Serverless request bodies cap at ~4.5 MB, so this route takes
    images/small files only (4 MB hard cap, multipart overhead
    included) — IMAGES ONLY (video upload was cancelled by the
@@ -89,6 +91,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         access: "public",
         addRandomSuffix: false,
         contentType: file.type,
+        token: blobReadWriteToken(),
       });
       return NextResponse.json({ url: blob.url, pathname: blob.pathname });
     } catch (putError) {
