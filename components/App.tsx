@@ -1152,6 +1152,108 @@ function triggerError(raw: string, taken: readonly string[] = []): string | null
   return null;
 }
 
+/* Stopwords never make a trigger — too generic to name a reply.
+   Compared on the normalized form (إ/ا and ة/ه folded), so «إلى»
+   matches «الي» and «إن»/«أن» match «ان». */
+const TRIGGER_STOPWORDS = new Set([
+  "في", "من", "الي", "على", "عن", "مع", "بعد", "قبل", "بين",
+  "ان", "ما", "لا", "لم", "لن", "هو", "هي", "هذا", "هذه",
+  "ذلك", "تلك", "كان", "يكون", "كل", "اي", "او", "ثم", "لكن",
+  "اذا", "عند", "لدى", "اذ", "حتى", "منذ",
+  "the", "a", "an", "to", "of", "in", "on", "and", "or", "for",
+  "is", "are", "it", "with", "by", "at", "as", "be", "this", "that",
+]);
+
+/** Smart trigger suggestions — the EASIEST possible triggers for
+    a reply, pure client-side, deterministic, Arabic-aware, NEVER
+    auto-assigned: the first word of the title, its shortest word,
+    the first two words when they stay short, the longest word,
+    the first letters of the first three words, and the body's
+    first distinctive word. Ranked easiest first; every candidate
+    is checked FREE (not used by any of the user's other replies,
+    and not the reply's own current trigger). While the user types,
+    only candidates that complete the typed text are shown, so the
+    list behaves like live completions; with an empty field the
+    easiest candidates are shown as-is. One tap fills the field. */
+function suggestTriggers(
+  item: { title: string; body: string; trigger?: string | null },
+  taken: readonly string[] = [],
+  typed = "",
+): string[] {
+  const clean = (w: string) =>
+    w.replace(/^[«»"'“”‘’()[\]{}<>،,.!؟?;:\s]+|[«»"'“”‘’()[\]{}<>،,.!؟?;:\s]+$/g, "");
+  const titleWords = item.title
+    .split(/\s+/)
+    .map(clean)
+    .filter((w) => w.length > 0 && /[\p{L}]/u.test(w));
+  const bodyWords = item.body
+    .split(/\s+/)
+    .map(clean)
+    .filter((w) => w.length > 0 && /[\p{L}]/u.test(w));
+  /* «ال» is the article, not the word: «الترحيب» and «ترحيب»
+     are the same trigger for suggestion purposes, so a taken
+     «ترحيب» also blocks «الترحيب» (and the reply's own trigger
+     is excluded the same way). */
+  const trigKey = (x: string) => normalizeSearchText(x).replace(/^ال/, "");
+  const takenKeys = new Set(taken.map((x) => trigKey(x)));
+  const ownKey = trigKey(item.trigger ?? "");
+  const typedNorm = normalizeSearchText(typed);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (c: string) => {
+    const v = c.trim();
+    if (!v || v.length > 100) return;
+    const key = v.toLowerCase();
+    if (seen.has(key) || takenKeys.has(trigKey(v))) return;
+    if (ownKey && trigKey(v) === ownKey) return;
+    /* Already sitting in the field — not a suggestion. */
+    if (typedNorm && normalizeSearchText(v) === typedNorm) return;
+    seen.add(key);
+    out.push(v);
+  };
+  const cands: string[] = [];
+  /* Stopwords never make a trigger — too generic to name a reply. */
+  const isStop = (w: string) => TRIGGER_STOPWORDS.has(normalizeSearchText(w));
+  const meaningful = titleWords.filter((w) => !isStop(w));
+  const first = meaningful[0];
+  if (first && first.length >= 2) cands.push(first);
+  let shortest = "";
+  for (const w of meaningful)
+    if (w.length >= 2 && (!shortest || w.length < shortest.length)) shortest = w;
+  if (shortest) cands.push(shortest);
+  if (meaningful.length >= 2) {
+    const two = `${meaningful[0]} ${meaningful[1]}`;
+    if (two.length <= 24) cands.push(two);
+  }
+  let longest = "";
+  for (const w of meaningful) if (w.length > longest.length) longest = w;
+  if (longest.length >= 3) cands.push(longest);
+  /* First letters of the first three words — «ال» stripped so the
+     letter is the word's own, not the article's. */
+  if (meaningful.length >= 2) {
+    const initials = meaningful
+      .slice(0, 3)
+      .map((w) => {
+        const stripped = w.replace(/^ال/, "");
+        return (stripped || w).charAt(0);
+      })
+      .join("");
+    if (initials.length >= 2) cands.push(initials);
+  }
+  const bodyFirst = bodyWords.find((w) => w.length >= 3 && !isStop(w));
+  if (bodyFirst) cands.push(bodyFirst);
+  /* While typing: only candidates the typed text begins — live
+     completions. A leading «ال» does not block the match («تر»
+     completes «الترحيب»). With an empty field: the easiest as-is. */
+  const startsTyped = (c: string) => {
+    const n = normalizeSearchText(c);
+    return n.startsWith(typedNorm) || n.replace(/^ال/, "").startsWith(typedNorm);
+  };
+  const ranked = typedNorm ? cands.filter(startsTyped) : cands;
+  for (const c of ranked) push(c);
+  return out.slice(0, 3);
+}
+
 function parseTags(tags: string): string[] {
   return tags
     .split(/[,،]/)
@@ -1816,6 +1918,14 @@ const EN: Record<string, string> = {
   "بيتنسخ…": "Copying…",
   "نسخ الرد": "Copy reply",
   "اتنسخ — الصقه في أي شات": "Copied — paste it in any chat",
+  // triggers — suggestions, assign, empty state
+  "اقتراحات جاهزة — دوس على أي واحدة:": "Ready suggestions — tap one to fill it in:",
+  "اختار رد تاني": "Pick another reply",
+  "الأنسب": "Best fit",
+  "الاختصار كلمة قصيرة بتكتبها في البحث — أو في شريط الاختصارات — فتجيب الرد ده على طول من غير ما تدوّر عليه.": "A shortcut is a short word you type in search — or in the shortcut bar — and it brings up this reply instantly, no hunting.",
+  "ضيف أول اختصار": "Add your first shortcut",
+  "دوس «أضف اختصار» على أي رد من اللي تحت واكتب له كلمة — دوسة واحدة وبيتحفظ.": "Tap “Add shortcut” on any reply below and give it a word — one tap and it’s saved.",
+  "الاختصار كلمة قصيرة بتكتبها في البحث فتجيب الرد على طول. ضيف أول رد من الرئيسية، وبعدها ادّيله اختصار من هنا.": "A shortcut is a short word you type in search and it brings up the reply instantly. Add your first reply from Home, then give it a shortcut from here.",
   "فتح تفاصيل الرد": "Open reply details",
   "معاينة سريعة": "Quick preview",
   "تكرار الرد": "Duplicate reply",
@@ -2856,6 +2966,17 @@ function Workspace({
   const [section, setSection] = useState<Section>("home");
   const [previewItem, setPreviewItem] = useState<Shortcut | null>(null);
   const [search, setSearch] = useState("");
+  /* Chip tap → search box answers: one ring pulse on the box so
+     the tap visibly lands before the preview grows. */
+  const [chipPulse, setChipPulse] = useState(false);
+  const chipPulseTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(chipPulseTimer.current), []);
+  const pickTrigger = (trigger: string) => {
+    setSearch(trigger);
+    setChipPulse(true);
+    window.clearTimeout(chipPulseTimer.current);
+    chipPulseTimer.current = window.setTimeout(() => setChipPulse(false), 700);
+  };
   const [category, setCategory] = useState("الكل");
   /* The chosen view persists on this device, like the density and
      the folder sort already do — the site reopens on the view the
@@ -2878,6 +2999,8 @@ function Workspace({
     }
   }, [view]);
   const searchRef = useRef<HTMLInputElement>(null);
+  /* The search box + its preview panel, for tap-outside dismissal. */
+  const searchWrapRef = useRef<HTMLDivElement>(null);
   /* Smart folders: the id of the smart folder whose live rules the
      list is currently showing (null = no smart view). The rules
      themselves live server-side; the list evaluates them against
@@ -3375,6 +3498,24 @@ function Workspace({
   const searchPreviewOpen =
     searchQ !== "" && (searchTrigBest !== null || !searchAnyResult);
 
+  /* Tap-outside dismisses the search preview: a press anywhere
+     outside the search box (and its preview) clears the query, so
+     the panel closes at once — the X is never required. A trigger
+     chip's press is the one exception: it FEEDS the box (its click
+     sets the search right after), so dismissing on its pointerdown
+     would flicker the panel shut and open again. */
+  useEffect(() => {
+    if (!searchPreviewOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("[data-trig-chip]")) return;
+      if (searchWrapRef.current && !searchWrapRef.current.contains(t)) setSearch("");
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchPreviewOpen]);
+
   /* قياس إبهامَي شريط الفلاتر المنزلقَين (انظر تعريف الحالتين فوق) */
   useLayoutEffect(() => {
     const measure = () => {
@@ -3409,8 +3550,23 @@ function Workspace({
     void queryClient.invalidateQueries({ queryKey: ["copyHistory", token] });
   };
 
+  /* Usage counting is copy-only, by design: previewing a reply,
+     opening its details, viewing the Shortcuts section or tapping
+     a chip (which only fills the search box) NEVER records a use
+     — only a real clipboard write through copyFilled does, once
+     per press. Two locks enforce that: the per-button in-flight
+     guards, and this central in-flight set — a second copy of
+     the same reply while one record is still travelling is
+     counted once, never twice. */
+  const recordingRef = useRef(new Set<number>());
   const recordUse = useMutation({
     mutationFn: (id: number) => api.recordUse({ token, id }),
+    /* A retried record would count the same copy twice on a
+       flaky connection — never retry a usage record. */
+    retry: false,
+    onSettled: (_data, _error, id) => {
+      recordingRef.current.delete(id);
+    },
     onSuccess: invalidate,
   });
 
@@ -3635,7 +3791,14 @@ function Workspace({
   const copyFilled = async (s: Shortcut, text: string): Promise<boolean> => {
     const ok = await copyText(text);
     if (ok) {
-      recordUse.mutate(s.id);
+      /* One press = one use, even if the button is hit twice while
+         the first record is still in flight (the preview's copy
+         button had no guard of its own — it does now — and this
+         is the second lock for every surface). */
+      if (!recordingRef.current.has(s.id)) {
+        recordingRef.current.add(s.id);
+        recordUse.mutate(s.id);
+      }
       showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
     } else {
       showToast("النسخ متعذر هنا — افتح الرد وانسخه يدوي", "error");
@@ -5925,7 +6088,7 @@ function Workspace({
           >
             <Logo size={40} />
           </button>
-          <div className="relative mx-auto w-full min-w-0 max-w-2xl flex-1 transition-[max-width] duration-300 focus-within:max-w-[44rem]" data-tip={searchPreviewOpen ? undefined : t("دوّر باسم الرد أو أي كلمة منه")}>
+          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-2xl flex-1 transition-[max-width] duration-300 focus-within:max-w-[44rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("دوّر باسم الرد أو أي كلمة منه")}>
             <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
               <Icon d={I.search} size={19} />
             </span>
@@ -7165,7 +7328,7 @@ function Workspace({
               onSaveTrigger={async (s, trigger) => {
                 await updateTriggerMut.mutateAsync({ s, trigger });
               }}
-              onPickTrigger={(trigger) => setSearch(trigger)}
+              onPickTrigger={(trigger) => pickTrigger(trigger)}
             />
           ) : view === "trash" ? (
             <TrashView
@@ -11335,9 +11498,15 @@ function TriggerIcon({
   const [value, setValue] = useState(item.trigger ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /* نطّة الحفظ: الحبّة بتنطّ مرة واحدة بعد ما الاختصار
+     يتحفظ (أو يتمسح) — التغيير بيتشاف مش بس بيتعرف. */
+  const [justSaved, setJustSaved] = useState(false);
+  const justSavedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(justSavedTimer.current), []);
   const rootRef = useRef<HTMLSpanElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   usePopoverDismiss(open, [rootRef, panelRef], () => setOpen(false));
 
   /* When the saved trigger changes elsewhere (the reply editor,
@@ -11347,6 +11516,17 @@ function TriggerIcon({
     if (!open) setValue(item.trigger ?? "");
   }, [item.trigger, open]);
 
+  /* Smart suggestions — live: they follow what is typed in the
+     field (completions of the typed text) and appear the moment
+     the editor opens, whether the reply has a trigger yet or not
+     (an easier replacement is always worth offering). One tap
+     fills the field; nothing is ever auto-assigned. */
+  const suggestions = useMemo(
+    () => suggestTriggers(item, takenTriggers, value),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [item.trigger, item.title, item.body, value, takenTriggers],
+  );
+
   const has = Boolean(item.trigger);
   const save = async (next: string) => {
     const err = triggerError(next, takenTriggers);
@@ -11355,6 +11535,9 @@ function TriggerIcon({
     setSaving(true);
     try {
       await onSaveTrigger(item, normalizeTriggerInput(next));
+      setJustSaved(true);
+      window.clearTimeout(justSavedTimer.current);
+      justSavedTimer.current = window.setTimeout(() => setJustSaved(false), 520);
       setOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني");
@@ -11388,13 +11571,15 @@ function TriggerIcon({
           setError(null);
           setOpen((v) => !v);
         }}
-        className={`trig-icon lux-btn ${
+        className={`trig-icon lux-btn ${justSaved ? "trig-icon-saved " : ""}${
           has ? "" : "trig-icon-empty "
         }${size === "compact" ? "h-6 max-w-32 px-1.5 text-[11px]" : "h-[26px] max-w-44 px-2 text-[11.5px]"}`}
+        /* Per-reply stagger for the sheen + glow + Zap (see
+           tokens.css): --trig-delay shifts the whole pill's
+           motion so 88 pills never move in lockstep. */
+        style={{ "--trig-delay": `${(item.id % 7) * 0.4}s` } as React.CSSProperties}
       >
-        {/* The pulse is staggered per reply so a list of 88 pills
-            never breathes in lockstep. */}
-        <span className="trig-zap flex shrink-0" style={{ animationDelay: `${(item.id % 5) * 0.45}s` }}>
+        <span className="trig-zap flex shrink-0">
           <Icon d={I.zap} size={size === "compact" ? 13 : 14} />
         </span>
         {has ? (
@@ -11425,10 +11610,12 @@ function TriggerIcon({
             </label>
             <input
               id={`trig-input-${item.id}`}
+              ref={inputRef}
               dir="auto"
               autoFocus
               value={value}
               disabled={saving}
+              maxLength={100}
               onChange={(e) => {
                 setValue(e.target.value);
                 setError(null);
@@ -11437,13 +11624,42 @@ function TriggerIcon({
                 if (e.key === "Enter") void save(value);
               }}
               placeholder="اكتب أي نص…"
-              className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-60"
+              className={`w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-60 ${error ? "trig-input-error" : ""}`}
             />
+            {value.length > 80 && (
+              <p className="mt-1 text-end text-[11px] font-bold text-[var(--faint)]">
+                {value.length}/100
+              </p>
+            )}
             <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--faint)]">
               {lang === "en"
                 ? "Any text works — Arabic, English, symbols — as long as it is not already another reply's trigger."
                 : "أي نص ينفع — عربي أو إنجليزي أو رموز — المهم ما يتكررش مع اختصار تاني عندك."}
             </p>
+            {suggestions.length > 0 && (
+              <div className="mt-2">
+                <p className="mb-1 text-[11.5px] font-bold text-[var(--faint)]">
+                  {t("اقتراحات جاهزة — دوس على أي واحدة:")}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestions.map((sug) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setValue(sug);
+                        setError(null);
+                        inputRef.current?.focus();
+                      }}
+                      className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)] disabled:opacity-60"
+                    >
+                      <span dir="auto">{sug}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {error && (
               <p role="alert" className="mt-1.5 text-xs font-semibold leading-snug text-[var(--danger)]">
                 {error}
@@ -11456,7 +11672,11 @@ function TriggerIcon({
                 onClick={() => void save(value)}
                 className="lux-btn flex items-center gap-1 rounded-full bg-[var(--accent)] px-3.5 py-1.5 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
               >
-                <Icon d={I.check} size={14} />
+                {saving ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <Icon d={I.check} size={14} />
+                )}
                 {saving ? (lang === "en" ? "Saving…" : "بيتحفظ…") : t("حفظ")}
               </button>
               {has && (
@@ -12742,6 +12962,7 @@ function TriggerRow({
   onCopy,
   onSaveTrigger,
   takenTriggers = [],
+  highlight = false,
 }: {
   s: Shortcut;
   onCopy: (s: Shortcut) => Promise<boolean>;
@@ -12749,6 +12970,9 @@ function TriggerRow({
   /* The user's OTHER triggers — the client-side duplicate check
      inside the trigger pill. */
   takenTriggers?: string[];
+  /* Flashed once when the empty state's «ضيف أول اختصار» points
+     the eye at this row — the ring draws attention to its pill. */
+  highlight?: boolean;
 }) {
   const { lang, t } = useLang();
   const [copied, setCopied] = useState(false);
@@ -12767,7 +12991,7 @@ function TriggerRow({
       if (!ok) return;
       setCopied(true);
       window.clearTimeout(copiedTimer.current);
-      copiedTimer.current = window.setTimeout(() => setCopied(false), 1600);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
     } finally {
       setCopying(false);
     }
@@ -12775,7 +12999,10 @@ function TriggerRow({
   const preview = s.body.replace(/\s+/g, " ").trim().slice(0, 90);
 
   return (
-    <li className="lux-card flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3">
+    <li
+      id={`trig-row-${s.id}`}
+      className={`lux-card flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3 ${highlight ? "trig-row-flash" : ""}`}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <TriggerIcon item={s} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
         <span className="min-w-0 flex-1">
@@ -12786,6 +13013,11 @@ function TriggerRow({
         </span>
       </div>
       <span className="flex shrink-0 items-center gap-1.5">
+        {s.usageCount > 0 && (
+          <span className="hidden text-xs font-bold text-[var(--faint)] sm:inline">
+            {lang === "en" ? `Used ${s.usageCount} times` : `اتستخدم ${s.usageCount} مرة`}
+          </span>
+        )}
         <button
           type="button"
           aria-label={copied ? (lang === "en" ? `Copied reply ${s.title}` : `اتنسخ رد ${s.title}`) : lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
@@ -12794,10 +13026,18 @@ function TriggerRow({
           aria-busy={copying}
           disabled={copying}
           onClick={() => void doCopy()}
-          className={`lux-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold ${copied ? "bg-[var(--success-soft)] text-[var(--success)]" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"}`}
+          className={`lux-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold ${copied ? "copy-success bg-[var(--success-soft)] text-[var(--success)]" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"}`}
         >
-          <Icon d={copied ? I.check : I.copy} size={15} />
-          {copied ? t("اتنسخ") : t("نسخ")}
+          {copying ? (
+            <span className="spinner" aria-hidden="true" />
+          ) : copied ? (
+            <span className="animate-copy-pop flex">
+              <Icon d={I.check} size={15} />
+            </span>
+          ) : (
+            <Icon d={I.copy} size={15} />
+          )}
+          {copying ? (lang === "en" ? "Copying…" : "بيتنسخ…") : copied ? t("اتنسخ") : t("نسخ")}
         </button>
       </span>
     </li>
@@ -12852,6 +13092,13 @@ function SearchTriggerPreview({
   const [assignFilter, setAssignFilter] = useState("");
   const [assigningId, setAssigningId] = useState<number | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
+  /* One copy press records one use, never two: this guard is the
+     preview's own in-flight lock — the card, the Shortcuts rows
+     and the shortcut bar all have theirs; the central copyFilled
+     guard is the second lock. Merely SHOWING this panel never
+     touches usage at all: only doCopy below does, and only after
+     a real clipboard write. */
+  const [copyingId, setCopyingId] = useState<number | null>(null);
   /* Keep the last content mounted for one beat after closing so
      the grid-rows shrink animation has something to collapse. */
   const [shown, setShown] = useState(false);
@@ -12874,13 +13121,18 @@ function SearchTriggerPreview({
 
   /* Assign candidates: replies with no trigger first (the natural
      home for a new trigger), then the rest — assigning to one of
-     those replaces its current trigger. */
+     those replaces its current trigger. While the user is assigning
+     a typed text, the replies that text actually names come first,
+     so the most likely home is at the top. */
   const candidates = useMemo(() => {
     const q = normalizeSearchText(assignFilter);
     const list = [...shortcuts].sort((a, b) => {
       const aFree = a.trigger ? 1 : 0;
       const bFree = b.trigger ? 1 : 0;
       if (aFree !== bFree) return aFree - bFree;
+      const sa = typed ? searchScore(a, typed) : 0;
+      const sb = typed ? searchScore(b, typed) : 0;
+      if (sb !== sa) return sb - sa;
       return a.title.localeCompare(b.title, "ar");
     });
     if (!q) return list;
@@ -12889,14 +13141,41 @@ function SearchTriggerPreview({
         normalizeSearchText(f).includes(q),
       ),
     );
-  }, [shortcuts, assignFilter]);
+  }, [shortcuts, assignFilter, typed]);
+
+  /* The single most likely home for the typed text: the best text
+     match among replies with no trigger yet (falling back to the
+     most-used free reply, then any reply) — so assigning is ONE
+     tap instead of open-picker-then-choose. */
+  const suggestedAssign = useMemo(() => {
+    if (!typed) return null;
+    const rank = (list: Shortcut[]) =>
+      [...list].sort(
+        (a, b) =>
+          searchScore(b, typed) - searchScore(a, typed) ||
+          b.usageCount - a.usageCount ||
+          a.id - b.id,
+      )[0] ?? null;
+    return rank(shortcuts.filter((s) => !s.trigger)) ?? rank(shortcuts);
+  }, [shortcuts, typed]);
+  /* The one-tap button only ever targets a trigger-less reply —
+     replacing someone's existing trigger must stay a deliberate
+     pick from the list, never a single tap. */
+  const oneTapAssign =
+    suggestedAssign && !suggestedAssign.trigger ? suggestedAssign : null;
 
   const doCopy = async (s: Shortcut) => {
-    const ok = await onCopy(s);
-    if (!ok) return;
-    setCopiedId(s.id);
-    window.clearTimeout(copiedTimer.current);
-    copiedTimer.current = window.setTimeout(() => setCopiedId(null), 1600);
+    if (copyingId !== null) return;
+    setCopyingId(s.id);
+    try {
+      const ok = await onCopy(s);
+      if (!ok) return;
+      setCopiedId(s.id);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopiedId(null), 2000);
+    } finally {
+      setCopyingId(null);
+    }
   };
 
   const assignTo = async (s: Shortcut) => {
@@ -12931,6 +13210,7 @@ function SearchTriggerPreview({
 
   const copyBtn = (s: Shortcut, big: boolean) => {
     const copied = copiedId === s.id;
+    const copying = copyingId === s.id;
     return (
       <button
         type="button"
@@ -12944,17 +13224,33 @@ function SearchTriggerPreview({
               : `نسخ رد ${s.title}`
         }
         aria-live="polite"
+        aria-busy={copying}
+        disabled={copyingId !== null}
         onClick={() => void doCopy(s)}
         className={`lux-btn flex items-center gap-1.5 rounded-full font-bold ${
           big ? "px-4 py-2 text-sm" : "px-3 py-1.5 text-[13px]"
         } ${
           copied
-            ? "bg-[var(--success-soft)] text-[var(--success)]"
+            ? "copy-success bg-[var(--success-soft)] text-[var(--success)]"
             : "bg-[var(--accent)] text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
         }`}
       >
-        <Icon d={copied ? I.check : I.copy} size={big ? 16 : 14} />
-        {copied ? t("اتنسخ") : t("نسخ الرد")}
+        {copying ? (
+          <span className="spinner" aria-hidden="true" />
+        ) : copied ? (
+          <span className="animate-copy-pop flex">
+            <Icon d={I.check} size={big ? 16 : 14} />
+          </span>
+        ) : (
+          <Icon d={I.copy} size={big ? 16 : 14} />
+        )}
+        {copying
+          ? lang === "en"
+            ? "Copying…"
+            : "بيتنسخ…"
+          : copied
+            ? t("اتنسخ")
+            : t("نسخ الرد")}
       </button>
     );
   };
@@ -12967,9 +13263,11 @@ function SearchTriggerPreview({
       <div className="search-trig-expand-inner">
         {shown && (
           <div className="search-trig-panel">
-            <div className="flex items-center justify-between gap-2">
+            <div className="trig-stage trig-stage-1 flex items-center justify-between gap-2">
               <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-extrabold tracking-wide text-[var(--accent-strong)]">
-                <Icon d={I.zap} size={13} />
+                <span className="trig-zap flex">
+                  <Icon d={I.zap} size={13} />
+                </span>
                 {best
                   ? lang === "en"
                     ? "Shortcut preview"
@@ -12991,7 +13289,7 @@ function SearchTriggerPreview({
 
             {best ? (
               <div key={best.id} className="trig-match mt-2.5">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="trig-stage trig-stage-1 flex flex-wrap items-center gap-2">
                   <span dir="auto" className="trig-hero-pill">
                     {best.trigger}
                   </span>
@@ -13003,15 +13301,15 @@ function SearchTriggerPreview({
                     <span className="truncate">{best.category}</span>
                   </span>
                 </div>
-                <p className="mt-2 text-[16px] font-extrabold leading-snug">
+                <p className="trig-stage trig-stage-2 mt-2 text-[16px] font-extrabold leading-snug">
                   {best.title}
                 </p>
                 {/* The full reply, complete — this is why the box
                     grew. Long replies scroll inside the panel. */}
-                <p className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text)]">
+                <p className="trig-stage trig-stage-3 mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text)]">
                   {best.body}
                 </p>
-                <div className="mt-3 flex items-center gap-2">
+                <div className="trig-stage trig-stage-4 mt-3 flex items-center gap-2">
                   {copyBtn(best, true)}
                   {best.usageCount > 0 && (
                     <span className="text-xs font-bold text-[var(--faint)]">
@@ -13022,7 +13320,7 @@ function SearchTriggerPreview({
                   )}
                 </div>
                 {extras.length > 0 && (
-                  <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                  <div className="trig-stage trig-stage-5 mt-3 border-t border-[var(--border)] pt-2.5">
                     <p className="mb-1.5 text-xs font-bold text-[var(--faint)]">
                       {t("نتائج تانية بتطابق كمان:")}
                     </p>
@@ -13036,8 +13334,9 @@ function SearchTriggerPreview({
                                 ? `Copy reply ${s.title}`
                                 : `نسخ رد ${s.title}`
                             }
+                            disabled={copyingId !== null}
                             onClick={() => void doCopy(s)}
-                            className="lux-btn flex w-full items-center gap-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start hover:border-[var(--border-strong)]"
+                            className="lux-btn flex w-full items-center gap-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start hover:border-[var(--border-strong)] disabled:opacity-60"
                           >
                             <span dir="auto" className="trig-hero-pill trig-hero-pill-sm">
                               {s.trigger}
@@ -13046,7 +13345,13 @@ function SearchTriggerPreview({
                               {s.title}
                             </span>
                             <span className="shrink-0 text-[var(--faint)]">
-                              <Icon d={copiedId === s.id ? I.check : I.copy} size={15} />
+                              {copiedId === s.id ? (
+                                <span className="animate-copy-pop flex text-[var(--success)]">
+                                  <Icon d={I.check} size={15} />
+                                </span>
+                              ) : (
+                                <Icon d={I.copy} size={15} />
+                              )}
                             </span>
                           </button>
                         </li>
@@ -13057,26 +13362,64 @@ function SearchTriggerPreview({
               </div>
             ) : (
               <div className="trig-match mt-2.5 text-center">
-                <p className="font-extrabold">{t("مفيش اختصار بالنص ده")}</p>
-                <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-[var(--dim)]">
+                <p className="trig-stage trig-stage-1 font-extrabold">{t("مفيش اختصار بالنص ده")}</p>
+                <p className="trig-stage trig-stage-2 mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-[var(--dim)]">
                   {lang === "en"
                     ? `Nothing matches “${typed}” — make it a shortcut for one of your replies right here.`
                     : `مفيش حاجة بتطابق «${typed}» — خلّي النص ده اختصار لأي رد من هنا على طول.`}
                 </p>
-                <button
-                  type="button"
-                  aria-expanded={assignOpen}
-                  onClick={() => {
-                    setAssignOpen((v) => !v);
-                    setAssignError(null);
-                  }}
-                  className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
-                >
-                  <Icon d={I.plus} size={15} />
-                  {assignOpen ? t("قفل الاختيار") : t("ضيف الاختصار ده لرد")}
-                </button>
+                {oneTapAssign ? (
+                  <div className="trig-stage trig-stage-3 mt-3 flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={assigningId !== null}
+                      onClick={() => void assignTo(oneTapAssign)}
+                      className="lux-btn flex max-w-full items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+                    >
+                      {assigningId === oneTapAssign.id ? (
+                        <span className="spinner shrink-0" aria-hidden="true" />
+                      ) : (
+                        <Icon d={I.zap} size={15} />
+                      )}
+                      <span className="flex min-w-0 flex-col items-start">
+                        <span className="text-[12px] font-semibold opacity-85">
+                          {lang === "en"
+                            ? `Make “${typed}” the shortcut for`
+                            : `خلّي «${typed}» اختصار لرد`}
+                        </span>
+                        <span className="block max-w-full truncate text-sm font-extrabold">
+                          {oneTapAssign.title}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-expanded={assignOpen}
+                      onClick={() => {
+                        setAssignOpen((v) => !v);
+                        setAssignError(null);
+                      }}
+                      className="lux-btn text-[13px] font-bold text-[var(--accent-strong)] hover:text-[var(--accent)]"
+                    >
+                      {assignOpen ? t("قفل الاختيار") : t("اختار رد تاني")}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    aria-expanded={assignOpen}
+                    onClick={() => {
+                      setAssignOpen((v) => !v);
+                      setAssignError(null);
+                    }}
+                    className="trig-stage trig-stage-3 lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
+                  >
+                    <Icon d={I.plus} size={15} />
+                    {assignOpen ? t("قفل الاختيار") : t("ضيف الاختصار ده لرد")}
+                  </button>
+                )}
                 {assignOpen && (
-                  <div className="trig-match mt-3 text-start">
+                  <div className="trig-match trig-stage trig-stage-4 mt-3 text-start">
                     <input
                       dir="auto"
                       value={assignFilter}
@@ -13112,6 +13455,11 @@ function SearchTriggerPreview({
                                   : ` · ${t("من غير اختصار")}`}
                               </span>
                             </span>
+                            {suggestedAssign?.id === s.id && (
+                              <span className="shrink-0 rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-extrabold text-[var(--accent-ink)]">
+                                {t("الأنسب")}
+                              </span>
+                            )}
                             {assigningId === s.id ? (
                               <span className="spinner shrink-0" aria-hidden="true" />
                             ) : (
@@ -13189,7 +13537,9 @@ function ShortcutsView({
     [shortcuts, searching, q],
   );
   /* Folder groups follow the folder tree's own order, so the view
-     reads the same way the library does. */
+     reads the same way the library does — but inside each group
+     the most-used triggers stand first, with a small live count
+     that makes the order legible. */
   const groups = useMemo(() => {
     const rank = new Map<string, number>();
     folders.forEach((f, i) => {
@@ -13201,6 +13551,13 @@ function ShortcutsView({
       arr.push(s);
       map.set(s.category, arr);
     }
+    for (const arr of map.values()) {
+      arr.sort(
+        (a, b) =>
+          b.usageCount - a.usageCount ||
+          (a.trigger ?? "").localeCompare(b.trigger ?? "", "ar"),
+      );
+    }
     return [...map.entries()]
       .sort(
         ([a], [b]) =>
@@ -13209,6 +13566,29 @@ function ShortcutsView({
       )
       .map(([name, items]) => ({ name, items }));
   }, [withTrigger, folders]);
+
+  /* The empty state's one obvious first action: jump to the
+     most-used reply still waiting for a trigger and flash its
+     row, so the eye lands exactly on the pill to tap. */
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const flashTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(flashTimer.current), []);
+  const firstFree = useMemo(
+    () =>
+      [...withoutTrigger].sort(
+        (a, b) => b.usageCount - a.usageCount || a.id - b.id,
+      )[0] ?? null,
+    [withoutTrigger],
+  );
+  const jumpToFirstFree = () => {
+    if (!firstFree) return;
+    setFlashId(firstFree.id);
+    window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlashId(null), 1600);
+    document
+      .getElementById(`trig-row-${firstFree.id}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -13238,6 +13618,7 @@ function ShortcutsView({
                     key={s.id}
                     type="button"
                     aria-pressed={active}
+                    data-trig-chip
                     onClick={() => onPickTrigger(s.trigger ?? "")}
                     className={`trig-chip lux-btn ${
                       active ? "trig-chip-active" : ""
@@ -13245,17 +13626,42 @@ function ShortcutsView({
                   >
                     <Icon d={I.zap} size={12} />
                     <span dir="auto">{s.trigger}</span>
+                    {s.usageCount > 0 && (
+                      <span className="trig-chip-count" aria-label={lang === "en" ? `Used ${s.usageCount} times` : `اتستخدم ${s.usageCount} مرة`}>
+                        {s.usageCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}
           </div>
         </div>
       )}
-      <p className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-3 text-sm leading-relaxed text-[var(--dim)]">
-        {lang === "en"
-          ? `${withTrigger.length} trigger${withTrigger.length === 1 ? "" : "s"} — type any trigger in the search above or in the shortcut bar to jump straight to its reply. Each trigger belongs to you only.`
-          : `${withTrigger.length} اختصار — اكتب أي اختصار في البحث اللي فوق أو في «شريط الاختصارات» عشان توصل لرده على طول. كل اختصار بتاعك انت بس.`}
-      </p>
+      {withTrigger.length === 0 && withoutTrigger.length > 0 && !searching ? (
+        /* No triggers yet: one clear line saying what a shortcut
+           is, plus one obvious first action — no lecture. */
+        <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-4 text-center">
+          <p className="flex items-center justify-center gap-1.5 text-sm font-bold leading-relaxed">
+            <Icon d={I.zap} size={15} />
+            {t("الاختصار كلمة قصيرة بتكتبها في البحث — أو في شريط الاختصارات — فتجيب الرد ده على طول من غير ما تدوّر عليه.")}
+          </p>
+          <button
+            type="button"
+            onClick={jumpToFirstFree}
+            disabled={!firstFree}
+            className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+          >
+            <Icon d={I.zap} size={15} />
+            {t("ضيف أول اختصار")}
+          </button>
+        </div>
+      ) : (
+        <p className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-3 text-sm leading-relaxed text-[var(--dim)]">
+          {lang === "en"
+            ? `${withTrigger.length} trigger${withTrigger.length === 1 ? "" : "s"} — type any trigger in the search above or in the shortcut bar to jump straight to its reply. Each trigger belongs to you only.`
+            : `${withTrigger.length} اختصار — اكتب أي اختصار في البحث اللي فوق أو في «شريط الاختصارات» عشان توصل لرده على طول. كل اختصار بتاعك انت بس.`}
+        </p>
+      )}
       {withTrigger.length === 0 && withoutTrigger.length === 0 ? (
         <div className="pattern-star rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-10 text-center">
           <p className="font-semibold">
@@ -13266,7 +13672,7 @@ function ShortcutsView({
           <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
             {searching
               ? t("جرّب كلمة تانية، أو امسح البحث عشان تشوف كل الاختصارات.")
-              : t("افتح أي رد للتعديل واكتب له اختصار بأي نص تحبه، أو ضيف اختصار لأي رد من اللي تحت على طول.")}
+              : t("الاختصار كلمة قصيرة بتكتبها في البحث فتجيب الرد على طول. ضيف أول رد من الرئيسية، وبعدها ادّيله اختصار من هنا.")}
           </p>
         </div>
       ) : (
@@ -13303,11 +13709,11 @@ function ShortcutsView({
                 <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
               </h3>
               <p className="mb-2 text-[13px] leading-relaxed text-[var(--dim)]">
-                {t("اكتب اختصار لكل رد من هنا على طول — دوس علامة الصح عشان يتحفظ.")}
+                {t("دوس «أضف اختصار» على أي رد من اللي تحت واكتب له كلمة — دوسة واحدة وبيتحفظ.")}
               </p>
               <ul className="flex flex-col gap-2">
                 {withoutTrigger.map((s) => (
-                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} />
+                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} highlight={flashId === s.id} />
                 ))}
               </ul>
             </section>
@@ -13423,8 +13829,18 @@ function ShortcutBar({
           </p>
         ) : (
           <ul className="max-h-[50vh] overflow-y-auto p-1.5">
-            {top.map((s) => (
-              <li key={s.id}>
+            {top.map((s, i) => (
+              <li
+                key={s.id}
+                /* Staged entrance on open only (empty query): while
+                   the user types, results must land instantly. */
+                className={query.trim() === "" ? "trig-stage trig-stage-1" : undefined}
+                style={
+                  query.trim() === ""
+                    ? ({ animationDelay: `${Math.min(i, 5) * 45}ms` } as React.CSSProperties)
+                    : undefined
+                }
+              >
                 <button
                   type="button"
                   aria-label={lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
@@ -13441,6 +13857,11 @@ function ShortcutBar({
                       {s.body.replace(/\s+/g, " ").trim().slice(0, 80)}
                     </span>
                   </span>
+                  {s.usageCount > 0 && (
+                    <span className="shrink-0 text-[11px] font-bold text-[var(--faint)]">
+                      {lang === "en" ? `${s.usageCount} uses` : `${s.usageCount} مرة`}
+                    </span>
+                  )}
                   {copyingId === s.id ? (
                     <span className="spinner shrink-0" aria-hidden="true" />
                   ) : (
@@ -13575,6 +13996,19 @@ function EditorModal({
      outside the site, one for inside it. */
   const [trigger, setTrigger] = useState(
     item?.trigger ?? draft?.trigger ?? "",
+  );
+  /* Live trigger suggestions — the easiest free triggers for this
+     reply, following the typed text as it changes (same engine as
+     the inline pill editor). One tap fills the field. */
+  const triggerSuggestions = useMemo(
+    () =>
+      suggestTriggers(
+        { title, body, trigger: item?.trigger ?? null },
+        takenTriggers,
+        trigger,
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [title, body, trigger, item, takenTriggers],
   );
   /* Where this reply originally came from — one of the fixed
      REPLY_SOURCES names, or "" when never recorded. Chosen from
@@ -13980,15 +14414,34 @@ function EditorModal({
                   placeholder="اكتب أي نص…"
                   className={`${field} text-start`}
                 />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
-                </span>
-                {triggerError(trigger, takenTriggers) && (
-                  <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
-                    {triggerError(trigger, takenTriggers)}
-                  </span>
-                )}
               </label>
+              <span className="mt-1 block text-xs text-[var(--dim)]">
+                النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
+              </span>
+              {triggerError(trigger, takenTriggers) && (
+                <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
+                  {triggerError(trigger, takenTriggers)}
+                </span>
+              )}
+              {triggerSuggestions.length > 0 && (
+                <span className="mt-2 block">
+                  <span className="mb-1 block text-[11.5px] font-bold text-[var(--faint)]">
+                    اقتراحات جاهزة — دوس على أي واحدة:
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    {triggerSuggestions.map((sug) => (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => setTrigger(sug)}
+                        className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
+                      >
+                        <span dir="auto">{sug}</span>
+                      </button>
+                    ))}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
 

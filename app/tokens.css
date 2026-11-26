@@ -4865,19 +4865,61 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
    ============================================================ */
 @keyframes neb-trig-sheen {
   0% { transform: translateX(-170%) skewX(-18deg); }
-  55%, 100% { transform: translateX(170%) skewX(-18deg); }
+  60%, 100% { transform: translateX(170%) skewX(-18deg); }
 }
 @keyframes neb-trig-zap {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.3); opacity: 0.72; }
+  50% { transform: scale(1.45); opacity: 0.68; }
 }
 @keyframes neb-trig-glow {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 0.55; }
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.85; }
 }
 @keyframes neb-trig-panel {
   from { opacity: 0; transform: translateY(-5px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* الحبّة بتنطّ بعد الحفظ/المسح — مورف سريع يأكّد التغيير */
+@keyframes neb-trig-pop {
+  0% { transform: scale(0.9); }
+  45% { transform: scale(1.09); }
+  100% { transform: scale(1); }
+}
+/* اهتزاز خفيف لخانة الاختصار لما يظهر خطأ */
+@keyframes neb-trig-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  55% { transform: translateX(4px); }
+  80% { transform: translateX(-2px); }
+}
+/* الظهور المرحلي داخل معاينة البحث: الشارة ← العنوان ←
+   النص ← الأزرار — كل طبقة بعد اللي قبلها */
+@keyframes neb-trig-stage-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* الشريحة النشطة بتمتلئ بنطّة */
+@keyframes neb-trig-chip-in {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+/* بوكس البحث بينبض بحلقة مرة واحدة لما شريحة تدوس عليه */
+@keyframes neb-trig-search-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+/* صف الاختصار بيتوهّج مرة واحدة لما زر «ضيف أول اختصار»
+   يوجّه العين ليه */
+@keyframes neb-trig-row-flash {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
+  45% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+/* توهّج نجاح لزر النسخ لما يقلب «اتنسخ» */
+@keyframes neb-copy-glow {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent); }
+  100% { box-shadow: 0 0 0 9px transparent; }
 }
 .trig-icon {
   position: relative;
@@ -4900,7 +4942,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--accent) 42%, transparent), transparent 70%);
+  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--accent) 55%, transparent), transparent 70%);
   pointer-events: none;
 }
 /* لمعة ساطعة تعبر الزجاج — transform فقط */
@@ -4908,7 +4950,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   content: "";
   position: absolute;
   inset: -1px;
-  background: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / 0.5) 50%, transparent 75%);
+  background: linear-gradient(100deg, transparent 18%, rgb(255 255 255 / 0.72) 50%, transparent 82%);
   transform: translateX(-170%) skewX(-18deg);
   pointer-events: none;
 }
@@ -4935,17 +4977,41 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .trig-icon::after { animation: neb-trig-sheen 3s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+  /* اللمعة والتوهّج والبرق متزاحين لكل رد على حدة عبر
+     --trig-delay (بيتحط من الكومبوننت)، فالـ 88 حبّة
+     عمرها ما تتحرك في نفس اللحظة. */
+  .trig-icon::after { animation: neb-trig-sheen 3s cubic-bezier(0.65, 0, 0.35, 1) infinite; animation-delay: var(--trig-delay, 0s); }
   /* الـ hover يطلق لمعة سريعة — لمسة تفاعلية فورية */
   .trig-icon:hover::after { animation-duration: 1.1s; }
-  .trig-icon::before { animation: neb-trig-glow 2.8s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+  .trig-icon::before { animation: neb-trig-glow 2.8s cubic-bezier(0.65, 0, 0.35, 1) infinite; animation-delay: var(--trig-delay, 0s); }
   .trig-icon-empty::after { animation: none; }
-  .trig-zap { animation: neb-trig-zap 2.8s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+  .trig-zap { animation: neb-trig-zap 2.8s cubic-bezier(0.65, 0, 0.35, 1) infinite; animation-delay: var(--trig-delay, 0s); }
   .trig-panel { animation: neb-trig-panel 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  /* نطّة الحفظ/المسح على الحبّة نفسها */
+  .trig-icon-saved { animation: neb-trig-pop 420ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+  /* خانة الاختصار بتهتز لما يظهر خطأ */
+  .trig-input-error { animation: neb-trig-shake 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+  /* الظهور المرحلي — كل طبقة بعد اللي قبلها */
+  .trig-stage { opacity: 0; animation: neb-trig-stage-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .trig-stage-1 { animation-delay: 0ms; }
+  .trig-stage-2 { animation-delay: 60ms; }
+  .trig-stage-3 { animation-delay: 120ms; }
+  .trig-stage-4 { animation-delay: 180ms; }
+  .trig-stage-5 { animation-delay: 240ms; }
+  /* الشريحة النشطة بتمتلئ بنطّة */
+  .trig-chip-active { animation: neb-trig-chip-in 280ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+  /* بوكس البحث بينبض لما شريحة تدوس عليه */
+  .trig-search-pulsed { animation: neb-trig-search-pulse 650ms cubic-bezier(0.22, 1, 0.36, 1); border-radius: var(--radius); }
+  /* صف الاختصار بيتوهّج لما يتوجّه ليه */
+  .trig-row-flash { animation: neb-trig-row-flash 1.5s cubic-bezier(0.22, 1, 0.36, 1); }
+  /* زر النسخ بيتوهّج أخضر لما يقلب «اتنسخ» */
+  .copy-success { animation: neb-copy-glow 750ms cubic-bezier(0.22, 1, 0.36, 1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .trig-icon::before, .trig-icon::after, .trig-zap, .trig-panel { animation: none; }
   .trig-icon:hover { transform: none; }
+  .trig-icon-saved, .trig-chip-active, .trig-search-pulsed, .trig-row-flash, .copy-success, .trig-input-error { animation: none; }
+  .trig-stage { animation: none; opacity: 1; }
 }
 
 /* ============================================================
@@ -5010,6 +5076,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 }
 /* حبّة الاختصار داخل المعاينة — النص كما كتبه صاحبه بالظبط */
 .trig-hero-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -5026,6 +5093,15 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* لمعة بطيئة تعبر حبّة المعاينة — نفس روح حبّة البطاقة */
+.trig-hero-pill::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(100deg, transparent 25%, rgb(255 255 255 / 0.45) 50%, transparent 75%);
+  transform: translateX(-170%) skewX(-18deg);
+  pointer-events: none;
 }
 .trig-hero-pill-sm {
   padding: 2px 8px;
@@ -5058,12 +5134,42 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   border-color: transparent;
   box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 75%, transparent);
 }
+/* زر نسخ قلَب «اتنسخ» — حلقة نجاح ثابتة طول ما الحالة
+   ظاهرة، فوقها نبضة توهّج واحدة (neb-copy-glow). */
+.copy-success {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 28%, transparent), 0 8px 20px -6px color-mix(in srgb, var(--success) 50%, transparent);
+}
+/* خانة الاختصار لما يظهر خطأ — إطار أحمر واضح */
+.trig-input-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+/* عدّاد الاستخدام الصغير على الشريحة — يفسّر الترتيب */
+.trig-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-strong);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+.trig-chip-active .trig-chip-count {
+  background: rgb(255 255 255 / 0.22);
+  color: var(--accent-ink);
+}
 @media (prefers-reduced-motion: no-preference) {
   .search-trig-panel::after { animation: neb-trig-sheen 5.5s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
   .trig-match { animation: neb-trig-match-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .trig-hero-pill::after { animation: neb-trig-sheen 4.5s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
 }
 @media (prefers-reduced-motion: reduce) {
   .search-trig-expand, .search-trig-expand-inner { transition: none; }
-  .search-trig-panel::after, .trig-match { animation: none; }
+  .search-trig-panel::after, .trig-match, .trig-hero-pill::after { animation: none; }
   .trig-chip:hover { transform: none; }
 }
