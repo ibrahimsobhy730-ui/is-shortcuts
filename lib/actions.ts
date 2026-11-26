@@ -556,28 +556,23 @@ async function requireOwnedShortcut(
 }
 
 /* ---- per-user expansion triggers ----
-   A trigger is the word its owner types in the site's search /
-   shortcut bar to expand this one reply (e.g. ";salam"). Rules, enforced here on the server — the
-   client mirrors them only for instant feedback:
+   A trigger is the text its owner types in the site's search /
+   shortcut bar to expand this one reply. Rules, enforced here on the
+   server — the client mirrors them only for instant feedback:
    - "" = no trigger.
-   - otherwise: ^;[a-z0-9][a-z0-9_-]{0,23}$ — starts with ";", 2–24
-     chars total, lowercase latin letters / digits / "_" / "-".
-     Input is trimmed and lowercased first, so ";Salam" stores as
-     ";salam".
-   - unique among the same user's NON-deleted replies (case-insensitive
-     by construction, since everything is stored lowercase). Another
-     account may use the same word; a trashed reply frees its word. */
-const TRIGGER_RE = /^;[a-z0-9][a-z0-9_-]{0,23}$/;
-
+   - otherwise: ANY text the owner types is valid — Arabic or Latin,
+     any case, spaces, symbols, with or without a ";" prefix, any
+     length up to the request cap (100 chars). The trigger is stored
+     and shown EXACTLY as typed (only leading/trailing whitespace is
+     trimmed); nothing is lowercased or reformatted.
+   - unique among the same user's NON-deleted replies, compared
+     case-insensitively on the trimmed text ("ترحيب" and " ترحيب "
+     collide; so do "Salam" and "salam"). Another account may use
+     the same text; a trashed reply frees its text. The DB's
+     per-user unique index is case-sensitive, so it is only a second
+     line of defence — the check below is what enforces the rule. */
 function normalizeTrigger(raw: string | null | undefined): string {
-  const t = (raw ?? "").trim().toLowerCase();
-  if (t === "") return "";
-  if (!TRIGGER_RE.test(t)) {
-    throw new Error(
-      "الاختصار لازم يبدأ بـ ; ويكون حروف إنجليزي صغيرة وأرقام و _ أو - بس، من حرفين لـ 24 حرف — مثال: ;salam",
-    );
-  }
-  return t;
+  return (raw ?? "").trim();
 }
 
 async function assertTriggerAvailable(
@@ -594,7 +589,10 @@ async function assertTriggerAvailable(
     .where(
       and(
         eq(schema.shortcuts.userId, userId),
-        eq(schema.shortcuts.trigger, trigger),
+        /* Case-insensitive on the trimmed text: lower() folds Latin
+           case (Arabic has no case, so it passes through unchanged)
+           and the stored values are already trimmed. */
+        sql`lower(${schema.shortcuts.trigger}) = ${trigger.toLowerCase()}`,
         isNull(schema.shortcuts.deletedAt),
       ),
     )
@@ -1880,7 +1878,7 @@ export const Actions = {
       tags: z.string().trim().max(300).optional().default(""),
       /* The reply's own expansion trigger, typed by its owner.
          "" = none; validated + deduped per user in the handler. */
-      trigger: z.string().trim().max(24).optional().default(""),
+      trigger: z.string().trim().max(100, "الاختصار طويل أوي — خليه 100 حرف أو أقل").optional().default(""),
       /* The external-shortcut note (see the schema): the word the
          user registered for this reply in outside programs, kept
          only so the editor can show it back to him. */
@@ -1955,7 +1953,7 @@ export const Actions = {
       body: z.string().min(1).max(20000),
       category: z.string().trim().min(1).max(60),
       tags: z.string().trim().max(300).optional().default(""),
-      trigger: z.string().trim().max(24).optional().default(""),
+      trigger: z.string().trim().max(100, "الاختصار طويل أوي — خليه 100 حرف أو أقل").optional().default(""),
       extShortcut: z.string().trim().max(60).optional().default(""),
       source: sourceField.optional().default(""),
       /* The editor's folder picker: when sent, the reply is filed
@@ -2205,7 +2203,7 @@ export const Actions = {
             body: z.string().min(1).max(20000),
             category: z.string().trim().min(1).max(60).default("عام"),
             tags: z.string().trim().max(300).optional().default(""),
-            trigger: z.string().trim().max(24).optional().default(""),
+            trigger: z.string().trim().max(100, "الاختصار طويل أوي — خليه 100 حرف أو أقل").optional().default(""),
             extShortcut: z.string().trim().max(60).optional().default(""),
             source: sourceField.optional().default(""),
           }),
@@ -2238,7 +2236,10 @@ export const Actions = {
       const seen = new Set(existing.map((r) => keyOf(r.title, r.body)));
       /* Triggers already in this library (live rows only) plus the
          ones this import has already taken, so an imported trigger
-         can never collide with another of the user's replies. */
+         can never collide with another of the user's replies.
+         Keyed by the trimmed lowercased text — the comparison is
+         case-insensitive, while the stored trigger keeps the exact
+         text from the file. */
       const takenTriggers = new Set<string>();
       const liveTriggers = await db
         .select({ trigger: schema.shortcuts.trigger })
@@ -2249,7 +2250,8 @@ export const Actions = {
             isNull(schema.shortcuts.deletedAt),
           ),
         );
-      for (const r of liveTriggers) if (r.trigger) takenTriggers.add(r.trigger);
+      for (const r of liveTriggers)
+        if (r.trigger) takenTriggers.add(r.trigger.trim().toLowerCase());
       let imported = 0;
       let skipped = 0;
       for (const item of args.items) {
@@ -2259,18 +2261,15 @@ export const Actions = {
           continue;
         }
         seen.add(key);
-        /* A bad or already-taken trigger never fails the whole
+        /* An empty or already-taken trigger never fails the whole
            import: that reply simply lands trigger-less, and its
-           owner can set a trigger in the editor afterwards. */
+           owner can set a trigger in the editor afterwards. Any
+           other text is kept exactly as written in the file. */
         let trigger = "";
-        try {
-          const t = normalizeTrigger(item.trigger);
-          if (t && !takenTriggers.has(t)) {
-            trigger = t;
-            takenTriggers.add(t);
-          }
-        } catch {
-          trigger = "";
+        const t = normalizeTrigger(item.trigger);
+        if (t && !takenTriggers.has(t.toLowerCase())) {
+          trigger = t;
+          takenTriggers.add(t.toLowerCase());
         }
         await db.insert(schema.shortcuts).values({
           userId: me.id,

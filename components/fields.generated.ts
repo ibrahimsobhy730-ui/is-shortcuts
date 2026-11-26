@@ -194,7 +194,7 @@ export const FIELDS = {
     },
     "trigger": {
       "name": "trigger",
-      "maxLength": 24
+      "maxLength": 100
     },
     "extShortcut": {
       "name": "extShortcut",
@@ -245,7 +245,7 @@ export const FIELDS = {
     },
     "trigger": {
       "name": "trigger",
-      "maxLength": 24
+      "maxLength": 100
     },
     "extShortcut": {
       "name": "extShortcut",
@@ -363,7 +363,7 @@ export const FIELDS = {
       },
       "trigger": {
         "name": "trigger",
-        "maxLength": 24
+        "maxLength": 100
       },
       "extShortcut": {
         "name": "extShortcut",

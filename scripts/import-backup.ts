@@ -106,14 +106,14 @@ try {
         body: x.body as string,
         category: typeof x.category === "string" && x.category ? x.category : "عام",
         tags: typeof x.tags === "string" ? x.tags : "",
-        /* The reply's own expansion trigger (;word, 2–24 chars).
-           Anything malformed lands trigger-less — a bad word in a
+        /* The reply's own expansion trigger — free-form text, any
+           language, case or characters, kept exactly as written
+           (only trimmed). A trigger is invalid only if it is empty
+           or duplicates another of this user's triggers, which is
+           checked against the live library below; a bad word in a
            backup file must never block the whole import. */
         trigger:
-          typeof x.trigger === "string" &&
-          /^;[a-z0-9][a-z0-9_-]{0,23}$/.test(x.trigger.trim().toLowerCase())
-            ? x.trigger.trim().toLowerCase()
-            : "",
+          typeof x.trigger === "string" ? x.trigger.trim() : "",
         extShortcut: typeof x.extShortcut === "string" ? x.extShortcut : "",
         source: typeof x.source === "string" ? x.source : "",
       }));
@@ -164,6 +164,20 @@ try {
         [userId],
       );
       const seen = new Set(existing.rows.map((r) => keyOf(r.title, r.body)));
+      /* Triggers already live in this library plus the ones this
+         import has already taken, keyed by the trimmed lowercased
+         text — a duplicate (even one that differs only by case or
+         surrounding spaces) lands trigger-less instead of tripping
+         the per-user unique index and rolling the whole import
+         back. The stored trigger keeps the exact text from the
+         file. */
+      const liveTriggers = await client.query(
+        "SELECT trigger FROM shortcuts WHERE user_id = $1 AND trigger <> '' AND deleted_at IS NULL",
+        [userId],
+      );
+      const takenTriggers = new Set(
+        liveTriggers.rows.map((r) => String(r.trigger).trim().toLowerCase()),
+      );
       let imported = 0;
       let skipped = 0;
       for (const it of items) {
@@ -173,9 +187,12 @@ try {
           continue;
         }
         seen.add(key);
+        let trigger = it.trigger;
+        if (trigger && takenTriggers.has(trigger.toLowerCase())) trigger = "";
+        if (trigger) takenTriggers.add(trigger.toLowerCase());
         await client.query(
           "INSERT INTO shortcuts (user_id, title, body, category, tags, trigger, ext_shortcut, source) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-          [userId, it.title, it.body, it.category, it.tags, it.trigger, it.extShortcut, it.source],
+          [userId, it.title, it.body, it.category, it.tags, trigger, it.extShortcut, it.source],
         );
         imported++;
       }
@@ -226,12 +243,37 @@ try {
           [f.id, f.userId, f.name, f.icon ?? null, f.iconColor ?? null, f.source ?? "", f.isSourceMain ?? false, f.parentId ?? null, f.pinned ?? false, f.deletedAt ?? null, f.description ?? null, f.sortOrder ?? 0, f.createdAt ?? new Date(), f.updatedAt ?? new Date()],
         );
       }
+      /* Triggers already live in the database, per user, keyed by
+         the trimmed lowercased text — a restored trigger that
+         duplicates another of the same user's (even one that
+         differs only by case) would trip the per-user unique index
+         and roll the whole restore back, so it lands trigger-less
+         instead. Triggers are kept exactly as written in the file. */
+      const liveTriggerRows = await client.query(
+        "SELECT user_id, trigger FROM shortcuts WHERE trigger <> '' AND deleted_at IS NULL",
+      );
+      const takenByUser = new Map<number, Set<string>>();
+      for (const r of liveTriggerRows.rows) {
+        const uid = r.user_id as number;
+        if (!takenByUser.has(uid)) takenByUser.set(uid, new Set());
+        takenByUser.get(uid)!.add(String(r.trigger).trim().toLowerCase());
+      }
       let nShortcuts = 0;
       for (const s of shortcuts) {
+        let trigger = typeof s.trigger === "string" ? s.trigger.trim() : "";
+        const uid = (s.userId as number | null) ?? null;
+        if (trigger && uid !== null) {
+          const taken = takenByUser.get(uid);
+          if (taken?.has(trigger.toLowerCase())) trigger = "";
+          else {
+            if (!taken) takenByUser.set(uid, new Set());
+            takenByUser.get(uid)!.add(trigger.toLowerCase());
+          }
+        }
         nShortcuts += await ins(
           `INSERT INTO shortcuts (id, user_id, title, body, category, tags, trigger, ext_shortcut, source, folder_id, sort_order, pinned, favorite, deleted_at, usage_count, last_used_at, created_at, updated_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) ON CONFLICT (id) DO NOTHING`,
-          [s.id, s.userId ?? null, s.title, s.body, s.category ?? "عام", s.tags ?? "", s.trigger ?? "", s.extShortcut ?? "", s.source ?? "", s.folderId ?? null, s.sortOrder ?? 0, s.pinned ?? false, s.favorite ?? false, s.deletedAt ?? null, s.usageCount ?? 0, s.lastUsedAt ?? null, s.createdAt ?? new Date(), s.updatedAt ?? new Date()],
+          [s.id, s.userId ?? null, s.title, s.body, s.category ?? "عام", s.tags ?? "", trigger, s.extShortcut ?? "", s.source ?? "", s.folderId ?? null, s.sortOrder ?? 0, s.pinned ?? false, s.favorite ?? false, s.deletedAt ?? null, s.usageCount ?? 0, s.lastUsedAt ?? null, s.createdAt ?? new Date(), s.updatedAt ?? new Date()],
         );
       }
       let nHistory = 0;

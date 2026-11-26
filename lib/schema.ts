@@ -192,10 +192,14 @@ export const shortcuts = pgTable("shortcuts", {
      alongside title/body — the reply's tags. */
   tags: text("tags").notNull().default(""),
   /* The reply's own expansion trigger, chosen and typed by its owner
-     in the reply editor (e.g. ";salam"). Per-user: uniqueness is
-     scoped to (user_id, trigger) — another account may use the same
-     word. Empty = this reply has no trigger. The site's shortcuts
-     section / shortcut bar reads only the signed-in user's triggers.
+     in the reply editor — free-form text, any language, case or
+     characters, stored exactly as typed (see normalizeTrigger in
+     lib/actions.ts). Per-user: uniqueness is scoped to (user_id,
+     trigger), compared case-insensitively on the trimmed text —
+     another account may use the same text. Empty = this reply has
+     no trigger. The site's shortcuts section / shortcut bar reads
+     only the signed-in user's triggers. The column is TEXT (no
+     length limit); the 100-char cap lives in the request schemas.
      Never auto-assigned and
      never copied from extShortcut (that field stays a record-only
      note about outside programs). */
