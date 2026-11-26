@@ -22,6 +22,14 @@ import { newDb } from "pg-mem";
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { Actions } from "../lib/actions.ts";
 import * as schema from "../lib/schema.ts";
+import {
+  BLOB_API_URL,
+  BLOB_API_VERSION,
+  blobPutUrl,
+  classifyUploadError,
+  parseStoreIdFromClientToken,
+  uploadErrorMessage,
+} from "../components/media-upload.ts";
 
 const root = join(import.meta.dirname, "..");
 const mem = newDb();
@@ -61,7 +69,9 @@ const ctx = {
     },
   },
   invalidateQueries() {},
+  invalidateKeys() {},
   invalidated: false,
+  invalidatedKeys: null,
 };
 
 let pass = 0;
@@ -318,6 +328,61 @@ try {
   const emptied = await call("emptyTrash", { token: tokenA });
   check("emptyTrash removes trashed reply", emptied.removed >= 1 && before, `removed=${emptied.removed}`);
   check("emptyTrash cascades media row", (await mediaFor(wmId)) === null);
+  // ---- upload helpers (components/media-upload.ts): the pure
+  // part of the 2026-11-26 upload fix — token parsing, error
+  // classification and the distinct Arabic messages. The browser
+  // steps (preflight, timeout/watchdog, XHR fallback, server
+  // proxy) must be verified live; this proves the decisions.
+  check(
+    "parseStoreIdFromClientToken",
+    parseStoreIdFromClientToken("vercel_blob_client_abc123def456_AAAA") === "abc123def456",
+    parseStoreIdFromClientToken("vercel_blob_client_abc123def456_AAAA") ?? "null",
+  );
+  check("parseStoreIdFromClientToken garbage", parseStoreIdFromClientToken("nope") === null);
+  check("parseStoreIdFromClientToken empty", parseStoreIdFromClientToken("") === null);
+  check(
+    "blobPutUrl encodes pathname",
+    blobPutUrl("media/1/2/a b.png") === `${BLOB_API_URL}/?pathname=media%2F1%2F2%2Fa+b.png`,
+    blobPutUrl("media/1/2/a b.png"),
+  );
+  check("BLOB_API_VERSION", BLOB_API_VERSION === "13");
+  const abortErr = new DOMException("The user aborted a request.", "AbortError");
+  check("classify AbortError", classifyUploadError(abortErr) === "aborted");
+  check("classify token expired", classifyUploadError(new Error("Vercel Blob: Client token has expired.")) === "token-expired");
+  check("classify content-type", classifyUploadError(new Error("Vercel Blob: Content type mismatch, image/gif is not allowed.")) === "content-type");
+  check("classify too large", classifyUploadError(new Error("Vercel Blob: File is too large, the file length cannot be greater than 8388608.")) === "too-large");
+  check("classify token mint", classifyUploadError(new Error("Vercel Blob: Failed to retrieve the client token")) === "token");
+  check("classify store missing", classifyUploadError(new Error("Vercel Blob: This store does not exist.")) === "not-found");
+  check("classify forbidden", classifyUploadError(new Error("Vercel Blob: Access denied, please provide a valid token for this resource.")) === "forbidden");
+  check("classify service", classifyUploadError(new Error("Vercel Blob: The blob service is currently not available. Please try again.")) === "service");
+  check("classify network", classifyUploadError(new TypeError("Failed to fetch")) === "network");
+  check("classify network 2", classifyUploadError(new TypeError("Network request failed")) === "network");
+  check("classify unknown", classifyUploadError(new Error("something else")) === "unknown");
+  check("classify non-Error", classifyUploadError("Failed to fetch") === "network");
+  const kinds = ["aborted", "stalled", "unreachable", "network", "token", "token-expired", "content-type", "too-large", "forbidden", "not-found", "service", "unknown"];
+  const msgs = new Set();
+  let allArabic = true;
+  for (const k of kinds) {
+    for (const v of [false, true]) {
+      const m = uploadErrorMessage(k, v);
+      if (!m || !/[\u0600-\u06FF]/.test(m)) allArabic = false;
+      msgs.add(m);
+    }
+  }
+  check("uploadErrorMessage: every kind has a distinct Arabic message", allArabic && msgs.size === kinds.length + 2, `${msgs.size} distinct of ${kinds.length + 2}`);
+  check(
+    "uploadErrorMessage stalled vs aborted differ",
+    uploadErrorMessage("stalled", false) !== uploadErrorMessage("aborted", false),
+  );
+  check(
+    "uploadErrorMessage content-type differs by kind",
+    uploadErrorMessage("content-type", false) !== uploadErrorMessage("content-type", true),
+  );
+  check(
+    "uploadErrorMessage too-large differs by kind",
+    uploadErrorMessage("too-large", false) !== uploadErrorMessage("too-large", true),
+  );
+
 } catch (e) {
   console.log(`ERROR: ${e.stack ?? e.message}`);
   fail++;

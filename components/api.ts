@@ -4,10 +4,11 @@
    `createActionClient`. Same call shape the app already uses
    (`api.me({ token })`, …): a Proxy that POSTs `{ action, args }` to
    `/api/actions` and returns the typed response.
-   - Success: the route answers `{ data, invalidated }`; when
-     `invalidated` is true the server asked for a refetch (a mutation
-     committed), so every query is invalidated — exactly what the
-     SDK's bridge did.
+   - Success: the route answers `{ data, invalidated, invalidatedKeys? }`;
+     when `invalidatedKeys` is present only those query-key prefixes
+     are refetched; a bare `invalidated: true` with no keys still
+     refetches every query (auth/account/import actions) — exactly
+     what the SDK's bridge did.
    - Failure: the route answers non-OK with `{ error }` (a string, or
      `invalid args: <zod issues JSON>` for 422s); that becomes a
      SpaceActionError carrying the HTTP status, so the query client's
@@ -116,7 +117,21 @@ async function callAction(name: string, args: unknown): Promise<unknown> {
     );
   }
   const data = (body as { data?: unknown } | null)?.data;
-  if ((body as { invalidated?: unknown } | null)?.invalidated === true) {
+  /* خفيف (2026-11-26): the server says WHICH queries changed.
+     Keyed invalidation refetches only those prefixes (e.g. a copy
+     records no invalidation at all — the client patches the cache
+     instead); a bare `invalidated: true` with no keys still means
+     the old blanket refetch, for auth/account/import actions. */
+  const invalidatedKeys = (body as { invalidatedKeys?: unknown } | null)
+    ?.invalidatedKeys;
+  if (
+    Array.isArray(invalidatedKeys) &&
+    invalidatedKeys.every((k) => typeof k === "string")
+  ) {
+    for (const k of invalidatedKeys as string[]) {
+      void queryClient.invalidateQueries({ queryKey: [k] });
+    }
+  } else if ((body as { invalidated?: unknown } | null)?.invalidated === true) {
     void queryClient.invalidateQueries();
   }
   return data;

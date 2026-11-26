@@ -59,7 +59,9 @@ const ctx = {
     },
   },
   invalidateQueries() {},
+  invalidateKeys() {},
   invalidated: false,
+  invalidatedKeys: null,
 };
 
 const results = [];

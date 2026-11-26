@@ -1944,7 +1944,7 @@ export const Actions = {
       if (old && old.blobPathname !== args.blobPathname) {
         await deleteBlobsIfUnreferenced(ctx, [old.blobPathname]);
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { media: toMediaShape(row) };
     },
   }),
@@ -1972,7 +1972,7 @@ export const Actions = {
         .delete(schema.replyMedia)
         .where(eq(schema.replyMedia.id, old.id));
       await deleteBlobsIfUnreferenced(ctx, [old.blobPathname]);
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { ok: true };
     },
   }),
@@ -2180,7 +2180,7 @@ export const Actions = {
       await db
         .update(schema.shortcuts)
         .set({ usageCount: 0, lastUsedAt: null });
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts", "copyHistory");
       return {
         ok: true,
         clearedHistory: historyRows.length,
@@ -2365,7 +2365,7 @@ export const Actions = {
         .returning();
       const row = result[0];
       if (!row) throw new Error("createShortcut: insert returned no rows");
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { shortcut: toShape(row) };
     },
   }),
@@ -2446,7 +2446,7 @@ export const Actions = {
         .update(schema.shortcuts)
         .set(patch)
         .where(eq(schema.shortcuts.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { ok: true };
     },
   }),
@@ -2463,7 +2463,7 @@ export const Actions = {
         .update(schema.shortcuts)
         .set({ deletedAt: new Date() })
         .where(eq(schema.shortcuts.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts", "trash");
       return { ok: true };
     },
   }),
@@ -2484,7 +2484,7 @@ export const Actions = {
         .update(schema.shortcuts)
         .set({ favorite: args.favorite, updatedAt: new Date() })
         .where(eq(schema.shortcuts.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { ok: true };
     },
   }),
@@ -2505,7 +2505,7 @@ export const Actions = {
         .update(schema.shortcuts)
         .set({ pinned: args.pinned, updatedAt: new Date() })
         .where(eq(schema.shortcuts.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { ok: true };
     },
   }),
@@ -2523,7 +2523,6 @@ export const Actions = {
         .set({ usageCount: row.usageCount + 1, lastUsedAt: new Date() })
         .where(eq(schema.shortcuts.id, args.id));
       await logCopy(ctx, me.id, row);
-      ctx.invalidateQueries();
       return { ok: true };
     },
   }),
@@ -2578,7 +2577,7 @@ export const Actions = {
       await db
         .delete(schema.copyHistory)
         .where(eq(schema.copyHistory.userId, me.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("copyHistory");
       return { ok: true };
     },
   }),
@@ -2636,7 +2635,7 @@ export const Actions = {
           durationMs: media.durationMs ?? null,
         });
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { shortcut: toShape(row, media) };
     },
   }),
@@ -2983,7 +2982,7 @@ export const Actions = {
           .where(eq(schema.shortcuts.id, id));
         moved += 1;
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders");
       return { folder: toFolderShape(row), moved };
     },
   }),
@@ -3050,7 +3049,7 @@ export const Actions = {
             eq(schema.shortcuts.folderId, args.id),
           ),
         );
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders");
       return { ok: true };
     },
   }),
@@ -3072,7 +3071,7 @@ export const Actions = {
         .update(schema.folders)
         .set({ pinned: args.pinned, updatedAt: new Date() })
         .where(eq(schema.folders.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders");
       return { ok: true };
     },
   }),
@@ -3111,7 +3110,7 @@ export const Actions = {
           .update(schema.folders)
           .set({ source: "", isSourceMain: false, updatedAt: now })
           .where(eq(schema.folders.id, args.id));
-        ctx.invalidateQueries();
+        ctx.invalidateKeys("folders");
         return { ok: true, mainFolderId: null, moved: false };
       }
       const source = args.source;
@@ -3164,7 +3163,7 @@ export const Actions = {
       /* The folder being labelled IS the main folder (just adopted):
          it is already home — no move. */
       if (main.id === folder.id) {
-        ctx.invalidateQueries();
+        ctx.invalidateKeys("folders");
         return { ok: true, mainFolderId: main.id, moved: false };
       }
       /* Never move a folder into its own subtree. */
@@ -3189,7 +3188,7 @@ export const Actions = {
           updatedAt: now,
         })
         .where(eq(schema.folders.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders");
       return { ok: true, mainFolderId: main.id, moved: !alreadyThere };
     },
   }),
@@ -3207,7 +3206,7 @@ export const Actions = {
         .update(schema.folders)
         .set({ deletedAt: new Date(), updatedAt: new Date() })
         .where(eq(schema.folders.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts", "folders", "trash");
       return { ok: true };
     },
   }),
@@ -3254,7 +3253,7 @@ export const Actions = {
             ),
           );
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders");
       return { ok: true, error: null };
     },
   }),
@@ -3295,7 +3294,7 @@ export const Actions = {
             ),
           );
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { ok: true };
     },
   }),
@@ -3353,7 +3352,7 @@ export const Actions = {
           .where(eq(schema.shortcuts.id, id));
         moved += 1;
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts");
       return { moved };
     },
   }),
@@ -3428,7 +3427,7 @@ export const Actions = {
         .update(schema.shortcuts)
         .set({ deletedAt: null })
         .where(eq(schema.shortcuts.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts", "trash");
       return { ok: true };
     },
   }),
@@ -3451,7 +3450,7 @@ export const Actions = {
         .delete(schema.shortcuts)
         .where(eq(schema.shortcuts.id, args.id));
       await deleteBlobsIfUnreferenced(ctx, pathnames);
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("trash");
       return { ok: true };
     },
   }),
@@ -3468,7 +3467,7 @@ export const Actions = {
         .update(schema.folders)
         .set({ deletedAt: null, updatedAt: new Date() })
         .where(eq(schema.folders.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts", "folders", "trash");
       return { ok: true };
     },
   }),
@@ -3482,7 +3481,7 @@ export const Actions = {
       const folder = await requireOwnedFolder(ctx, me.id, args.id);
       if (!folder.deletedAt) throw new Error("المجلد ده مش في سلة المهملات");
       await hardDeleteFolderTree(ctx, me.id, args.id);
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("trash");
       return { ok: true };
     },
   }),
@@ -3541,7 +3540,7 @@ export const Actions = {
         .returning({ id: schema.shortcuts.id });
       await deleteBlobsIfUnreferenced(ctx, pathnames);
       removed += rest.length;
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("trash");
       return { ok: true, removed };
     },
   }),
@@ -3674,7 +3673,7 @@ export const Actions = {
         }
       }
       if (!rootCopy) throw new Error("duplicateFolder: nothing copied");
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders", "shortcuts");
       return { folder: toFolderShape(rootCopy) };
     },
   }),
@@ -3732,7 +3731,7 @@ export const Actions = {
         }
         changed += 1;
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("shortcuts", "trash");
       return { ok: true, changed };
     },
   }),
@@ -3798,7 +3797,7 @@ export const Actions = {
         .returning();
       const row = inserted[0];
       if (!row) throw new Error("createSmartFolder: insert returned no rows");
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("smartFolders");
       return { smartFolder: toSmartShape(row) };
     },
   }),
@@ -3853,7 +3852,7 @@ export const Actions = {
           updatedAt: new Date(),
         })
         .where(eq(schema.smartFolders.id, args.id));
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("smartFolders");
       return { ok: true };
     },
   }),
@@ -3873,7 +3872,7 @@ export const Actions = {
             eq(schema.smartFolders.userId, me.id),
           ),
         );
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("smartFolders");
       return { ok: true };
     },
   }),
@@ -3960,7 +3959,7 @@ export const Actions = {
             ),
           );
       }
-      ctx.invalidateQueries();
+      ctx.invalidateKeys("folders");
       return { ok: true, error: null };
     },
   }),

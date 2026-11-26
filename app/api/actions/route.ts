@@ -69,7 +69,13 @@ export async function POST(req: Request) {
         { status: 500 },
       );
     }
-    return NextResponse.json({ data: out.data, invalidated: ctx.invalidated });
+    return NextResponse.json({
+      data: out.data,
+      invalidated: ctx.invalidated,
+      ...(ctx.invalidatedKeys !== null
+        ? { invalidatedKeys: ctx.invalidatedKeys }
+        : {}),
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "action failed";
     return NextResponse.json({ error: message }, { status: 400 });

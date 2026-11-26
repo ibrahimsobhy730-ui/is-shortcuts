@@ -63,7 +63,9 @@ const ctx = {
     },
   },
   invalidateQueries() {},
+  invalidateKeys() {},
   invalidated: false,
+  invalidatedKeys: null,
 };
 
 let pass = 0;
@@ -294,13 +296,19 @@ try {
 
   // ---- new-reply suggestions: the editor computes the same engine
   // for brand-new replies (item null) and renders the one-tap chips.
+  // (The editor lives in components/modals/EditorModal.tsx since the
+  // 2026-11-26 modal split — App.tsx only renders it.)
+  const editorSrc = readFileSync(
+    join(root, "components", "modals", "EditorModal.tsx"),
+    "utf-8",
+  );
   check(
     "editor computes suggestTriggers for new replies too (item?.trigger ?? null)",
-    appSrc.includes("trigger: item?.trigger ?? null"),
+    editorSrc.includes("trigger: item?.trigger ?? null"),
   );
   check(
     "editor renders one-tap suggestion chips (triggerSuggestions.map)",
-    appSrc.includes("triggerSuggestions.map((sug)"),
+    editorSrc.includes("triggerSuggestions.map((sug)"),
   );
   check(
     "new-reply call site passes ALL triggers as taken (item null -> -1)",

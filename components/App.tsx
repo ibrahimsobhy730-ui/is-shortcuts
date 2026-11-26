@@ -1,16 +1,15 @@
-import { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "./safe-area";
 import { FIELDS } from "./fields.generated";
 import { api, type ApiResponse } from "./api";
-import { upload } from "@vercel/blob/client";
 import {
   COPY_FILL_NOTE,
   copyButtonLabels,
+  copyOutcome,
   formatMediaDuration,
   formatMediaSize,
-  imageFallbackToast,
   mediaFileName,
   planCopy,
   videoCopyToast,
@@ -178,7 +177,6 @@ Stethoscope,
 Store,
 Sun,
 Tablet,
-Tag,
 Target,
 TestTube,
 ThumbsUp,
@@ -204,21 +202,48 @@ X,
 Zap,
 type LucideIcon,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+/* Heavy modals, code-split (2026-11-26 lightness): the editor,
+   details panel, account, import preview, quick preview and folder
+   icon picker only render on demand, so they load in their own
+   chunks instead of the initial App chunk. Each modal file imports
+   its shared leaf items back from here — the cycle is lazy-only
+   (this file never imports a modal statically), so nothing here
+   changes at module-eval time. */
+const DetailsPanel = dynamic(() =>
+  import("./modals/DetailsPanel").then((m) => m.DetailsPanel),
+);
+const FolderIconPicker = dynamic(() =>
+  import("./modals/FolderIconPicker").then((m) => m.FolderIconPicker),
+);
+const ImportPreviewModal = dynamic(() =>
+  import("./modals/ImportPreviewModal").then((m) => m.ImportPreviewModal),
+);
+const PreviewModal = dynamic(() =>
+  import("./modals/PreviewModal").then((m) => m.PreviewModal),
+);
+const AccountModal = dynamic(() =>
+  import("./modals/AccountModal").then((m) => m.AccountModal),
+);
+const EditorModal = dynamic(() =>
+  import("./modals/EditorModal").then((m) => m.EditorModal),
+);
 
 /* Form inputs take their limits (maxLength, min, required, …) from
    the server actions' own request schemas, so the page and the
    server can never disagree about what a field accepts. */
 
-type Shortcut = ApiResponse<typeof api, "listShortcuts">["shortcuts"][number];
+export type Shortcut = ApiResponse<typeof api, "listShortcuts">["shortcuts"][number];
 
 /* The reply-source choices in the editor: the services' own
    English names, verbatim — the same fixed list the server
    validates against. Empty string = no source recorded. (The
    "Text Blaze" entry is only a source label here.) */
-const REPLY_SOURCES = ["Chatwoot", "Text Blaze", "Google Sheets", "Google Docs"] as const;
-type FolderRowT = ApiResponse<typeof api, "listFolders">["folders"][number];
+export const REPLY_SOURCES = ["Chatwoot", "Text Blaze", "Google Sheets", "Google Docs"] as const;
+export type FolderRowT = ApiResponse<typeof api, "listFolders">["folders"][number];
 type SmartFolderT = ApiResponse<typeof api, "listSmartFolders">["smartFolders"][number];
-type User = NonNullable<ApiResponse<typeof api, "me">["user"]>;
+export type User = NonNullable<ApiResponse<typeof api, "me">["user"]>;
 
 /* One placement snapshot of the whole tree — what undo/redo restores
    and what every drag & drop move is computed from. */
@@ -276,7 +301,7 @@ const TOKEN_KEY = "is-session-token";
 const SAVED_ID_KEY = "is-saved-login-id";
 
 /* ---------- icons (Lucide) ---------- */
-const I = {
+export const I = {
   copy: Copy,
   check: Check,
   pin: Pin,
@@ -289,7 +314,7 @@ const I = {
   trash: Trash2,
   edit: SquarePen,
   x: X,
-  zap: Zap,
+  shortcut: Command,
   keyboard: Keyboard,
   chevron: ChevronDown,
   file: FileText,
@@ -313,7 +338,6 @@ const I = {
   history: History,
   sparkles: Sparkles,
   mail: Mail,
-  command: Command,
   arrowUp: ArrowUp,
   arrowDown: ArrowDown,
   enter: CornerDownLeft,
@@ -346,7 +370,7 @@ const I = {
   info: Info,
 };
 
-function Icon({
+export function Icon({
   d: Cmp,
   size = 18,
   strokeWidth = 1.75,
@@ -411,7 +435,7 @@ function SourcesGlyph({ size = 20, open = false }: { size?: number; open?: boole
    click-outside. Every modal and sheet wires its own close (or its
    unsaved-changes guard) through this one hook, so dismissal
    behaves identically everywhere. */
-function useEscapeClose(onEscape: () => void) {
+export function useEscapeClose(onEscape: () => void) {
   const ref = useRef(onEscape);
   ref.current = onEscape;
   useEffect(() => {
@@ -440,7 +464,7 @@ function useEscapeClose(onEscape: () => void) {
    locks the page — its own overscroll containment is enough. */
 let bodyScrollLockCount = 0;
 let bodyScrollLockPrev = "";
-function useBodyScrollLock(locked: boolean) {
+export function useBodyScrollLock(locked: boolean) {
   useEffect(() => {
     if (!locked) return;
     if (bodyScrollLockCount === 0) {
@@ -528,7 +552,7 @@ function folderHueClass(name: string): string {
    the owner picks is stored verbatim and applied as an inline
    --fhue (folderColorStyle) — literally any colour, no list.
    Null = automatic (the name-hash hue above). */
-const FOLDER_COLOR_OPTIONS: Array<{ key: string; ar: string; en: string; swatch: string }> = [
+export const FOLDER_COLOR_OPTIONS: Array<{ key: string; ar: string; en: string; swatch: string }> = [
   { key: "royal", ar: "أزرق ملكي", en: "Royal blue", swatch: "#1668C4" },
   { key: "sky", ar: "سماوي", en: "Sky", swatch: "#0284C7" },
   { key: "cyan", ar: "فيروزي", en: "Cyan", swatch: "#0891B2" },
@@ -555,7 +579,7 @@ const FOLDER_COLOR_KEYS_CLIENT = new Set(FOLDER_COLOR_OPTIONS.map((o) => o.key))
 /* A custom colour is stored as its hex string ("#rrggbb") — the
    one shape that is neither a palette key nor «automatic». */
 const CUSTOM_COLOR_RE_CLIENT = /^#[0-9a-fA-F]{6}$/;
-function isCustomColor(v: string | null | undefined): v is string {
+export function isCustomColor(v: string | null | undefined): v is string {
   return typeof v === "string" && CUSTOM_COLOR_RE_CLIENT.test(v);
 }
 
@@ -607,7 +631,7 @@ function triggerPillFolder(folder: { name: string; iconColor?: string | null } |
    an autoFocus field got there first — it is left exactly where
    it is. This is standard dialog behaviour, not a site shortcut:
    no key triggers any action, Tab/Shift+Tab just stay home. */
-function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true) {
+export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true) {
   useEffect(() => {
     if (!active) return;
     const root = ref.current;
@@ -676,7 +700,7 @@ function categoryMeta(category: string) {
    server stores; null means "automatic" — the icon that matches the
    folder's name/subject (CATEGORY_META), then the plain folder
    glyph. The keys mirror FOLDER_ICON_KEYS in the server actions. */
-const FOLDER_ICON_OPTIONS: Array<{ key: string; icon: LucideIcon; ar: string; en: string }> = [
+export const FOLDER_ICON_OPTIONS: Array<{ key: string; icon: LucideIcon; ar: string; en: string }> = [
   { key: "folder", icon: Folder, ar: "مجلد", en: "Folder" },
   { key: "star", icon: Star, ar: "نجمة", en: "Star" },
   { key: "heart", icon: Heart, ar: "ترحيب", en: "Welcome" },
@@ -898,7 +922,7 @@ function folderIconOf(
    sidebar «المصادر» section, the source's main folder, the
    folder source selector, and a reply's source in its details.
    No external assets; the geometry is drawn here. */
-function SourceMark({ source, size = 18 }: { source: string; size?: number }) {
+export function SourceMark({ source, size = 18 }: { source: string; size?: number }) {
   const gradId = useId();
   if (source === "Chatwoot") {
     /* The real mark: a full, slightly squared speech bubble in
@@ -1013,7 +1037,7 @@ function FolderGlyph({
    clears the label) and for a reply's source in the editor
    (record-keeping only — nothing moves). Closes on outside
    click and on Escape, like every floating layer on the site. */
-function FolderSourceControl({
+export function FolderSourceControl({
   value,
   onPick,
   lang,
@@ -1171,7 +1195,7 @@ function fillDynamic(text: string): string {
 }
 
 /* Distinct {…} placeholders in a body, in first-appearance order. */
-function extractVariables(body: string): string[] {
+export function extractVariables(body: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const m of body.matchAll(/\{[^{}\n]+\}/g)) {
@@ -1218,7 +1242,7 @@ function normalizeSearchText(text: string): string {
    the text must not duplicate another trigger of the same user
    (compared case-insensitively, trimmed — the server is the final
    authority and its duplicate errors surface inline). */
-function normalizeTriggerInput(raw: string): string {
+export function normalizeTriggerInput(raw: string): string {
   return raw.trim();
 }
 
@@ -1233,7 +1257,7 @@ function otherTriggers(shortcuts: Shortcut[], exceptId: number): string[] {
 /** Short inline error for a bad trigger, or null when it is fine
     ("" = no trigger, always fine). `taken` is the user's OTHER
     triggers; a case-insensitive, trimmed match is a duplicate. */
-function triggerError(raw: string, taken: readonly string[] = []): string | null {
+export function triggerError(raw: string, taken: readonly string[] = []): string | null {
   const t = raw.trim();
   if (t === "") return null;
   if (taken.some((x) => x.trim().toLowerCase() === t.toLowerCase()))
@@ -1292,7 +1316,7 @@ const TRIGGER_STOPWORDS = new Set([
     free/own rules), so there is always something one tap away.
     With an empty field the easiest candidates are shown as-is.
     One tap fills the field. */
-function suggestTriggers(
+export function suggestTriggers(
   item: { title: string; body: string; trigger?: string | null },
   taken: readonly string[] = [],
   typed = "",
@@ -1380,7 +1404,7 @@ function suggestTriggers(
   return out.slice(0, 3);
 }
 
-function parseTags(tags: string): string[] {
+export function parseTags(tags: string): string[] {
   return tags
     .split(/[,،]/)
     .map((t) => t.trim())
@@ -1537,7 +1561,7 @@ function loginIdLabel(user: User): string {
    a photo. The picture is decorative next to the visible name, so it
    carries an empty alt and the surrounding control keeps the
    accessible name. */
-function AvatarFace({
+export function AvatarFace({
   user,
   displayName,
   size,
@@ -1691,7 +1715,7 @@ function renderRichInline(text: string, keyPrefix: string): ReactNode[] {
 }
 
 /** Renders a reply body with the editor's formatting markers applied. */
-function RichPreview({ body, className = "" }: { body: string; className?: string }) {
+export function RichPreview({ body, className = "" }: { body: string; className?: string }) {
   const lines = body.split("\n");
   return (
     <div className={`text-[15px] leading-[1.9] ${className}`}>
@@ -1886,63 +1910,75 @@ async function copyText(text: string): Promise<boolean> {
 
 /* What a copy attempt ended as — the one result every copy
    button reads:
-   - "copied": the text landed on the clipboard. For a video reply
-     the file download may still have failed — the toast says so —
-     but the text copy itself succeeded, so the button flips.
+   - "copied": the text landed on the clipboard — and for an image
+     reply the image landed WITH it in the same write (the button
+     flips only after the combined write; see copyFilled). For a
+     video reply the file download may still have failed — the
+     toast says so — but the text copy itself succeeded, so the
+     button flips.
    - "fill": the reply has manual {variables}, so the fill-in sheet
      opened instead — nothing was copied yet. The button flips to
      the neutral «كمّل البيانات…», never to «اتنسخ».
    - "failed": the text never landed. The button stays put;
      copyFilled already toasted the error. */
-type CopyResult = "copied" | "fill" | "failed";
+export type CopyResult = "copied" | "fill" | "failed";
 
+/* خفيف (2026-11-26): تحويل الصورة إلى PNG للصق كان يُعاد على
+   كل نسخة (fetch + createImageBitmap + canvas + toBlob بالحجم
+   الكامل). النتيجة تُحفظ هنا لكل رابط وسائط — النسخ المتكرر
+   لنفس الرد مجاني بعد أول مرة. الرابط يحمل uuid فريدًا لكل
+   رفع، فتغيّر المرفق يعني رابطًا جديدًا ولا قدَمَ في الذاكرة؛
+   الخريطة تُبقي آخر 20 صورة فقط. */
+const pngBlobCache = new Map<string, Blob>();
 /* Copies text AND an image in ONE clipboard write — one
    ClipboardItem carrying both "text/plain" and "image/png", so a
    paste target that takes the richest format gets both. The image
    is converted to PNG first (JPEG/WebP are not portable clipboard
-   image types). Returns "ok" when both landed, "text-only" when
-   the image could not be converted or written but the text did
-   land (the caller toasts that honestly), "failed" when even the
-   text did not land. */
-async function copyTextWithImage(
-  text: string,
-  imageUrl: string,
-): Promise<"ok" | "text-only" | "failed"> {
-  let png: Blob | null = null;
+   image types). Split in two on purpose (zero-error requirement
+   2026-11-26): convertImageToPng prepares the PNG, and
+   writeTextWithImage does the single combined write — the button
+   flips only after THAT lands, so a paste can never get the text
+   without the image while the UI claims success. */
+async function convertImageToPng(imageUrl: string): Promise<Blob | null> {
+  const hit = pngBlobCache.get(imageUrl);
+  if (hit) return hit;
   try {
     const res = await fetch(imageUrl, { mode: "cors" });
-    if (!res.ok) throw new Error("image fetch failed");
+    if (!res.ok) return null;
     const src = await res.blob();
     const bmp = await createImageBitmap(src);
     const canvas = document.createElement("canvas");
     canvas.width = bmp.width;
     canvas.height = bmp.height;
     const g = canvas.getContext("2d");
-    if (!g) throw new Error("no 2d context");
+    if (!g) return null;
     g.drawImage(bmp, 0, 0);
-    png = await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
-        "image/png",
-      ),
+    const png = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/png"),
     );
-  } catch {
-    png = null;
-  }
-  if (png) {
-    try {
-      const item = new ClipboardItem({
-        "text/plain": new Blob([text], { type: "text/plain" }),
-        "image/png": png,
-      });
-      await navigator.clipboard.write([item]);
-      return "ok";
-    } catch {
-      /* fall through to the text-only fallback */
+    if (!png) return null;
+    pngBlobCache.set(imageUrl, png);
+    if (pngBlobCache.size > 20) {
+      const oldest = pngBlobCache.keys().next().value;
+      if (oldest !== undefined) pngBlobCache.delete(oldest);
     }
+    return png;
+  } catch {
+    return null;
   }
-  const ok = await copyText(text);
-  return ok ? "text-only" : "failed";
+}
+
+async function writeTextWithImage(text: string, png: Blob): Promise<boolean> {
+  try {
+    const item = new ClipboardItem({
+      "text/plain": new Blob([text], { type: "text/plain" }),
+      "image/png": png,
+    });
+    await navigator.clipboard.write([item]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /* Downloads a media file in the same tap as the copy: fetch the
@@ -1970,42 +2006,6 @@ async function downloadMediaFile(url: string, filename: string): Promise<boolean
   }
 }
 
-/* Probes the media-upload token route and surfaces its exact
-   error string. The @vercel/blob client swallows the route's
-   error body behind a generic "Failed to retrieve the client
-   token", so without this probe the editor could never show the
-   server's real message — including the 503 «التخزين مش
-   متظبط…» when no Blob store is connected yet. The probe mints
-   a token that is never used (tokens live 30s and cost no Blob
-   operation); the real upload() mints its own right after. */
-async function mintUploadToken(
-  token: string,
-  pathname: string,
-  shortcutId: number,
-  kind: "image" | "video",
-): Promise<void> {
-  const res = await fetch("/api/media/upload", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      type: "blob.generate-client-token",
-      payload: {
-        pathname,
-        clientPayload: JSON.stringify({ token, shortcutId, kind }),
-      },
-    }),
-  });
-  if (!res.ok) {
-    const body: unknown = await res.json().catch(() => null);
-    const msg =
-      body !== null &&
-      typeof body === "object" &&
-      typeof (body as Record<string, unknown>).error === "string"
-        ? ((body as Record<string, unknown>).error as string)
-        : "الرفع متمّش — حاول تاني";
-    throw new Error(msg);
-  }
-}
 
 /* ألوان التمييز الاثنا عشر — مفاتيحها تطابق [data-accent] في الثيم */
 const ACCENTS: Array<{ key: string; label: string; swatch: string }> = [
@@ -2087,19 +2087,16 @@ function buildAhk(shortcuts: Shortcut[]): string {
 type ThemeMode = "light" | "dark" | "system";
 
 function useDarkMode() {
-  const [mode, setModeState] = useState<ThemeMode>(() => {
-    try {
-      const saved = window.localStorage.getItem("is-theme-v3");
-      if (saved === "light" || saved === "dark" || saved === "system") return saved;
-    } catch { /* ignore */ }
-    return "system";
-  });
-  const [systemDark, setSystemDark] = useState<boolean>(() => {
-    try {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches;
-    } catch { /* ignore */ }
-    return false;
-  });
+  /* Server renders with the safe defaults (mode "system", systemDark
+     false); the stored preference is restored in the mount effect
+     below. The inline theme script in layout.tsx already set
+     data-theme before paint, so there is no flash — this only syncs
+     React state. The restore and the first attribute write happen in
+     ONE effect, using the restored values directly, so the effect
+     never writes a wrong (light) value for a dark user. */
+  const [mode, setModeState] = useState<ThemeMode>("system");
+  const [systemDark, setSystemDark] = useState<boolean>(false);
+  const restoredRef = useRef(false);
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
@@ -2108,13 +2105,28 @@ function useDarkMode() {
   }, []);
   const dark = mode === "system" ? systemDark : mode === "dark";
   useEffect(() => {
+    let m = mode;
+    let sd = systemDark;
+    if (!restoredRef.current) {
+      restoredRef.current = true;
+      try {
+        const saved = window.localStorage.getItem("is-theme-v3");
+        if (saved === "light" || saved === "dark" || saved === "system") m = saved;
+      } catch { /* ignore */ }
+      try {
+        sd = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      } catch { /* ignore */ }
+      if (m !== mode) setModeState(m);
+      if (sd !== systemDark) setSystemDark(sd);
+    }
+    const d = m === "system" ? sd : m === "dark";
     const root = document.documentElement;
-    root.dataset.theme = dark ? "dark" : "light";
-    root.style.colorScheme = dark ? "dark" : "light";
+    root.dataset.theme = d ? "dark" : "light";
+    root.style.colorScheme = d ? "dark" : "light";
     try {
-      window.localStorage.setItem("is-theme-v3", mode);
+      window.localStorage.setItem("is-theme-v3", m);
     } catch { /* ignore */ }
-  }, [dark, mode]);
+  }, [mode, systemDark]);
   const setMode = (next: ThemeMode, origin?: { x: number; y: number }) => {
     const apply = () => setModeState(next);
     const doc = document as Document & {
@@ -2169,7 +2181,7 @@ function useDarkMode() {
    Switching flips the layout direction with the language, so the
    interface reads naturally in both. Strings without an English
    entry fall back to the Arabic original. */
-type Lang = "ar" | "en";
+export type Lang = "ar" | "en";
 
 const EN: Record<string, string> = {
   // greetings & general
@@ -2429,19 +2441,24 @@ const LangCtx = createContext<LangState>({
 const useLang = () => useContext(LangCtx);
 
 function useLangState(): LangState {
-  const [lang, setLang] = useState<Lang>(() => {
-    try {
-      return window.localStorage.getItem("is-lang") === "en" ? "en" : "ar";
-    } catch {
-      return "ar";
-    }
-  });
+  /* Server renders Arabic; the stored language is restored after
+     mount (same one-effect restore+write pattern as useDarkMode). */
+  const [lang, setLang] = useState<Lang>("ar");
+  const restoredRef = useRef(false);
   useEffect(() => {
+    let l = lang;
+    if (!restoredRef.current) {
+      restoredRef.current = true;
+      try {
+        if (window.localStorage.getItem("is-lang") === "en") l = "en";
+      } catch { /* ignore */ }
+      if (l !== lang) setLang(l);
+    }
     const root = document.documentElement;
-    root.lang = lang === "ar" ? "ar" : "en";
-    root.dir = lang === "ar" ? "rtl" : "ltr";
+    root.lang = l === "ar" ? "ar" : "en";
+    root.dir = l === "ar" ? "rtl" : "ltr";
     try {
-      window.localStorage.setItem("is-lang", lang);
+      window.localStorage.setItem("is-lang", l);
     } catch { /* ignore */ }
   }, [lang]);
   const t = useMemo(
@@ -2501,7 +2518,7 @@ function LangToggle({ className = "" }: { className?: string }) {
    as a success — the icon now always matches what happened), and
    an info note carries the info mark. role="status" lets screen
    readers announce it without moving focus. */
-type ToastKind = "success" | "error" | "info";
+export type ToastKind = "success" | "error" | "info";
 type ToastState = { text: string; kind: ToastKind } | null;
 
 function Toast({ toast }: { toast: ToastState }) {
@@ -2541,8 +2558,9 @@ export function App() {
   /* صفحة المعاينة البصرية (#/preview): طلبها صاحب الموقع لأن
      الفحص الآلي يصل لصفحة الدخول فقط — تعرض الهوية الجديدة
      ببيانات تجريبية مطابقة الشكل، بلا أي اتصال بالخادم. */
-  const [pvHash, setPvHash] = useState(() => window.location.hash);
+  const [pvHash, setPvHash] = useState("");
   useEffect(() => {
+    setPvHash(window.location.hash);
     const onHash = () => setPvHash(window.location.hash);
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -2563,20 +2581,21 @@ export function App() {
     return () => document.removeEventListener("pointermove", onMove);
   }, []);
   const isPreview = pvHash.startsWith("#/preview");
-  const [token, setToken] = useState<string>(() => {
+  /* Server renders with no session (the login shell); the stored
+     token is restored after mount, then the me query fires. */
+  const [token, setToken] = useState<string>("");
+  useEffect(() => {
     try {
       // "Remember me" sessions live in localStorage (permanent, sliding
       // renewal); a session started without it lives in sessionStorage
       // and ends with the browser session.
-      return (
+      setToken(
         window.localStorage.getItem(TOKEN_KEY) ??
-        window.sessionStorage.getItem(TOKEN_KEY) ??
-        ""
+          window.sessionStorage.getItem(TOKEN_KEY) ??
+          "",
       );
-    } catch {
-      return "";
-    }
-  });
+    } catch { /* ignore */ }
+  }, []);
 
   const meQuery = useQuery({
     queryKey: ["me", token],
@@ -2699,13 +2718,14 @@ function AuthPage({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [identifier, setIdentifier] = useState(() => {
+  /* Server renders with an empty identifier; the saved login id is
+     restored after mount (auto-fill only). */
+  const [identifier, setIdentifier] = useState("");
+  useEffect(() => {
     try {
-      return window.localStorage.getItem(SAVED_ID_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
+      setIdentifier(window.localStorage.getItem(SAVED_ID_KEY) ?? "");
+    } catch { /* ignore */ }
+  }, []);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -3272,6 +3292,11 @@ function Workspace({
   const [section, setSection] = useState<Section>("home");
   const [previewItem, setPreviewItem] = useState<Shortcut | null>(null);
   const [search, setSearch] = useState("");
+  /* خفيف (2026-11-26): الكتابة تبقى فورية في الخانة، لكن
+     حسابات البحث الثقيلة (الترتيب والتطابق والمعاينة) تجري على
+     القيمة المؤجلة — React 19 يحدّث القائمة في الخلفية بدل ما
+     كل حرف يعيد حساب 88 ردًا ويعيد رسم مساحة العمل كلها. */
+  const deferredSearch = useDeferredValue(search);
   /* Chip tap → search box answers: one ring pulse on the box so
      the tap visibly lands before the preview grows. */
   const [chipPulse, setChipPulse] = useState(false);
@@ -3805,7 +3830,7 @@ function Workspace({
      instant on every keystroke. The panel opens when the query
      matches a trigger — or matches nothing at all, so the user
      can turn the typed text into a new trigger right there. */
-  const searchQ = search.trim();
+  const searchQ = deferredSearch.trim();
   const searchTrigMatches = useMemo(() => {
     const q = normalizeSearchText(searchQ);
     if (!q) return [];
@@ -3939,7 +3964,33 @@ function Workspace({
     onSettled: (_data, _error, id) => {
       recordingRef.current.delete(id);
     },
-    onSuccess: invalidate,
+    /* خفيف (2026-11-26): لا إعادة جلب للمكتبة كلها بعد كل نسخة —
+       الخادم لم يعد يطلب أي invalidation لهذا الإجراء؛ عدّاد الرد
+       وآخر استخدام يُرقَّعان في الكاش مباشرةً (usageCount+1،
+       lastUsedAt الآن)، وسجل النسخ فقط هو ما يُعاد جلبه — وهو
+       يُجلب أصلًا عند فتح عرضه فقط. كل نسخة صارت POST واحدًا
+       بلا إعادة تحميل. */
+    onSuccess: (_data, id) => {
+      queryClient.setQueryData<ApiResponse<typeof api, "listShortcuts">>(
+        ["shortcuts", token],
+        (old) =>
+          old
+            ? {
+                ...old,
+                shortcuts: old.shortcuts.map((s) =>
+                  s.id === id
+                    ? {
+                        ...s,
+                        usageCount: s.usageCount + 1,
+                        lastUsedAt: new Date().toISOString(),
+                      }
+                    : s,
+                ),
+              }
+            : old,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["copyHistory", token] });
+    },
   });
 
   /* Inline trigger save (shortcuts view rows): the full reply is
@@ -4178,66 +4229,69 @@ function Workspace({
   );
 
   /* The one copy path every surface funnels through. Media-aware
-     (see planCopy in ./copy-media): text-only copies exactly as
-     before; text+image goes in ONE clipboard write; text+video
-     copies the text and DOWNLOADS the video in the same tap —
-     the video is never put on the clipboard (no video MIME type
-     exists in the Clipboard API) and the UI never claims it was.
-     Failure matrix: text-write fails → the whole action fails,
-     error toast, NO use recorded, NO download started. Text ok +
-     image fails → text-only fallback + honest toast, use recorded
-     once. Text ok + download fails → toast + retry from details,
-     use recorded once. */
+     (see planCopy + copyOutcome in ./copy-media): text-only copies
+     exactly as before; text+image converts first, then goes in ONE
+     clipboard write carrying both — the button flips only after
+     that write lands, so a paste can never get the text without
+     the image while the UI claims success (zero-error requirement
+     2026-11-26 — the old text-first instant flip is gone on
+     purpose: a first copy waits a beat for the conversion, repeat
+     copies are instant from the PNG cache). Text+video copies the
+     text and DOWNLOADS the video in the same tap — the video is
+     never put on the clipboard (no video MIME type exists in the
+     Clipboard API) and the UI never claims it was.
+     Failure matrix (decided by copyOutcome, exhaustively tested):
+     text-write fails → the whole action fails, error toast, NO use
+     recorded, NO download started. Text ok + image fails → text-only
+     fallback + honest toast, use recorded once. Text ok + download
+     fails → error toast + retry from details, use recorded once. */
   const copyFilled = useCallback(
     async (s: Shortcut, text: string): Promise<CopyResult> => {
       const plan = planCopy(s.media, s.title);
       if (plan.mode === "text") {
-        const ok = await copyText(text);
-        if (!ok) {
-          showToast("النسخ متعذر هنا", "error");
-          return "failed";
-        }
-        recordCopyUse(s);
-        showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
-        return "copied";
+        const out = copyOutcome(
+          plan,
+          { combinedOk: false, textOk: await copyText(text), download: "pending" },
+          s.title,
+        );
+        if (out.recordUse) recordCopyUse(s);
+        if (out.toast)
+          showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
+        return out.button;
       }
-      /* #8 — the button flips the instant the TEXT lands. The
-         slow half (image fetch + PNG conversion, or the video
-         download of up to 50 MB) runs in the background: the
-         clipboard is first written with the text alone, then the
-         image write upgrades it to text+image in place (same
-         text, so an early paste still pastes the right words).
-         The toast — success or the honest fallback — is what
-         reports the slow half, never the button. Text-write
-         fails → the whole action still fails, no flip, no
-         background work, exactly as before. */
       if (plan.mode === "text-image") {
-        const ok = await copyText(text);
-        if (!ok) {
-          showToast("النسخ متعذر هنا", "error");
-          return "failed";
-        }
-        recordCopyUse(s);
-        void copyTextWithImage(text, plan.imageUrl).then((res) => {
-          if (res === "ok") {
-            showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
-          } else {
-            showToast(imageFallbackToast().text, "error");
-          }
-        });
-        return "copied";
+        /* Convert first, then ONE combined write. No text-only
+           write happens before the image is ready — an early paste
+           can never lose the image. */
+        const png = await convertImageToPng(plan.imageUrl);
+        const combinedOk = png ? await writeTextWithImage(text, png) : false;
+        const textOk = combinedOk ? false : await copyText(text);
+        const out = copyOutcome(plan, { combinedOk, textOk, download: "pending" }, s.title);
+        if (out.recordUse) recordCopyUse(s);
+        if (out.toast)
+          showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
+        return out.button;
       }
-      const ok = await copyText(text);
-      if (!ok) {
-        showToast("النسخ متعذر هنا", "error");
-        return "failed";
+      /* text-video: the text write decides the button and the use;
+         the download runs in the background and its own toast
+         reports it when it settles — success or failure, never
+         silence. A failed text write starts no download at all. */
+      const textOk = await copyText(text);
+      const out = copyOutcome(
+        plan,
+        { combinedOk: false, textOk, download: "pending" },
+        s.title,
+      );
+      if (!out.recordUse) {
+        if (out.toast) showToast(out.toast.text, "error");
+        return out.button;
       }
       recordCopyUse(s);
       void downloadMediaFile(plan.videoUrl, plan.fileName).then((downloaded) => {
         const toast = videoCopyToast(s.title, downloaded);
         showToast(toast.text, toast.kind === "error" ? "error" : undefined);
       });
-      return "copied";
+      return out.button;
     },
     [recordCopyUse, showToast],
   );
@@ -4286,8 +4340,13 @@ function Workspace({
   }, [shortcuts]);
 
   const filtered = useMemo(() => {
-    const q = search.trim();
+    const q = searchQ;
     const searching = q.length > 0;
+    /* خفيف (2026-11-26): نتيجة كل رد تُحسب مرة واحدة في تمريرة
+       الفلترة وتُحفظ هنا — الفرز كان يستدعي searchScore مع كل
+       مقارنة (~1000 استدعاء لكل حرف لـ 88 ردًا)، فصار يقرأ من
+       الخريطة. الترتيب المتساوي يبقى كما كان (فرز مستقر). */
+    const scores = new Map<number, number>();
     const list = shortcuts.filter((s) => {
       if (view === "favorites" && !s.favorite) return false;
       if (view === "used" && !s.lastUsedAt) return false;
@@ -4310,10 +4369,12 @@ function Workspace({
       // over the whole library. No scope row, no extra UI.
       if (category !== "الكل" && s.category !== category) return false;
       if (!searching) return true;
-      return searchScore(s, q) >= 0;
+      const sc = searchScore(s, q);
+      scores.set(s.id, sc);
+      return sc >= 0;
     });
     if (searching) {
-      return [...list].sort((a, b) => searchScore(b, q) - searchScore(a, q));
+      return [...list].sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0));
     }
     if (view === "most") {
       return [...list].sort((a, b) => b.usageCount - a.usageCount || b.id - a.id);
@@ -4375,7 +4436,7 @@ function Workspace({
       );
     }
     return list;
-  }, [shortcuts, search, category, view, folderSort, filterTags, onlyFav, onlyPin, dateRange]);
+  }, [shortcuts, searchQ, category, view, folderSort, filterTags, onlyFav, onlyPin, dateRange]);
 
   // The registered name is shown at the top everywhere. Accounts whose
   // name is still blank fall back to their email, then their mobile
@@ -5084,7 +5145,7 @@ function Workspace({
      Home now, not separate destinations. */
   const buildTree = (): TNode[] => [
     pageNode("p:home", "الرئيسية", I.home, "الرئيسية — كل ردودك مرتبة في مجلداتها، والمفضلة والمستخدمة مؤخراً والأكثر استخداماً من أزرار العرض فوق القائمة", section === "home" && view === "default" && category === "الكل" && !search.trim() && smartId === null, shortcuts.length, goHome, 0),
-    pageNode("p:shortcuts", "الاختصارات", I.zap, "الاختصارات — كل كلمات الاختصار بتاعتك في مكان واحد، مرتبة بالمجلد، مع الردود اللي لسه ملهاش اختصار", section === "home" && view === "shortcuts", shortcuts.filter((s) => s.trigger).length, goShortcuts, 0),
+    pageNode("p:shortcuts", "الاختصارات", I.shortcut, "الاختصارات — كل كلمات الاختصار بتاعتك في مكان واحد، مرتبة بالمجلد، مع الردود اللي لسه ملهاش اختصار", section === "home" && view === "shortcuts", shortcuts.filter((s) => s.trigger).length, goShortcuts, 0),
     {
       key: "g:library",
       kind: "group",
@@ -6112,6 +6173,15 @@ function Workspace({
   const [cardDragId, setCardDragId] = useState<number | null>(null);
   const [cardDrop, setCardDrop] = useState<{ id: number; pos: "before" | "after" } | null>(null);
   const [cardDropFolder, setCardDropFolder] = useState<string | null>(null);
+  /* خفيف (2026-11-26): cardDnd كان useMemo بيعتمد على cardDrop
+     وselectedIds — أي تحديد أو مرور سحب كان يخلق كائن dnd جديدًا
+     فيعيد رسم كل الكروت الظاهرة (~30). المعالجات تقرأ الآن من
+     refs تُزامَن مع الحالة، فهوية الكائن لا تتغير أبدًا. */
+  const cardDropRef = useRef(cardDrop);
+  const selectedIdsRef = useRef(selectedIds);
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
 
   /* Folder drag & drop in the main list itself — the ask behind this
      pass: a grouped section header carries the same grip as a tree
@@ -6203,12 +6273,14 @@ function Workspace({
   const cardDnd = useMemo(
     () => ({
       onDragStart: (id: number) => {
-        cardDragRef.current = selectedIds.has(id) ? [...selectedIds] : [id];
+        const sel = selectedIdsRef.current;
+        cardDragRef.current = sel.has(id) ? [...sel] : [id];
         setCardDragId(id);
       },
       onDragEnd: () => {
         cardDragRef.current = null;
         setCardDragId(null);
+        cardDropRef.current = null;
         setCardDrop(null);
         setCardDropFolder(null);
       },
@@ -6220,15 +6292,20 @@ function Workspace({
           (e.clientY - rect.top) / Math.max(1, rect.height) < 0.5
             ? "before"
             : "after";
-        if (cardDrop?.id !== id || cardDrop.pos !== pos)
-          setCardDrop({ id, pos });
+        const cur = cardDropRef.current;
+        if (cur?.id !== id || cur.pos !== pos) {
+          const next: { id: number; pos: "before" | "after" } = { id, pos };
+          cardDropRef.current = next;
+          setCardDrop(next);
+        }
       },
       onDrop: (id: number, e: React.DragEvent, folderId: number | null) => {
         e.preventDefault();
         const ids = cardDragRef.current ?? [];
         if (ids.length > 0 && !ids.includes(id)) {
+          const cur = cardDropRef.current;
           const beforeId =
-            cardDrop?.id === id && cardDrop.pos === "after"
+            cur?.id === id && cur.pos === "after"
               ? siblingShortcutAfter(folderId, id)
               : id;
           moveShortcutsTo(ids, folderId, beforeId);
@@ -6236,10 +6313,11 @@ function Workspace({
         }
         cardDragRef.current = null;
         setCardDragId(null);
+        cardDropRef.current = null;
         setCardDrop(null);
       },
     }),
-    [cardDrop, moveShortcutsTo, selectedIds, siblingShortcutAfter],
+    [moveShortcutsTo, siblingShortcutAfter],
   );
 
   const renderCard = useCallback(
@@ -6665,7 +6743,7 @@ function Workspace({
             onClick={() => setBarOpen(true)}
             className="lux-btn flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
           >
-            <Icon d={I.zap} size={16} />
+            <Icon d={I.shortcut} size={16} />
             <span className="hidden md:inline">{t("شريط الاختصارات")}</span>
           </button>
           {/* Sync status: a single quiet dot — green while the
@@ -8647,6 +8725,10 @@ function Workspace({
           onEdit={() => setEditor({ open: true, item: detailFresh })}
           onPin={() => togglePin.mutate(detailFresh)}
           onFavorite={() => toggleFavorite.mutate(detailFresh)}
+          onDelete={() => {
+            deleteMut.mutate(detailFresh.id);
+            setDetailItem(null);
+          }}
           onMove={(folderId) => moveShortcutsTo([detailFresh.id], folderId, null)}
           onSaveTrigger={async (s, trigger) => {
             await updateTriggerMut.mutateAsync({ s, trigger });
@@ -8988,328 +9070,6 @@ function Workspace({
   );
 }
 
-/* ---------- details panel ----------
-   The optional third column of the product: selecting a reply shows
-   everything about it — full text (selectable, so a part can be
-   copied by hand), its folder path, tags, dates and real usage —
-   with every action one tap away. It never blocks the list: a
-   bottom sheet on phones, a quiet side panel on wide screens, and
-   Esc or the close button dismisses it. */
-function DetailsPanel({
-  item,
-  folderPath,
-  folders,
-  folderCounts,
-  onClose,
-  onCopy,
-  onEdit,
-  onPin,
-  onFavorite,
-  onMove,
-  onSaveTrigger,
-  takenTriggers = [],
-}: {
-  item: Shortcut;
-  folderPath: string;
-  folders: FolderRowT[];
-  folderCounts: Map<number, number>;
-  onClose: () => void;
-  onCopy: () => Promise<CopyResult>;
-  onEdit: () => void;
-  onPin: () => void;
-  onFavorite: () => void;
-  onMove: (folderId: number | null) => void;
-  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
-  /* The user's OTHER triggers — the client-side duplicate check
-     inside the trigger pill. */
-  takenTriggers?: string[];
-}) {
-  const [copied, setCopied] = useState(false);
-  /* Neutral «كمّل البيانات…» state — see ShortcutCard. */
-  const [fillNote, setFillNote] = useState(false);
-  const [copying, setCopying] = useState(false);
-  /* Resizable on desktop: the panel's width is the user's own
-     (300–600px, kept on this device), changed by dragging the
-     handle on the edge that faces the content. On mobile the panel
-     is a bottom sheet and the width simply does not apply. */
-  const [panelW, setPanelW] = useState<number>(() => {
-    try {
-      const v = Number(localStorage.getItem("is-details-width"));
-      return v >= 300 && v <= 600 ? v : 372;
-    } catch {
-      return 372;
-    }
-  });
-  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
-  const onHandleDown = (e: React.PointerEvent) => {
-    dragRef.current = { startX: e.clientX, startW: panelW };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const onHandleMove = (e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d) return;
-    const rtl = document.documentElement.dir === "rtl";
-    const delta = rtl ? e.clientX - d.startX : d.startX - e.clientX;
-    setPanelW(Math.min(600, Math.max(300, d.startW + delta)));
-  };
-  const onHandleUp = () => {
-    if (!dragRef.current) return;
-    dragRef.current = null;
-    try {
-      localStorage.setItem("is-details-width", String(panelW));
-    } catch { /* ignore */ }
-  };
-  const copiedTimer = useRef<number | undefined>(undefined);
-  const fillTimer = useRef<number | undefined>(undefined);
-  useEffect(
-    () => () => {
-      window.clearTimeout(copiedTimer.current);
-      window.clearTimeout(fillTimer.current);
-    },
-    [],
-  );
-  const panelRef = useRef<HTMLDivElement>(null);
-  /* Click-outside dismissal: pressing anywhere outside the panel
-     closes it — the default close for a floating layer. Presses
-     inside the panel (buttons, the move-to select) never close it,
-     and the press that opened it lands before it mounts. */
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [onClose]);
-  const fmt = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" })
-      : "لسه ما اتستخدمش";
-  const tags = parseTags(item.tags);
-  const actBtn =
-    "lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]";
-  /* Copy-button labels for this reply's media (video wording —
-     see ShortcutCard). */
-  const copyLabels = copyButtonLabels(item.media);
-  return (
-    <div
-      ref={panelRef}
-      style={{ "--dw": `${panelW}px` } as React.CSSProperties}
-      className="details-panel animate-sheet fixed inset-x-0 bottom-0 z-[var(--z-panel)] max-h-[86vh] overflow-y-auto overscroll-contain rounded-t-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-pop)] lg:inset-x-auto lg:bottom-4 lg:top-[84px] lg:max-h-none lg:w-[var(--dw,372px)] lg:rounded-[var(--radius)] ltr:lg:right-4 rtl:lg:left-4"
-      role="complementary"
-      aria-label={`تفاصيل رد ${item.title}`}
-    >
-      {/* Resize handle — desktop only, on the edge facing the
-          content; keyboard arrows work too (separator pattern). */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="تغيير عرض لوحة التفاصيل"
-        data-tip="اسحب لتغيير عرض اللوحة"
-        tabIndex={0}
-        onPointerDown={onHandleDown}
-        onPointerMove={onHandleMove}
-        onPointerUp={onHandleUp}
-        onPointerCancel={onHandleUp}
-        onKeyDown={(e) => {
-          const step = e.key === "ArrowLeft" || e.key === "ArrowRight" ? 16 : 0;
-          if (!step) return;
-          e.preventDefault();
-          const rtl = document.documentElement.dir === "rtl";
-          const dir = (e.key === "ArrowLeft") === rtl ? 1 : -1;
-          setPanelW((w) => Math.min(600, Math.max(300, w + dir * step)));
-        }}
-        className="absolute inset-y-0 start-0 hidden w-[10px] cursor-col-resize touch-none lg:block"
-      >
-        <span className="absolute inset-y-0 start-[4px] w-[2px] rounded bg-[var(--border)] opacity-0 transition-opacity hover:opacity-100" aria-hidden="true" />
-      </div>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-[var(--faint)]">{item.category}</p>
-          <h2 className="mt-0.5 text-lg font-bold leading-snug">{item.title}</h2>
-        </div>
-        <button
-          type="button"
-          aria-label="إغلاق لوحة التفاصيل"
-          data-tip="إغلاق التفاصيل"
-          data-tip-pos="below"
-          onClick={onClose}
-          className="lux-btn shrink-0 rounded-full p-2 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-        >
-          <Icon d={I.x} size={18} />
-        </button>
-      </div>
-
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
-        <dt className="font-semibold text-[var(--faint)]">المجلد</dt>
-        <dd className="font-semibold">{folderPath}</dd>
-        <dt className="font-semibold text-[var(--faint)]">الحالة</dt>
-        <dd className="font-semibold">
-          {[
-            item.pinned ? "مثبّت في الأعلى" : null,
-            item.favorite ? "في المفضلة" : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "عادي"}
-        </dd>
-        {item.extShortcut && (
-          <>
-            <dt className="font-semibold text-[var(--faint)]">الاختصار الخارجي</dt>
-            <dd className="font-semibold">
-              <span dir="ltr" className="font-mono">{item.extShortcut}</span>
-            </dd>
-          </>
-        )}
-        <dt className="font-semibold text-[var(--faint)]">الاختصار</dt>
-        <dd className="font-semibold">
-          <TriggerIcon item={item} folder={folders.find((f) => f.id === item.folderId) ?? null} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
-        </dd>
-        {item.source && (
-          <>
-            <dt className="font-semibold text-[var(--faint)]">المصدر</dt>
-            <dd className="font-semibold">
-              <span className="flex items-center gap-1.5">
-                <SourceMark source={item.source} size={15} />
-                <span dir="ltr">{item.source}</span>
-              </span>
-            </dd>
-          </>
-        )}
-        <dt className="font-semibold text-[var(--faint)]">مرات النسخ</dt>
-        <dd>{item.usageCount} مرة</dd>
-        <dt className="font-semibold text-[var(--faint)]">آخر استخدام</dt>
-        <dd>{fmt(item.lastUsedAt)}</dd>
-        <dt className="font-semibold text-[var(--faint)]">اتعمل</dt>
-        <dd>{fmt(item.createdAt)}</dd>
-        <dt className="font-semibold text-[var(--faint)]">آخر تعديل</dt>
-        <dd>{fmt(item.updatedAt)}</dd>
-      </dl>
-
-      {tags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="الكلمات المفتاحية">
-          {tags.map((t) => (
-            <span key={t} className="rounded-full bg-[var(--surface-alt)] px-2.5 py-1 text-[12px] font-semibold text-[var(--dim)]">
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-4">
-        <p className="mb-1.5 text-[13px] font-bold text-[var(--dim)]">
-          نص الرد كامل — تقدر تحدد أي جزء منه وتنسخه لوحده
-        </p>
-        <p className="max-h-64 select-text overflow-y-auto overscroll-contain whitespace-pre-wrap rounded-[var(--radius)] bg-[var(--surface-alt)] p-3.5 text-[14.5px] leading-[1.9]">
-          {item.body}
-        </p>
-      </div>
-
-      {/* Attached image/video, full block: player + meta + download,
-          and (video only) «نسخ رابط الفيديو» — a link, never the
-          default copy. */}
-      {item.media && (
-        <div className="mt-3">
-          <ReplyMediaBlock media={item.media} title={item.title} showCopyLink />
-        </div>
-      )}
-
-      <button
-        type="button"
-        aria-label={copied ? `${copyLabels.done} — ${item.title}` : fillNote ? `${COPY_FILL_NOTE} — ${item.title}` : `${copyLabels.idle} — ${item.title}`}
-        data-tip={copied ? "اتنسخ" : fillNote ? COPY_FILL_NOTE : "نسخ الرد كامل بضغطة واحدة"}
-        aria-live="polite"
-        aria-busy={copying}
-        disabled={copying}
-        onClick={async () => {
-          if (copying) return;
-          setCopying(true);
-          try {
-            const res = await onCopy();
-            if (res === "failed") return;
-            if (res === "fill") {
-              setFillNote(true);
-              window.clearTimeout(fillTimer.current);
-              fillTimer.current = window.setTimeout(() => setFillNote(false), 2000);
-              return;
-            }
-            setCopied(true);
-            window.clearTimeout(copiedTimer.current);
-            copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
-          } finally {
-            setCopying(false);
-          }
-        }}
-        className={`btn-lux mt-4 flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[15px] font-bold ${copied ? "btn-lux-success" : ""}`}
-      >
-        {copying ? (
-          <>
-            <span className="spinner" aria-hidden="true" />
-            بيتنسخ…
-          </>
-        ) : copied ? (
-          <>
-            <span className="animate-copy-pop flex">
-              <Icon d={I.check} size={18} />
-            </span>
-            {copyLabels.done}
-          </>
-        ) : fillNote ? (
-          <>{COPY_FILL_NOTE}</>
-        ) : (
-          <>
-            <Icon d={I.copy} size={18} />
-            {copyLabels.idle}
-          </>
-        )}
-      </button>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" aria-label={`تعديل ${item.title}`} data-tip="تعديل الرد" onClick={onEdit} className={actBtn}>
-          <Icon d={I.edit} size={16} />
-          تعديل
-        </button>
-        <button
-          type="button"
-          aria-label={item.pinned ? `إلغاء تثبيت ${item.title}` : `تثبيت ${item.title}`}
-          data-tip={item.pinned ? "إلغاء التثبيت" : "تثبيت في الأعلى"}
-          aria-pressed={item.pinned}
-          onClick={onPin}
-          className={actBtn}
-        >
-          <Icon d={I.pin} size={16} />
-          {item.pinned ? "إلغاء التثبيت" : "تثبيت"}
-        </button>
-        <button
-          type="button"
-          aria-label={item.favorite ? `إزالة ${item.title} من المفضلة` : `إضافة ${item.title} للمفضلة`}
-          data-tip={item.favorite ? "إزالة من المفضلة" : "إضافة للمفضلة"}
-          aria-pressed={item.favorite}
-          onClick={onFavorite}
-          className={`${actBtn} ${item.favorite ? "border-[var(--favorite)] text-[var(--favorite)]" : ""}`}
-        >
-          <Icon d={I.star} size={16} />
-          {item.favorite ? "في المفضلة" : "مفضلة"}
-        </button>
-        {/* Duplicate, delete and export-one-JSON live on the card
-            (and in the bulk bar) — not here. */}
-      </div>
-
-      <div className="mt-4">
-        <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-bold text-[var(--dim)]">
-          <Icon d={I.moveTo} size={16} />
-          نقل إلى مجلد
-        </span>
-        <MoveToFolderButton
-          folders={folders}
-          counts={folderCounts}
-          currentFolderId={item.folderId ?? null}
-          onMove={onMove}
-          variant="field"
-          subject={item.title}
-        />
-      </div>
-    </div>
-  );
-}
 
 /* ---------- copy history view ---------- */
 type CopyHistoryEntry = ApiResponse<typeof api, "listCopyHistory">["entries"][number];
@@ -10096,170 +9856,6 @@ function CopyHistoryView({
   );
 }
 
-/* ---------- folder icon picker ----------
-   One grid used by both the create sheet and the folder settings:
-   «تلقائية» (null) first — the icon follows the folder's name —
-   then every catalogue icon as a labelled tile. The selected tile
-   wears the accent fill; the rest stay quiet hairline tiles. */
-function FolderIconPicker({
-  value,
-  onChange,
-  lang,
-  compact = false,
-  colorValue,
-  onColorChange,
-}: {
-  value: string | null;
-  onChange: (key: string | null) => void;
-  lang: Lang;
-  /* Compact = a shorter grid, used in the folder-create sheet so
-     the sheet's other sections (above all: moving replies in) stay
-     in view without a long scroll. */
-  compact?: boolean;
-  /* The folder's chosen icon colour (v73): when onColorChange is
-     given, a colour row renders under the icon grid — «تلقائي»
-     (null, the colour follows the folder's name) plus the fixed
-     palette. The colour tints the folder's icon and tile
-     everywhere they appear. */
-  colorValue?: string | null;
-  onColorChange?: (key: string | null) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const tile =
-    "icon-tile flex flex-col items-center justify-center gap-1 rounded-[10px] border px-1 py-2 text-center";
-  /* The colour wheel's state, derived once here: the folder's
-     custom hex when it wears one, and the wheel's resting value
-     (the named colour's swatch, so the wheel opens on the colour
-     already in use). */
-  const customColor = isCustomColor(colorValue) ? colorValue : null;
-  const wheelValue =
-    customColor ??
-    FOLDER_COLOR_OPTIONS.find((o) => o.key === colorValue)?.swatch ??
-    "#1668C4";
-  const q = query.trim().toLowerCase();
-  const visible = q
-    ? FOLDER_ICON_OPTIONS.filter(
-        (o) =>
-          o.ar.includes(query.trim()) ||
-          o.en.toLowerCase().includes(q) ||
-          o.key.includes(q),
-      )
-    : FOLDER_ICON_OPTIONS;
-  return (
-    <div>
-      <div className="relative mb-2">
-        <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-[var(--faint)]">
-          <Icon d={Search} size={15} />
-        </span>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={lang === "en" ? "Search icons…" : "ابحث في الأيقونات…"}
-          aria-label={lang === "en" ? "Search icons" : "بحث في الأيقونات"}
-          className="w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface)] py-2 pe-3 ps-9 text-sm text-[var(--text)] placeholder:text-[var(--faint)] focus:border-[var(--border-strong)] focus:outline-none"
-        />
-      </div>
-    <div className={`grid ${compact ? "max-h-40" : "max-h-64"} grid-cols-4 gap-1.5 overflow-y-auto overscroll-contain pe-0.5 sm:grid-cols-7`} role="radiogroup" aria-label={lang === "en" ? "Folder icon" : "أيقونة المجلد"}>
-      {!q && (
-      <button
-        type="button"
-        role="radio"
-        aria-checked={value === null}
-        aria-label={lang === "en" ? "Automatic icon" : "أيقونة تلقائية"}
-        data-tip={lang === "en" ? "Automatic — the icon follows the folder's name" : "تلقائية — الأيقونة بتتبع اسم المجلد وموضوعه"}
-        onClick={() => onChange(null)}
-        className={`${tile} ${value === null ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"}`}
-      >
-        <Icon d={Sparkles} size={19} />
-        <span className="text-[10.5px] font-bold leading-none">{lang === "en" ? "Auto" : "تلقائية"}</span>
-      </button>
-      )}
-      {visible.map((o) => {
-        const active = value === o.key;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={lang === "en" ? `Icon: ${o.en}` : `أيقونة: ${o.ar}`}
-            data-tip={lang === "en" ? o.en : o.ar}
-            onClick={() => onChange(o.key)}
-            className={`${tile} ${active ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"}`}
-          >
-            <Icon d={o.icon} size={19} />
-            <span className="w-full truncate text-[10.5px] font-bold leading-none">{lang === "en" ? o.en : o.ar}</span>
-          </button>
-        );
-      })}
-      {q && visible.length === 0 && (
-        <p className="col-span-full py-4 text-center text-sm text-[var(--faint)]">
-          {lang === "en" ? "No icon matches your search." : "لا توجد أيقونة تطابق بحثك."}
-        </p>
-      )}
-    </div>
-    {onColorChange && (
-      <div className="mt-3 border-t border-[var(--border)] pt-3">
-        <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Icon colour" : "لون الأيقونة"}</span>
-        <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label={lang === "en" ? "Icon colour" : "لون الأيقونة"}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={!colorValue}
-            aria-label={lang === "en" ? "Automatic colour" : "لون تلقائي"}
-            data-tip={lang === "en" ? "Automatic — the colour follows the folder's name" : "تلقائي — اللون بيتبع اسم المجلد"}
-            onClick={() => onColorChange(null)}
-            className={`lux-btn rounded-full px-3 py-1.5 text-xs font-bold ${!colorValue ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "bg-[var(--surface-alt)] text-[var(--dim)] hover:text-[var(--text)]"}`}
-          >
-            {lang === "en" ? "Auto" : "تلقائي"}
-          </button>
-          {FOLDER_COLOR_OPTIONS.map((c) => {
-            const active = colorValue === c.key;
-            return (
-              <button
-                key={c.key}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                aria-label={lang === "en" ? `Icon colour: ${c.en}` : `لون الأيقونة: ${c.ar}`}
-                data-tip={lang === "en" ? c.en : c.ar}
-                onClick={() => onColorChange(c.key)}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-110"
-                style={{ background: c.swatch, boxShadow: active ? `0 0 0 2px var(--surface), 0 0 0 4px ${c.swatch}` : undefined }}
-              >
-                {active && <Icon d={I.check} size={14} />}
-              </button>
-            );
-          })}
-          <label
-            className="relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-transform hover:scale-110"
-            style={{
-              background: customColor ?? "conic-gradient(#ef4444, #f59e0b, #84cc16, #06b6d4, #6366f1, #d946ef, #ef4444)",
-              boxShadow: customColor ? `0 0 0 2px var(--surface), 0 0 0 4px ${customColor}` : undefined,
-            }}
-            data-tip={lang === "en" ? "Any colour…" : "أي لون…"}
-          >
-            {customColor ? <Icon d={I.check} size={14} /> : <Pipette size={13} aria-hidden="true" />}
-            <input
-              type="color"
-              aria-label={lang === "en" ? "Pick any icon colour" : "اختيار أي لون للأيقونة"}
-              value={wheelValue}
-              onChange={(e) => onColorChange(e.target.value)}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            />
-          </label>
-        </div>
-        <span className="mt-1.5 block text-xs leading-relaxed text-[var(--dim)]">
-          {lang === "en"
-            ? "This folder's own colour — it tints its icon and tile in the sidebar, its header and its cards. The colour wheel picks literally any colour. Auto keeps the colour that follows the folder's name."
-            : "لون خاص بالمجلد ده — بيتلوّن بيه أيقونته وبلاطته في القائمة الجانبية ورأسه وكروته. عجلة الألوان بتختار أي لون حرفياً. «تلقائي» بيسيب اللون اللي بيتبع اسم المجلد."}
-        </span>
-      </div>
-    )}
-    </div>
-  );
-}
 
 /* ---------- move-replies picker ----------
    The shared "bring replies from another folder" block: pick a
@@ -10885,316 +10481,11 @@ function FolderSettingsModal({
 /* The duplicate key for imports, shared by the preview below and
    mirrored by the server's import action: a reply is a duplicate
    when a row with the same title AND the same body already exists. */
-function importKeyOf(title: string, body: string): string {
+export function importKeyOf(title: string, body: string): string {
   return title.trim().toLowerCase() + "\n" + body.trim();
 }
 
-/* ---------- import preview ----------
-   Nothing is written when a file is picked: this sheet shows the
-   parsed result first — how many replies are new, which ones
-   already exist in the library — and the user picks merge (skip
-   duplicates) or a clearly-confirmed replace before anything
-   touches the library. */
-function ImportPreviewModal({
-  fileName,
-  items,
-  existingKeys,
-  importing,
-  onCancel,
-  onConfirm,
-}: {
-  fileName: string;
-  items: Array<{
-    title: string;
-    body: string;
-    category: string;
-    tags?: string;
-    extShortcut?: string;
-    trigger?: string;
-    source?: "" | (typeof REPLY_SOURCES)[number];
-  }>;
-  existingKeys: Set<string>;
-  importing: boolean;
-  onCancel: () => void;
-  onConfirm: (mode: "merge" | "replace") => void;
-}) {
-  const [mode, setMode] = useState<"merge" | "replace">("merge");
-  const [confirmReplace, setConfirmReplace] = useState(false);
-  useEscapeClose(onCancel);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef);
-  useBodyScrollLock(true);
-  const seenInFile = new Set<string>();
-  const dupes: string[] = [];
-  let fresh = 0;
-  items.forEach((it) => {
-    const key = importKeyOf(it.title, it.body);
-    if (existingKeys.has(key) || seenInFile.has(key)) dupes.push(it.title);
-    else fresh += 1;
-    seenInFile.add(key);
-  });
-  return (
-    <div
-      ref={dialogRef}
-      className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-label="معاينة الاستيراد"
-      onClick={onCancel}
-    >
-      <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">معاينة الاستيراد</h2>
-          <button type="button" aria-label="إلغاء الاستيراد" data-tip="إلغاء — مش هيتكتب أي حاجة" data-tip-pos="below" onClick={onCancel} className="lux-btn lux-row rounded-[var(--radius)] p-2 text-[var(--dim)] hover:text-[var(--text)]">
-            <Icon d={I.x} size={18} />
-          </button>
-        </div>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--dim)]">
-          الملف <span dir="ltr" className="font-mono font-bold">{fileName}</span> فيه{" "}
-          <strong className="text-[var(--text)]">{items.length} رد</strong> — منهم{" "}
-          <strong className="text-[var(--text)]">{fresh} جديد</strong> و
-          <strong className="text-[var(--text)]"> {dupes.length} رد موجود عندك بالفعل</strong>.
-          لسه ما اتكتبش أي حاجة في مكتبتك. ملف النسخة ده مش بيشمل صور أو فيديو —
-          الردود المستوردة هتوصل من غير وسائط.
-        </p>
-        {dupes.length > 0 && (
-          <div className="mt-3">
-            <p className="mb-1.5 text-[13px] font-bold text-[var(--dim)]">الردود المكررة:</p>
-            <div className="flex flex-wrap gap-1.5">
-              {dupes.slice(0, 12).map((t, i) => (
-                <span key={`${t}-${i}`} className="rounded-full bg-[var(--surface-alt)] px-2.5 py-1 text-[12px] font-semibold text-[var(--dim)]">
-                  {t}
-                </span>
-              ))}
-              {dupes.length > 12 && (
-                <span className="rounded-full bg-[var(--surface-alt)] px-2.5 py-1 text-[12px] font-semibold text-[var(--dim)]">
-                  و{dupes.length - 12} كمان
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-        <div className="mt-4 flex flex-col gap-2" role="radiogroup" aria-label="طريقة الاستيراد">
-          <label className={`flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] border p-3 ${mode === "merge" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)]"}`}>
-            <input
-              type="radio"
-              name="import-mode"
-              aria-label="دمج مع المكتبة الحالية"
-              checked={mode === "merge"}
-              onChange={() => setMode("merge")}
-              className="mt-1"
-            />
-            <span>
-              <span className="block text-sm font-bold">دمج مع مكتبتك (الأكثر أماناً)</span>
-              <span className="block text-[13px] leading-relaxed text-[var(--dim)]">
-                الجديد بس هو اللي هيتضاف، والمكرر هيتخطى — مكتبتك الحالية مش هتتغير.
-              </span>
-            </span>
-          </label>
-          <label className={`flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] border p-3 ${mode === "replace" ? "border-[var(--danger)] bg-[var(--danger-soft)]" : "border-[var(--border)]"}`}>
-            <input
-              type="radio"
-              name="import-mode"
-              aria-label="استبدال المكتبة بالكامل"
-              checked={mode === "replace"}
-              onChange={() => setMode("replace")}
-              className="mt-1"
-            />
-            <span>
-              <span className="block text-sm font-bold text-[var(--danger)]">استبدال المكتبة بالكامل</span>
-              <span className="block text-[13px] leading-relaxed text-[var(--dim)]">
-                كل ردودك الحالية هتتمسح الأول، وبعدين الملف ده هيبقى مكتبتك. المجلدات نفسها هتفضل موجودة.
-              </span>
-            </span>
-          </label>
-        </div>
-        {mode === "replace" && (
-          <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-[var(--radius)] bg-[var(--danger-soft)] p-3">
-            <input
-              type="checkbox"
-              aria-label="أنا فاهم إن الاستبدال هيمسح ردودي الحالية"
-              checked={confirmReplace}
-              onChange={(e) => setConfirmReplace(e.target.checked)}
-              className="mt-1"
-            />
-            <span className="text-[13px] font-semibold leading-relaxed text-[var(--danger)]">
-              أنا فاهم إن الاستبدال هيمسح كل ردودي الحالية قبل الاستيراد، ومفيش تراجع بعدها إلا من نسخة احتياطية.
-            </span>
-          </label>
-        )}
-        <div className="mt-4 flex gap-2 pb-1">
-          <button
-            type="button"
-            aria-label="تأكيد الاستيراد"
-            data-tip={mode === "replace" ? "استبدال المكتبة بالملف ده" : "استيراد الجديد ودمجه في مكتبتك"}
-            disabled={importing || (mode === "replace" && !confirmReplace)}
-            onClick={() => onConfirm(mode)}
-            className={`lux-btn flex-1 rounded-[var(--radius)] py-3 font-semibold text-white disabled:opacity-50 ${
-              mode === "replace"
-                ? "bg-[var(--danger)]"
-                : "bg-[var(--accent)] text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
-            }`}
-          >
-            {importing ? "بيتستورد…" : mode === "replace" ? "استبدال واستيراد" : `استيراد ${fresh} رد جديد`}
-          </button>
-          <button
-            type="button"
-            aria-label="إلغاء الاستيراد"
-            data-tip="إلغاء — مش هيتكتب أي حاجة"
-            data-tip-align="end"
-            onClick={onCancel}
-            className="lux-btn lux-row rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-5 py-3 font-bold hover:border-[var(--border-strong)]"
-          >
-            إلغاء
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/* ---------- quick preview modal ---------- */
-function PreviewModal({
-  item,
-  onClose,
-  onCopy,
-  onEdit,
-}: {
-  item: Shortcut;
-  onClose: () => void;
-  onCopy: () => Promise<CopyResult>;
-  onEdit: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-  /* Neutral «كمّل البيانات…» state — see ShortcutCard. */
-  const [fillNote, setFillNote] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const copiedTimer = useRef<number | undefined>(undefined);
-  const fillTimer = useRef<number | undefined>(undefined);
-  useEffect(
-    () => () => {
-      window.clearTimeout(copiedTimer.current);
-      window.clearTimeout(fillTimer.current);
-    },
-    [],
-  );
-  /* Copy-button labels for this reply's media (video wording —
-     see ShortcutCard). */
-  const copyLabels = copyButtonLabels(item.media);
-  useEscapeClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef);
-  useBodyScrollLock(true);
-  return (
-    <div
-      ref={dialogRef}
-      className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`معاينة ${item.title}`}
-      onClick={onClose}
-    >
-      <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-medium text-[var(--dim)]">{item.category}</span>
-              {item.usageCount > 0 && (
-                <span className="text-xs text-[var(--faint)]">اتستخدم {item.usageCount} مرة</span>
-              )}
-            </div>
-            <h2 className="mt-2 text-xl font-bold leading-snug">{item.title}</h2>
-          </div>
-          <button
-            type="button"
-            aria-label="قفل المعاينة"
-            data-tip="قفل"
-            data-tip-pos="below"
-            onClick={onClose}
-            className="lux-btn lux-row shrink-0 rounded-[var(--radius)] p-2 text-[var(--dim)] hover:text-[var(--text)]"
-          >
-            <Icon d={I.x} size={18} />
-          </button>
-        </div>
-        <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
-          <RichPreview body={item.body} />
-        </div>
-        {item.media && (
-          <div className="mt-3">
-            <ReplyMediaBlock media={item.media} title={item.title} />
-          </div>
-        )}
-        <p className="mt-2 text-xs leading-relaxed text-[var(--dim)]">
-          دي المعاينة بالتنسيق — العريض والمائل بصيغة واتساب، فهيظهروا منسقين لما الرد يتلصق هناك.
-        </p>
-        <div className="flex gap-2 pb-2 pt-3">
-          <button
-            type="button"
-            aria-label={copied ? `${copyLabels.done} — ${item.title}` : fillNote ? `${COPY_FILL_NOTE} — ${item.title}` : `${copyLabels.idle} — ${item.title}`}
-            data-tip={copied ? "اتنسخ" : fillNote ? COPY_FILL_NOTE : "نسخ الرد"}
-            aria-busy={copying}
-            disabled={copying}
-            onClick={async () => {
-              if (copying) return;
-              setCopying(true);
-              try {
-                const res = await onCopy();
-                if (res === "failed") return;
-                if (res === "fill") {
-                  setFillNote(true);
-                  window.clearTimeout(fillTimer.current);
-                  fillTimer.current = window.setTimeout(() => setFillNote(false), 2000);
-                  return;
-                }
-                setCopied(true);
-                window.clearTimeout(copiedTimer.current);
-                copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
-              } finally {
-                setCopying(false);
-              }
-            }}
-            className={`btn-lux flex flex-1 items-center justify-center gap-2 rounded-full py-3 font-bold ${copied ? "btn-lux-success" : ""}`}
-          >
-            {copying ? (
-              <>
-                <span className="spinner" aria-hidden="true" />
-                بيتنسخ…
-              </>
-            ) : copied ? (
-              <>
-                <span className="animate-copy-pop flex"><Icon d={I.check} size={18} /></span>
-                {copyLabels.done}
-              </>
-            ) : fillNote ? (
-              <>{COPY_FILL_NOTE}</>
-            ) : (
-              <>
-                <Icon d={I.copy} size={18} />
-                {copyLabels.idle}
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            aria-label={`تعديل ${item.title}`}
-            data-tip="تعديل"
-            onClick={onEdit}
-            className="lux-btn lux-row flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 font-bold hover:border-[var(--border-strong)]"
-          >
-            <Icon d={I.edit} size={18} />
-            تعديل
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* The published privacy policy texts (Arabic + English) — the
    same texts the privacy page renders. */
@@ -11753,263 +11044,6 @@ function AccountSection({
   );
 }
 
-/* ---------- account modal ---------- */
-function AccountModal({
-  token,
-  user,
-  onClose,
-  onLogout,
-  showToast,
-}: {
-  token: string;
-  user: User;
-  onClose: () => void;
-  onLogout: () => void;
-  showToast: (msg: string, kind?: ToastKind) => void;
-}) {
-  const queryClient = useQueryClient();
-  const [name, setName] = useState(user.name);
-  const [nameMsg, setNameMsg] = useState<string | null>(null);
-  const [currentPw, setCurrentPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [pwMsg, setPwMsg] = useState<string | null>(null);
-  const [pwOk, setPwOk] = useState(false);
-  const [confirmAllOut, setConfirmAllOut] = useState(false);
-  useEscapeClose(onClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef);
-  useBodyScrollLock(true);
-
-  const logoutAllMut = useMutation({
-    mutationFn: async () => await api.logoutAll({ token }),
-    onSuccess: () => onLogout(),
-    onError: () => onLogout(),
-  });
-
-  const nameMut = useMutation({
-    mutationFn: async () => await api.updateProfile({ token, name: name.trim() }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["me", token] });
-      showToast("اتحدّث الاسم");
-    },
-    onError: () => showToast("التحديث متمّش — حاول تاني", "error"),
-  });
-
-  const pwMut = useMutation({
-    mutationFn: async () =>
-      await api.changePassword({
-        token,
-        currentPassword: currentPw,
-        newPassword: newPw,
-      }),
-    onSuccess: (res) => {
-      if (res.ok) {
-        setPwOk(true);
-        setPwMsg("اتغيّرت كلمة المرور بنجاح");
-        setCurrentPw("");
-        setNewPw("");
-      } else {
-        setPwOk(false);
-        setPwMsg(res.error ?? "حصلت مشكلة — حاول تاني");
-      }
-    },
-    onError: () => {
-      setPwOk(false);
-      setPwMsg("حصلت مشكلة — حاول تاني");
-    },
-  });
-
-  const field =
-    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent)]";
-
-  return (
-    <div
-      ref={dialogRef}
-      className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-label="حسابي"
-      onClick={onClose}
-    >
-      <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2.5 text-xl font-semibold">
-            <AvatarFace user={user} displayName={user.name.trim() || "؟"} size={40} />
-            حسابي
-          </h2>
-          <button
-            type="button"
-            aria-label="قفل حسابي" data-tip="قفل" data-tip-pos="below"
-            onClick={onClose}
-            className="lux-btn lux-row rounded-[var(--radius)] p-2 text-[var(--dim)] hover:text-[var(--text)]"
-          >
-            <Icon d={I.x} size={18} />
-          </button>
-        </div>
-
-        <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3.5 text-sm">
-          {user.email && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[var(--dim)]">البريد الإلكتروني (للدخول)</span>
-              <span dir="ltr" className="truncate font-mono font-bold">{user.email}</span>
-            </div>
-          )}
-          {user.phone && (
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[var(--dim)]">رقم الموبايل (للدخول)</span>
-              <span dir="ltr" className="font-mono font-bold">{user.phone}</span>
-            </div>
-          )}
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-[var(--dim)]">عضو من</span>
-            <span className="font-bold">
-              {new Date(user.createdAt).toLocaleDateString("ar-EG")}
-            </span>
-          </div>
-          <p className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5 text-xs leading-relaxed text-[var(--dim)]">
-            <Icon d={I.shield} size={16} />
-            اختصاراتك محفوظة في حسابك ده بس، ومفيش أي حساب تاني يقدر يشوفها أو يعدّل عليها.
-          </p>
-        </div>
-
-        <div className="mt-5">
-          <h3 className="font-semibold">الاسم الظاهر</h3>
-          <div className="mt-2 flex gap-2">
-            <span className="relative flex-1" data-tip="اكتب اسمك الظاهر الجديد">
-            <input
-              {...FIELDS.updateProfile.name}
-              aria-label="الاسم الظاهر"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={field}
-            />
-            </span>
-            <button
-              type="button"
-              aria-label="حفظ الاسم" data-tip="حفظ الاسم الجديد"
-              onClick={() => {
-                if (name.trim().length < 2) {
-                  setNameMsg("الاسم لازم يكون حرفين على الأقل — الاسم الفاضي مش بيتحفظ");
-                  return;
-                }
-                setNameMsg(null);
-                nameMut.mutate();
-              }}
-              disabled={nameMut.isPending || name.trim() === user.name}
-              className="lux-btn shrink-0 rounded-[var(--radius)] bg-[var(--accent)] px-4 py-2.5 font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] hover:text-[var(--bg)] disabled:opacity-50"
-            >
-              {nameMut.isPending ? "بيتحفظ…" : "حفظ"}
-            </button>
-          </div>
-          {nameMsg && (
-            <p role="alert" className="mt-2 rounded-[var(--radius)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">
-              {nameMsg}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-5">
-          <h3 className="font-semibold">تغيير كلمة المرور</h3>
-          <div className="mt-2 flex flex-col gap-2.5">
-            <span className="block" data-tip="كلمة المرور اللي بتستخدمها دلوقتي">
-            <input
-              {...FIELDS.changePassword.currentPassword}
-              aria-label="كلمة المرور الحالية"
-              type="password"
-              autoComplete="current-password"
-              value={currentPw}
-              onChange={(e) => setCurrentPw(e.target.value)}
-              placeholder="كلمة المرور الحالية"
-              className={field}
-            />
-            </span>
-            <span className="block" data-tip="كلمة المرور الجديدة — أي طول تختاره">
-            <input
-              {...FIELDS.changePassword.newPassword}
-              aria-label="كلمة المرور الجديدة"
-              type="password"
-              autoComplete="new-password"
-              value={newPw}
-              onChange={(e) => setNewPw(e.target.value)}
-              placeholder="الجديدة — أي طول تختاره"
-              className={field}
-            />
-            </span>
-            {pwMsg && (
-              <p
-                role="alert"
-                className={`rounded-[var(--radius)] px-3 py-2 text-sm font-semibold ${
-                  pwOk
-                    ? "bg-[var(--surface-alt)] text-[var(--text)]"
-                    : "bg-[var(--danger-soft)] text-[var(--danger)]"
-                }`}
-              >
-                {pwMsg}
-              </p>
-            )}
-            <button
-              type="button"
-              aria-label="تغيير كلمة المرور" data-tip="تغيير كلمة المرور لحسابك"
-              onClick={() => {
-                if (!currentPw) return setPwMsg("اكتب كلمة المرور الحالية"), setPwOk(false);
-                if (!newPw)
-                  return setPwMsg("اكتب كلمة المرور الجديدة"), setPwOk(false);
-                setPwMsg(null);
-                pwMut.mutate();
-              }}
-              disabled={pwMut.isPending}
-              className="lux-btn lux-row rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] py-2.5 font-bold hover:border-[var(--border-strong)] disabled:opacity-60"
-            >
-              {pwMut.isPending ? "بيتغيّر…" : "تغيير كلمة المرور"}
-            </button>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          aria-label="تسجيل الخروج من حسابي" data-tip="تسجيل الخروج من الجهاز ده بس"
-          onClick={onLogout}
-          className="lux-btn mt-6 flex w-full items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--danger-soft)] py-3 font-semibold text-[var(--danger)] hover:brightness-95"
-        >
-          <Icon d={I.logout} size={18} />
-          تسجيل الخروج
-        </button>
-        <button
-          type="button"
-          aria-label="تسجيل الخروج من كل الأجهزة" data-tip="تسجيل الخروج من كل الأجهزة مرة واحدة"
-          disabled={logoutAllMut.isPending}
-          onClick={() => {
-            if (confirmAllOut) {
-              logoutAllMut.mutate();
-            } else {
-              setConfirmAllOut(true);
-              window.setTimeout(() => setConfirmAllOut(false), 4000);
-            }
-          }}
-          className={`mt-2 flex w-full items-center justify-center gap-2 rounded-[var(--radius)] border py-3 font-semibold disabled:opacity-60 ${
-            confirmAllOut
-              ? "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]"
-              : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)]"
-          }`}
-        >
-          <Icon d={I.devices} size={18} />
-          {logoutAllMut.isPending
-            ? "بيخرج من كل الأجهزة…"
-            : confirmAllOut
-              ? "متأكد؟ هيخرج حسابك من كل الأجهزة"
-              : "تسجيل الخروج من كل الأجهزة"}
-        </button>
-        <p className="mt-2 pb-2 text-center text-xs leading-relaxed text-[var(--dim)]">
-          جلستك على الجهاز ده دائمة وبتتجدد لوحدها — الخروج من كل الأجهزة مفيد لو دخلت
-          من جهاز مش بتاعك. اختصاراتك هتفضل محفوظة في حسابك في كل الأحوال.
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /* ---------- animated trigger icon ----------
    The ONE trigger mark in the whole site — a small crafted
@@ -12051,7 +11085,7 @@ function AccountModal({
    A URL that 404s shows "media unavailable", never a broken-image
    icon (onError on <img>/<video>). Lucide glyphs throughout —
    the site's icon language, not emoji. */
-function MediaBadge({ media }: { media: Shortcut["media"] }) {
+export function MediaBadge({ media }: { media: Shortcut["media"] }) {
   if (!media) return null;
   return (
     <span
@@ -12067,7 +11101,7 @@ function MediaBadge({ media }: { media: Shortcut["media"] }) {
   );
 }
 
-function ReplyMediaThumb({
+export function ReplyMediaThumb({
   media,
   title,
   onOpen,
@@ -12137,7 +11171,7 @@ function ReplyMediaThumb({
   );
 }
 
-function ReplyMediaBlock({
+export function ReplyMediaBlock({
   media,
   title,
   showCopyLink = false,
@@ -12270,7 +11304,7 @@ function ReplyMediaBlock({
 /* #2 — memoized: the pill is on every card; with the stable
    takenTriggers map and the stable onSaveTrigger it now skips
    re-rendering when its own reply did not change. */
-const TriggerIcon = memo(function TriggerIcon({
+export const TriggerIcon = memo(function TriggerIcon({
   item,
   folder,
   onSaveTrigger,
@@ -12324,27 +11358,6 @@ const TriggerIcon = memo(function TriggerIcon({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [item.trigger, item.title, item.body, value, takenTriggers, open],
   );
-
-  /* #4 — the pill runs three infinite animations (glow, sheen,
-     zap); 88 of them animating off-screen is the biggest
-     continuous GPU cost on the page. An IntersectionObserver
-     pauses the animations while the pill is off-screen (class
-     toggled straight on the DOM node — no React re-render) and
-     they resume the moment it scrolls into view; hover/focus
-     always re-runs them (see tokens.css .trig-paused). */
-  useEffect(() => {
-    const btn = anchorRef.current;
-    const root = rootRef.current;
-    if (!btn || !root || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) btn.classList.toggle("trig-paused", !e.isIntersecting);
-      },
-      { rootMargin: "80px" },
-    );
-    io.observe(root);
-    return () => io.disconnect();
-  }, []);
 
   const has = Boolean(item.trigger);
   /* A SET pill wears its reply's folder colour; the dimmed
@@ -12405,7 +11418,7 @@ const TriggerIcon = memo(function TriggerIcon({
         }${pillFolder.className ? `${pillFolder.className} ` : ""}${
           size === "compact" ? "h-6 max-w-32 px-1.5 text-[11px]" : "h-[26px] max-w-44 px-2 text-[11.5px]"
         }`}
-        /* Per-reply stagger for the sheen + glow + Zap (see
+        /* Per-reply stagger for the sheen + glow + mark (see
            tokens.css): --trig-delay shifts the whole pill's
            motion so 88 pills never move in lockstep. A custom-hex
            folder also hands its --fhue over here. */
@@ -12420,8 +11433,8 @@ const TriggerIcon = memo(function TriggerIcon({
             the button's ::after belongs to its tooltip (data-tip),
             whose rule erased the old ::after sheen entirely. */}
         <span className="trig-sheen" aria-hidden="true" />
-        <span className="trig-zap flex shrink-0">
-          <Icon d={I.zap} size={size === "compact" ? 13 : 14} />
+        <span className="trig-mark flex shrink-0">
+          <Icon d={I.shortcut} size={size === "compact" ? 13 : 14} />
         </span>
         {has ? (
           <span dir="auto" className="truncate font-bold">
@@ -12555,7 +11568,7 @@ const TriggerIcon = memo(function TriggerIcon({
    renderCard, a card only re-renders when its own props change
    (its reply, its marked/active state, the highlight text, or
    the drag state) — not on every Workspace render. */
-const ShortcutCard = memo(function ShortcutCard({
+export const ShortcutCard = memo(function ShortcutCard({
   item,
   density = "comfortable",
   enterDelay,
@@ -12979,18 +11992,11 @@ const ShortcutCard = memo(function ShortcutCard({
                 )}
               </div>
             </div>
-            {/* Pin / favorite / edit live here as inline icons —
-                always one tap away, never hidden behind the «⋯». */}
-            <div className="flex shrink-0 items-center gap-0.5">
-              <button
-                type="button"
-                aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`} data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
-                aria-pressed={item.pinned}
-                onClick={() => onPin(item)}
-                className={`lux-btn rounded-full p-1.5 ${item.pinned ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
-              >
-                <Icon d={I.pin} size={18} />
-              </button>
+            {/* إدارة الرد — التثبيت والتعديل والحذف في مجموعة
+                واحدة جنب بعض (2026-11-26): النجمة بتفضل برّه
+                المجموعة لأنها حالة (مفضّلة) مش إجراء إدارة،
+                والمعاينة والتكرار في قائمة «⋯». */}
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 aria-label={item.favorite ? (lang === "en" ? `Remove ${item.title} from favorites` : `إزالة ${item.title} من المفضلة`) : lang === "en" ? `Add ${item.title} to favorites` : `إضافة ${item.title} للمفضلة`} data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
@@ -13000,14 +12006,44 @@ const ShortcutCard = memo(function ShortcutCard({
               >
                 <Icon d={I.star} size={18} />
               </button>
-              <button
-                type="button"
-                aria-label={lang === "en" ? `Edit ${item.title}` : `تعديل ${item.title}`} data-tip={t("تعديل")}
-                onClick={() => onEdit(item)}
-                className={iconBtn}
-              >
-                <Icon d={I.edit} size={18} />
-              </button>
+              <div className="card-action-group" role="group" aria-label={t("إجراءات إدارة الرد")}>
+                <button
+                  type="button"
+                  aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`} data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
+                  aria-pressed={item.pinned}
+                  onClick={() => onPin(item)}
+                  className="lux-btn"
+                >
+                  <Icon d={I.pin} size={18} />
+                </button>
+                <button
+                  type="button"
+                  aria-label={lang === "en" ? `Edit ${item.title}` : `تعديل ${item.title}`} data-tip={t("تعديل")}
+                  onClick={() => onEdit(item)}
+                  className="lux-btn"
+                >
+                  <Icon d={I.edit} size={18} />
+                </button>
+                <button
+                  type="button"
+                  aria-label={confirmingDelete ? (lang === "en" ? `Confirm deleting ${item.title}` : `تأكيد حذف ${item.title}`) : lang === "en" ? `Delete ${item.title}` : `حذف ${item.title}`} data-tip={confirmingDelete ? t("دوس تاني لتأكيد الحذف") : t("حذف")}
+                  onClick={() => {
+                    if (confirmingDelete) {
+                      onDelete(item);
+                    } else {
+                      setConfirmingDelete(true);
+                      window.setTimeout(() => setConfirmingDelete(false), 3000);
+                    }
+                  }}
+                  className={`lux-btn card-action-danger ${confirmingDelete ? "card-action-danger-confirm" : ""}`}
+                >
+                  {confirmingDelete ? (
+                    <span className="px-1 text-xs font-semibold">{t("متأكد؟")}</span>
+                  ) : (
+                    <Icon d={I.trash} size={18} />
+                  )}
+                </button>
+              </div>
             </div>
             <button
               type="button"
@@ -13019,10 +12055,8 @@ const ShortcutCard = memo(function ShortcutCard({
             >
               <Icon d={MoreHorizontal} size={18} />
             </button>
-            {/* The «⋯» menu keeps only quick preview, duplicate and
-                delete — move still lives in the details panel (and
-                drag & drop), pin / favorite / edit are the inline
-                icons just above. */}
+            {/* The «⋯» menu keeps only quick preview and duplicate —
+                pin / edit / delete are the joined group just above. */}
             <div className={`card-actions flex shrink-0 gap-0.5 ${menuOpen ? "card-actions-open" : ""}`}>
               <button
                 type="button"
@@ -13039,25 +12073,6 @@ const ShortcutCard = memo(function ShortcutCard({
                 className={iconBtn}
               >
                 <Icon d={I.dup} size={18} />
-              </button>
-              <button
-                type="button"
-                aria-label={confirmingDelete ? (lang === "en" ? `Confirm deleting ${item.title}` : `تأكيد حذف ${item.title}`) : lang === "en" ? `Delete ${item.title}` : `حذف ${item.title}`} data-tip={confirmingDelete ? t("دوس تاني لتأكيد الحذف") : t("حذف")}
-                onClick={() => {
-                  if (confirmingDelete) {
-                    onDelete(item);
-                  } else {
-                    setConfirmingDelete(true);
-                    window.setTimeout(() => setConfirmingDelete(false), 3000);
-                  }
-                }}
-                className={`lux-btn rounded-full p-1.5 ${confirmingDelete ? "bg-[var(--danger-soft)] font-bold text-[var(--danger)]" : "text-[var(--dim)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"}`}
-              >
-                {confirmingDelete ? (
-                  <span className="px-1 text-xs font-semibold">{t("متأكد؟")}</span>
-                ) : (
-                  <Icon d={I.trash} size={18} />
-                )}
               </button>
             </div>
           </div>
@@ -13123,7 +12138,7 @@ const ShortcutCard = memo(function ShortcutCard({
    cursor. A live preview renders exactly what the markers mean. The
    stored body stays plain text, so copy / AutoHotkey keep
    working unchanged. */
-function RichTextEditor({
+export function RichTextEditor({
   value,
   onChange,
 }: {
@@ -13626,7 +12641,7 @@ function FloatingFolderPanel({
    icon (a quiet round button among the card actions), field (a
    full-width folder field, in the details panel) and bar (the
    multi-select strip's labelled button). */
-function MoveToFolderButton({
+export function MoveToFolderButton({
   folders,
   counts,
   currentFolderId,
@@ -13765,7 +12780,7 @@ function MoveToFolderButton({
    path), and the panel is the shared folder tree — every folder
    in the library, searchable — so the right folder is picked,
    never misspelled into existence. */
-function FolderPicker({
+export function FolderPicker({
   folders,
   counts,
   value,
@@ -14203,8 +13218,8 @@ function SearchTriggerPreview({
           <div className="search-trig-panel">
             <div className="trig-stage trig-stage-1 flex items-center justify-between gap-2">
               <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-extrabold tracking-wide text-[var(--accent-strong)]">
-                <span className="trig-zap flex">
-                  <Icon d={I.zap} size={13} />
+                <span className="trig-mark flex">
+                  <Icon d={I.shortcut} size={13} />
                 </span>
                 {best
                   ? lang === "en"
@@ -14320,7 +13335,7 @@ function SearchTriggerPreview({
                       {assigningId === oneTapAssign.id ? (
                         <span className="spinner shrink-0" aria-hidden="true" />
                       ) : (
-                        <Icon d={I.zap} size={15} />
+                        <Icon d={I.shortcut} size={15} />
                       )}
                       <span className="flex min-w-0 flex-col items-start">
                         <span className="text-[12px] font-semibold opacity-85">
@@ -14501,7 +13516,7 @@ function MyShortcutsCard({
           className="lux-btn flex min-w-0 flex-1 items-center gap-2.5 text-start"
         >
           <span className="editor-head-icon shrink-0">
-            <Icon d={I.zap} size={15} />
+            <Icon d={I.shortcut} size={15} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-extrabold">
@@ -14563,7 +13578,7 @@ function MyShortcutsCard({
         (items.length === 0 ? (
           <div className="border-t border-[var(--border)] px-4 py-6 text-center">
             <p className="flex items-center justify-center gap-1.5 text-sm font-bold">
-              <Icon d={I.zap} size={15} />
+              <Icon d={I.shortcut} size={15} />
               {t("لسه مفيش اختصارات في الكارت")}
             </p>
             <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-[var(--dim)]">
@@ -14574,7 +13589,7 @@ function MyShortcutsCard({
               onClick={onAddFirst}
               className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
             >
-              <Icon d={I.zap} size={15} />
+              <Icon d={I.shortcut} size={15} />
               {t("ضيف أول اختصار")}
             </button>
           </div>
@@ -14973,7 +13988,7 @@ function ShortcutsView({
            is, plus one obvious first action — no lecture. */
         <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-4 text-center">
           <p className="flex items-center justify-center gap-1.5 text-sm font-bold leading-relaxed">
-            <Icon d={I.zap} size={15} />
+            <Icon d={I.shortcut} size={15} />
             {t("الاختصار كلمة قصيرة بتكتبها في البحث — أو في شريط الاختصارات — فتجيب الرد ده على طول من غير ما تدوّر عليه.")}
           </p>
           <button
@@ -14982,7 +13997,7 @@ function ShortcutsView({
             disabled={!firstFree}
             className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
           >
-            <Icon d={I.zap} size={15} />
+            <Icon d={I.shortcut} size={15} />
             {t("ضيف أول اختصار")}
           </button>
         </div>
@@ -15031,7 +14046,7 @@ function ShortcutsView({
             <section aria-label={t("ردود من غير اختصار")}>
               <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
                 <span className="editor-label-icon">
-                  <Icon d={I.zap} size={14} />
+                  <Icon d={I.shortcut} size={14} />
                 </span>
                 {t("ردود لسه ملهاش اختصار")}
                 <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
@@ -15141,7 +14156,7 @@ function ShortcutBar({
       >
         <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-3">
           <span className="text-[var(--accent)]">
-            <Icon d={I.zap} size={19} />
+            <Icon d={I.shortcut} size={19} />
           </span>
           <input
             ref={inputRef}
@@ -15239,925 +14254,6 @@ function ShortcutBar({
   );
 }
 
-/* ---------- editor modal ----------
-   Organized the way the site itself thinks about a reply: first
-   the reply (its name, its trigger, and its text), then its
-   organization (the folder it lives in — picked from the whole
-   folder tree, never typed — and the keywords search finds it by). The header and the
-   save row stay fixed while the middle scrolls, so حفظ is always
-   one glance away. */
-function EditorModal({
-  token,
-  userId,
-  item,
-  folders,
-  folderCounts,
-  takenTriggers = [],
-  initialFolderId,
-  initialTitle,
-  onClose,
-  onSaved,
-}: {
-  token: string;
-  userId: number;
-  item: Shortcut | null;
-  folders: FolderRowT[];
-  folderCounts: Map<number, number>;
-  /* The user's OTHER triggers (not the edited reply's own) — the
-     client-side duplicate check for the trigger field. */
-  takenTriggers?: string[];
-  initialFolderId?: number | null;
-  /* A name the user was just searching for when the search found
-     nothing: the new-reply editor opens with it already typed, so
-     creating the missing reply is one step, not a retype. */
-  initialTitle?: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const queryClient = useQueryClient();
-  // Autosave: an unfinished NEW shortcut is kept as a draft on this
-  // device (per account) and restored when the editor reopens, so a
-  // closed tab or an accidental tap never loses typed work.
-  const draftKey = `is-editor-draft-${userId}`;
-  const [draft] = useState<{
-    title: string;
-    body: string;
-    folderId: number | null;
-    tags: string;
-    extShortcut: string;
-    trigger: string;
-    source: string;
-  } | null>(() => {
-    if (item) return null;
-    try {
-      const raw = window.localStorage.getItem(draftKey);
-      if (!raw) return null;
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== "object" || parsed === null) return null;
-      const d = parsed as Record<string, unknown>;
-      const title = typeof d.title === "string" ? d.title : "";
-      const body = typeof d.body === "string" ? d.body : "";
-      const tags = typeof d.tags === "string" ? d.tags : "";
-      const extShortcut = typeof d.extShortcut === "string" ? d.extShortcut : "";
-      const trigger = typeof d.trigger === "string" ? d.trigger : "";
-      const source =
-        typeof d.source === "string" &&
-        (REPLY_SOURCES as readonly string[]).includes(d.source)
-          ? d.source
-          : "";
-      /* New drafts store the folder id; older ones stored the
-         category name — resolve it to the folder carrying it. */
-      let folderId: number | null = null;
-      if (typeof d.folderId === "number") folderId = d.folderId;
-      else if (typeof d.category === "string")
-        folderId = folders.find((f) => f.name === d.category)?.id ?? null;
-      if (!title && !body) return null;
-      return { title, body, folderId, tags, extShortcut, trigger, source };
-    } catch {
-      return null;
-    }
-  });
-  const [title, setTitle] = useState(item?.title ?? draft?.title ?? initialTitle ?? "");
-  const [body, setBody] = useState(item?.body ?? draft?.body ?? "");
-  const [folderId, setFolderId] = useState<number | null>(
-    item
-      ? (item.folderId ?? null)
-      : draft
-        ? draft.folderId
-        : (initialFolderId ?? null),
-  );
-  const [tags, setTags] = useState(item?.tags ?? draft?.tags ?? "");
-  /* The external-shortcut note: the word the user registered for
-     this reply in programs outside the site, shown here in the
-     editor so he can see it at a glance. Record-keeping only —
-     it never drives expansion or copying. */
-  const [extShortcut, setExtShortcut] = useState(
-    item?.extShortcut ?? draft?.extShortcut ?? "",
-  );
-  /* The in-site trigger: any text the owner types in the site's
-     search / shortcut bar to find this reply — Arabic, English,
-     symbols, any case. "" = no trigger. Never copied from
-     extShortcut — the two are unrelated words, one for programs
-     outside the site, one for inside it. */
-  const [trigger, setTrigger] = useState(
-    item?.trigger ?? draft?.trigger ?? "",
-  );
-  /* Live trigger suggestions — the easiest free triggers for this
-     reply, following the typed text as it changes (same engine as
-     the inline pill editor). One tap fills the field. */
-  const triggerSuggestions = useMemo(
-    () =>
-      suggestTriggers(
-        { title, body, trigger: item?.trigger ?? null },
-        takenTriggers,
-        trigger,
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [title, body, trigger, item, takenTriggers],
-  );
-  /* Where this reply originally came from — one of the fixed
-     REPLY_SOURCES names, or "" when never recorded. Chosen from
-     a list in «التنظيم والبحث», saved with the reply and shown
-     back on every edit. */
-  const [source, setSource] = useState(
-    item?.source ?? draft?.source ?? "",
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [draftSaved, setDraftSaved] = useState(false);
-  /* Unsaved-changes guard: the snapshot the editor opened with.
-     Clicking the backdrop (or X / إلغاء) closes instantly when
-     nothing changed, and asks first when it would lose edits —
-     the one case where click-outside must not silently dismiss. */
-  const [initial] = useState(() => ({ title, body, folderId, tags, extShortcut, trigger, source }));
-  /* The last snapshot that is actually saved in the library. The
-     dirty check runs against it (not the open-time snapshot), so
-     once autosave lands an edit, the editor is clean again and
-     closing needs no warning. */
-  const [savedSnap, setSavedSnap] = useState(initial);
-  const dirty =
-    title !== savedSnap.title ||
-    body !== savedSnap.body ||
-    folderId !== savedSnap.folderId ||
-    tags !== savedSnap.tags ||
-    extShortcut !== savedSnap.extShortcut ||
-    trigger !== savedSnap.trigger ||
-    source !== savedSnap.source;
-  /* Autosave status for an existing reply: the indicator in the
-     footer always says where the text stands — never a silent
-     maybe. New replies keep the device-draft line above instead. */
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  /* Why autosave is currently held (blank title/body) — shown in
-     the footer status line, never a silent skip. */
-  const [titleError, setTitleError] = useState<string | null>(null);
-  const [bodyError, setBodyError] = useState<string | null>(null);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const discardRef = useRef<HTMLDivElement>(null);
-  /* The warning renders above the action row, possibly below the
-     sheet's fold — bring it into view the moment it appears so the
-     user actually sees why the sheet did not close. */
-  useEffect(() => {
-    if (confirmDiscard) discardRef.current?.scrollIntoView({ block: "nearest" });
-  }, [confirmDiscard]);
-  const attemptClose = () => {
-    if (dirty && !saveMut.isPending) setConfirmDiscard(true);
-    else onClose();
-  };
-  const discardAndClose = () => {
-    if (!item) {
-      try {
-        window.localStorage.removeItem(draftKey);
-      } catch { /* ignore */ }
-    }
-    onClose();
-  };
-  useEscapeClose(attemptClose);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef);
-  useBodyScrollLock(true);
-
-  useEffect(() => {
-    if (item) return;
-    if (!title.trim() && !body.trim()) {
-      try {
-        window.localStorage.removeItem(draftKey);
-      } catch { /* ignore */ }
-      setDraftSaved(false);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(
-          draftKey,
-          JSON.stringify({ title, body, folderId, tags, extShortcut, trigger, source }),
-        );
-        setDraftSaved(true);
-      } catch { /* ignore */ }
-    }, 400);
-    return () => window.clearTimeout(t);
-  }, [item, draftKey, title, body, folderId, tags, extShortcut, trigger, source]);
-
-  const buildPayload = () => {
-    const selectedFolder =
-      folderId !== null
-        ? folders.find((f) => f.id === folderId)
-        : undefined;
-    return {
-      title: title.trim(),
-      body,
-      category: selectedFolder?.name ?? "عام",
-      tags: tags.trim(),
-      extShortcut: extShortcut.trim(),
-      trigger: normalizeTriggerInput(trigger),
-      source: source as "" | (typeof REPLY_SOURCES)[number],
-      folderId,
-    };
-  };
-
-  /* Autosave for an existing reply: 1.5s after the typing settles,
-     the edit lands in the library on its own and the footer says
-     so. It never closes the editor and never fires on invalid text
-     (blank title/body stay for the explicit حفظ + the guard). */
-  const autosaveMut = useMutation({
-    mutationFn: async (snap: { title: string; body: string; folderId: number | null; tags: string; extShortcut: string; trigger: string; source: string }) => {
-      if (!item) return;
-      const selectedFolder =
-        snap.folderId !== null
-          ? folders.find((f) => f.id === snap.folderId)
-          : undefined;
-      await api.updateShortcut({
-        token,
-        id: item.id,
-        title: snap.title.trim(),
-        body: snap.body,
-        category: selectedFolder?.name ?? "عام",
-        tags: snap.tags.trim(),
-        extShortcut: snap.extShortcut.trim(),
-        trigger: normalizeTriggerInput(snap.trigger),
-        source: snap.source as "" | (typeof REPLY_SOURCES)[number],
-        folderId: snap.folderId,
-      });
-    },
-    onSuccess: (_res, snap) => {
-      setSavedSnap(snap);
-      setSaveState("saved");
-      setSavedAt(
-        new Date().toLocaleTimeString("ar-EG", { hour: "numeric", minute: "2-digit" }),
-      );
-      queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
-      queryClient.invalidateQueries({ queryKey: ["folders", token] });
-    },
-    onError: () => setSaveState("error"),
-  });
-  const autosaveMutRef = useRef(autosaveMut);
-  autosaveMutRef.current = autosaveMut;
-  useEffect(() => {
-    if (!item || !dirty) {
-      setTitleError(null);
-      setBodyError(null);
-      return;
-    }
-    if (!title.trim()) {
-      setTitleError("اكتب اسم الرد عشان الحفظ التلقائي يشتغل");
-      return;
-    }
-    setTitleError(null);
-    if (!body.trim()) {
-      setBodyError("اكتب نص الرد عشان الحفظ التلقائي يشتغل");
-      return;
-    }
-    setBodyError(null);
-    /* A duplicate trigger never autosaves: the server would reject
-       it, and the inline field error below explains why. */
-    if (triggerError(trigger, takenTriggers)) return;
-    setSaveState("saving");
-    const t = window.setTimeout(() => {
-      autosaveMutRef.current.mutate({ title, body, folderId, tags, extShortcut, trigger, source });
-    }, 1500);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, dirty, title, body, folderId, tags, extShortcut, trigger, source, takenTriggers]);
-
-  const saveMut = useMutation({
-    mutationFn: async () => {
-      const payload = buildPayload();
-      let shortcutId: number;
-      if (item) {
-        await api.updateShortcut({ token, id: item.id, ...payload });
-        shortcutId = item.id;
-      } else {
-        const created = await api.createShortcut({ token, ...payload });
-        shortcutId = created.shortcut.id;
-      }
-      return shortcutId;
-    },
-    onSuccess: () => {
-      try {
-        window.localStorage.removeItem(draftKey);
-      } catch { /* ignore */ }
-      queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
-      queryClient.invalidateQueries({ queryKey: ["folders", token] });
-      onSaved();
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : "الحفظ متمّش — حاول تاني"),
-  });
-
-  const submit = () => {
-    if (!title.trim()) return setError("اكتب اسم الرد");
-    if (!body.trim()) return setError("اكتب نص الرد اللي هيتحفظ في مكتبتك");
-    const trigErr = triggerError(trigger, takenTriggers);
-    if (trigErr) return setError(trigErr);
-    setError(null);
-    saveMut.mutate();
-  };
-
-  /* ---------- reply media ----------
-     An image/video attached to THIS reply (existing replies only —
-     a new reply has no id yet, so attach needs it saved first).
-     The file goes straight from the browser to Vercel Blob
-     (upload() + the /api/media/upload token route); attachMedia
-     then records the reference. Media is NOT part of
-     buildPayload/autosave/draft — attach/remove are their own
-     mutations, so the editor's save/dirty logic never sees them. */
-  const [media, setMedia] = useState(item?.media ?? null);
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const [mediaUploading, setMediaUploading] = useState(false);
-  const [mediaProgress, setMediaProgress] = useState(0);
-  const [mediaRemoving, setMediaRemoving] = useState(false);
-  const [confirmRemoveMedia, setConfirmRemoveMedia] = useState(false);
-  /* True when the server said Blob storage is not connected yet
-     (503 «التخزين مش متظبط…») — attach stays disabled with that
-     exact hint until the store exists. */
-  const [mediaStorageDown, setMediaStorageDown] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
-
-  /* Downscale an image to at most 1600px on the longest edge
-     (same canvas pattern as the avatar flow, which uses 512px),
-     keeping its type (PNG stays PNG, everything else JPEG). */
-  const prepareImage = (file: File): Promise<{ file: File; width: number; height: number }> =>
-    new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
-        const width = Math.max(1, Math.round(img.naturalWidth * scale));
-        const height = Math.max(1, Math.round(img.naturalHeight * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const cx = canvas.getContext("2d");
-        if (!cx) return reject(new Error("prepare failed"));
-        cx.drawImage(img, 0, 0, width, height);
-        const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
-        canvas.toBlob(
-          (b) =>
-            b
-              ? resolve({ file: new File([b], "image", { type: mimeType }), width, height })
-              : reject(new Error("toBlob failed")),
-          mimeType,
-          0.88,
-        );
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("unreadable image"));
-      };
-      img.src = url;
-    });
-
-  /* Measure a video's duration + dimensions from its metadata
-     (no upload involved). */
-  const measureVideo = (file: File): Promise<{ durationMs: number; width: number; height: number }> =>
-    new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const v = document.createElement("video");
-      v.preload = "metadata";
-      v.onloadedmetadata = () => {
-        URL.revokeObjectURL(url);
-        resolve({
-          durationMs: Math.round(v.duration * 1000),
-          width: v.videoWidth,
-          height: v.videoHeight,
-        });
-      };
-      v.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("unreadable video"));
-      };
-      v.src = url;
-    });
-
-  const uploadMediaFile = async (file: File, kind: "image" | "video") => {
-    if (!item) return;
-    setMediaError(null);
-    setMediaStorageDown(false);
-    const allowed =
-      kind === "image"
-        ? ["image/jpeg", "image/png", "image/webp"]
-        : ["video/mp4", "video/webm"];
-    if (!allowed.includes(file.type)) {
-      setMediaError(
-        kind === "image"
-          ? "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"
-          : "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي",
-      );
-      return;
-    }
-    const cap = kind === "image" ? 8 * 1024 * 1024 : 50 * 1024 * 1024;
-    if (file.size > cap) {
-      setMediaError(
-        kind === "image"
-          ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
-          : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
-      );
-      return;
-    }
-    setMediaUploading(true);
-    setMediaProgress(0);
-    try {
-      let upFile = file;
-      let width: number | null = null;
-      let height: number | null = null;
-      let durationMs: number | null = null;
-      if (kind === "image") {
-        const prepared = await prepareImage(file);
-        upFile = prepared.file;
-        width = prepared.width;
-        height = prepared.height;
-      } else {
-        const meta = await measureVideo(file);
-        durationMs = meta.durationMs;
-        width = meta.width || null;
-        height = meta.height || null;
-        if (durationMs > 5 * 60 * 1000) {
-          setMediaError("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر");
-          return;
-        }
-      }
-      const ext =
-        upFile.type === "image/png"
-          ? "png"
-          : upFile.type === "image/webp"
-            ? "webp"
-            : upFile.type === "video/webm"
-              ? "webm"
-              : upFile.type === "video/mp4"
-                ? "mp4"
-                : "jpg";
-      const pathname = `media/${userId}/${item.id}/${crypto.randomUUID()}.${ext}`;
-      /* Probe first so the server's exact error surfaces (see
-         mintUploadToken), then the real client upload. */
-      await mintUploadToken(token, pathname, item.id, kind);
-      const blob = await upload(pathname, upFile, {
-        access: "public",
-        handleUploadUrl: "/api/media/upload",
-        clientPayload: JSON.stringify({ token, shortcutId: item.id, kind }),
-        onUploadProgress: ({ percentage }) => setMediaProgress(Math.round(percentage)),
-      });
-      const saved = await api.attachMedia({
-        token,
-        shortcutId: item.id,
-        kind,
-        blobUrl: blob.url,
-        blobPathname: blob.pathname,
-        contentType: upFile.type,
-        byteSize: upFile.size,
-        width,
-        height,
-        durationMs,
-      });
-      setMedia(saved.media);
-      queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "الرفع متمّش — حاول تاني";
-      if (msg.includes("التخزين مش متظبط")) setMediaStorageDown(true);
-      setMediaError(msg);
-    } finally {
-      setMediaUploading(false);
-      setMediaProgress(0);
-    }
-  };
-
-  /* Removal deletes the Blob object too (when no other reply
-     still references it) — hence the confirm step. */
-  const removeMediaFile = async () => {
-    if (!item || !media) return;
-    setMediaRemoving(true);
-    try {
-      await api.removeMedia({ token, shortcutId: item.id });
-      setMedia(null);
-      setConfirmRemoveMedia(false);
-      queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
-    } catch (e) {
-      setMediaError(e instanceof Error ? e.message : "المسح متمّش — حاول تاني");
-    } finally {
-      setMediaRemoving(false);
-    }
-  };
-
-  const field =
-    "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent)]";
-
-  /* v80: every section and field in this dialog carries an
-     expressive icon in the site's unified tile — the section
-     head's tile is filled, the field labels' tiles are soft,
-     so the dialog reads at a glance: what each part IS. */
-  const sectionHead = (icon: LucideIcon, label: string) => (
-    <p className="flex items-center gap-2.5 text-[13px] font-extrabold text-[var(--dim)]">
-      <span className="editor-head-icon">
-        <Icon d={icon} size={14} />
-      </span>
-      {label}
-      <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
-    </p>
-  );
-  const labelWithIcon = (icon: LucideIcon, text: React.ReactNode) => (
-    <span className="mb-1 flex items-center gap-2 text-sm font-bold">
-      <span className="editor-label-icon">
-        <Icon d={icon} size={14} />
-      </span>
-      {text}
-    </span>
-  );
-
-  return (
-    <div className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center" role="dialog" aria-modal="true" aria-label={item ? "تعديل رد" : "رد جديد"}
-      ref={dialogRef}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) attemptClose();
-      }}
-    >
-      <div
-        className="animate-sheet elev-pop flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[var(--radius)] glass-panel sm:rounded-[var(--radius)]"
-      >
-        <div className="flex items-center justify-between px-5 pt-5">
-          <h2 className="flex items-center gap-2.5 text-xl font-semibold">
-            <span className="editor-head-icon editor-head-icon-lg">
-              <Icon d={I.edit} size={17} />
-            </span>
-            {item ? "تعديل رد" : "رد جديد"}
-          </h2>
-          <button type="button" aria-label="قفل" data-tip="قفل" data-tip-pos="below" onClick={attemptClose} className="lux-btn lux-row rounded-[var(--radius)] p-2 text-[var(--dim)] hover:text-[var(--text)]">
-            <Icon d={I.x} size={18} />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
-          {/* A new reply starts blank — title, trigger, body. No
-              invented drafts. */}
-          {!item && (draftSaved || draft) && (
-            <p className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[var(--dim)]" aria-live="polite">
-              <Icon d={I.circleCheck} size={14} />
-              {draft && !draftSaved
-                ? "كمّلنا من مسودة محفوظة تلقائياً على جهازك"
-                : "المسودة بتتحفظ تلقائياً على جهازك وانت بتكتب"}
-            </p>
-          )}
-
-          <div className="mt-5">
-            {sectionHead(I.file, "الرد")}
-            <div className="mt-3 flex flex-col gap-3">
-              <label className="block" data-tip="اسم يوصف الرد عشان تلاقيه بسرعة">
-                {labelWithIcon(I.edit, "اسم الرد")}
-                <input
-                  {...FIELDS.createShortcut.title}
-                  aria-label="اسم الرد"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="مثال: خطوات الدفع — فوري"
-                  className={field}
-                />
-              </label>
-              {/* The trigger sits directly under the title — the
-                  reply's name, then its shortcut, then its text. */}
-              <div className="block">
-                {labelWithIcon(I.zap, "الاختصار داخل الموقع (اختياري)")}
-                <input
-                  aria-label="الاختصار داخل الموقع"
-                  dir="auto"
-                  value={trigger}
-                  onChange={(e) => setTrigger(e.target.value)}
-                  placeholder="اكتب أي نص…"
-                  className={`${field} text-start`}
-                />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
-                </span>
-                {triggerError(trigger, takenTriggers) && (
-                  <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
-                    {triggerError(trigger, takenTriggers)}
-                  </span>
-                )}
-                {triggerSuggestions.length > 0 && (
-                  <span className="mt-2 block">
-                    <span className="mb-1 block text-[11.5px] font-bold text-[var(--faint)]">
-                      اقتراحات جاهزة — دوس على أي واحدة:
-                    </span>
-                    <span className="flex flex-wrap gap-1.5">
-                      {triggerSuggestions.map((sug) => (
-                        <button
-                          key={sug}
-                          type="button"
-                          onClick={() => setTrigger(sug)}
-                          className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
-                        >
-                          <span dir="auto">{sug}</span>
-                        </button>
-                      ))}
-                    </span>
-                  </span>
-                )}
-              </div>
-              <div data-tip="نص الرد الكامل — نسّقه من شريط الأدوات اللي فوق">
-                <span className="mb-1.5 flex items-center gap-2 text-sm font-bold">
-                  <span className="editor-label-icon">
-                    <Icon d={NotebookPen} size={14} />
-                  </span>
-                  نص الرد
-                </span>
-                <RichTextEditor value={body} onChange={setBody} />
-                {extractVariables(body).length > 0 && (
-                  <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[var(--dim)]">
-                    <span className="editor-label-icon">
-                      <Icon d={I.braces} size={14} />
-                    </span>
-                    متغيرات هتتملى وقت النسخ:
-                    {extractVariables(body).map((v) => (
-                      <span key={v} className="rounded-full bg-[var(--gold-soft)] px-2 py-0.5 font-bold text-[var(--gold-bright)]">
-                        {v}
-                      </span>
-                    ))}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* الوسائط: صورة أو فيديو مرفقين بالرد — بيتنسخوا مع النص
-              (الصورة في نفس النسخة، والفيديو بينزل مع النسخ).
-              الإرفاق والمسح mutations مستقلة — مش جزء من حفظ
-              الرد ولا المسودة ولا الحفظ التلقائي. */}
-          <div className="mt-6">
-            {sectionHead(I.image, "الوسائط")}
-            <div className="mt-3 flex flex-col gap-3">
-              {!item ? (
-                <p className="text-[13px] leading-relaxed text-[var(--dim)]">
-                  احفظ الرد الأول، وبعدين تقدر تضيف صورة أو فيديو من هنا — الوسائط بتتربط بالرد بعد ما يتحفظ.
-                </p>
-              ) : mediaStorageDown ? (
-                <p role="alert" className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-3.5 py-3 text-[13px] font-bold leading-relaxed text-[var(--dim)]">
-                  التخزين مش متظبط على السيرفر — الصور والفيديو مش متاحين دلوقتي
-                </p>
-              ) : media ? (
-                <>
-                  <ReplyMediaBlock media={media} title={title || item.title} />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={mediaUploading || mediaRemoving}
-                      onClick={() => imageInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
-                    >
-                      <Icon d={I.image} size={15} />
-                      استبدال بصورة
-                    </button>
-                    <button
-                      type="button"
-                      disabled={mediaUploading || mediaRemoving}
-                      onClick={() => videoInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
-                    >
-                      <Icon d={I.play} size={15} />
-                      استبدال بفيديو
-                    </button>
-                    <button
-                      type="button"
-                      disabled={mediaUploading || mediaRemoving}
-                      onClick={() => {
-                        if (confirmRemoveMedia) void removeMediaFile();
-                        else {
-                          setConfirmRemoveMedia(true);
-                          window.setTimeout(() => setConfirmRemoveMedia(false), 3000);
-                        }
-                      }}
-                      className={`lux-btn flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold disabled:opacity-60 ${confirmRemoveMedia ? "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--danger)]"}`}
-                    >
-                      <Icon d={I.trash} size={15} />
-                      {mediaRemoving ? "بيتمسح…" : confirmRemoveMedia ? "متأكد؟ الملف هيتمسح من التخزين" : "مسح الوسائط"}
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={mediaUploading}
-                      onClick={() => imageInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
-                    >
-                      <Icon d={I.image} size={15} />
-                      أضف صورة
-                    </button>
-                    <button
-                      type="button"
-                      disabled={mediaUploading}
-                      onClick={() => videoInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
-                    >
-                      <Icon d={I.play} size={15} />
-                      أضف فيديو
-                    </button>
-                  </div>
-                  <p className="text-xs leading-relaxed text-[var(--dim)]">
-                    صورة JPG أو PNG أو WebP لحد 8 ميجا (بتتصغّر لـ 1600px قبل الرفع) — فيديو MP4 أو WebM لحد 50 ميجا و5 دقايق. الـ GIF والـ MOV مش مدعومين دلوقتي. الصورة بتتنسخ مع النص في نسخة واحدة، والفيديو بينزل على جهازك مع النسخ.
-                  </p>
-                </>
-              )}
-              {mediaUploading && (
-                <div className="flex items-center gap-2" aria-live="polite">
-                  <span className="spinner shrink-0" aria-hidden="true" />
-                  <span className="text-[13px] font-bold text-[var(--dim)]">
-                    بيرفع… {mediaProgress}%
-                  </span>
-                  <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-alt)]">
-                    <span
-                      className="block h-full rounded-full bg-[var(--accent)] transition-[width]"
-                      style={{ width: `${mediaProgress}%` }}
-                    />
-                  </span>
-                </div>
-              )}
-              {mediaError && (
-                <p role="alert" className="text-xs font-bold leading-relaxed text-[var(--danger)]">
-                  {mediaError}
-                </p>
-              )}
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                aria-label="اختيار صورة"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) void uploadMediaFile(f, "image");
-                }}
-              />
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/mp4,video/webm"
-                className="hidden"
-                aria-label="اختيار فيديو"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) void uploadMediaFile(f, "video");
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="mt-6">
-            {sectionHead(I.search, "التنظيم والبحث")}
-            <div className="mt-3 flex flex-col gap-3">
-              <div>
-                {labelWithIcon(I.folder, "المجلد")}
-                <FolderPicker
-                  folders={folders}
-                  counts={folderCounts}
-                  value={folderId}
-                  onChange={setFolderId}
-                />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  الرد هيظهر جوه المجلد ده في مكتبتك — اختار مكانه المناسب من كل مجلداتك.
-                </span>
-              </div>
-              <label className="block" data-tip="كلمات بتساعد البحث يلاقي الرد حتى لو مش في اسمه — افصل بينها بفاصلة">
-                {labelWithIcon(Tag, "كلمات مفتاحية (اختياري)")}
-                <input
-                  {...FIELDS.createShortcut.tags}
-                  aria-label="الكلمات المفتاحية"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  placeholder="مثال: فوري، كود الدفع، تفعيل"
-                  className={field}
-                />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  البحث بيدوّر في الكلمات دي كمان — اكتب الكلمات اللي ممكن تدوّر بيها على الرد ده.
-                </span>
-              </label>
-              <div className="block" data-tip="المكان اللي الرد ده جاي منه أصلاً">
-                {labelWithIcon(Globe, "المصدر (اختياري)")}
-                {/* The source is picked from the branded menu —
-                    every source with its REAL logo beside its name
-                    (the same FolderSourceControl the folders use),
-                    never a plain-text native select. */}
-                <FolderSourceControl
-                  value={source}
-                  onPick={setSource}
-                  lang="ar"
-                  variant="field"
-                  ariaLabel="مصدر الرد"
-                  menuLabel="اختيار مصدر الرد"
-                  tip="المكان اللي الرد ده جاي منه أصلاً"
-                  note={null}
-                  dropUp={false}
-                />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  اختار المكان اللي الرد ده جاي منه — بيتحفظ مع الرد وبيظهر لك كل ما تفتحه للتعديل.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* «ملاحظة: اختصار خارجي» — a reminder-only note, one
-              muted line at the bottom. The field and its data are
-              untouched (preserved in backup/export/import); only
-              its placement changed. */}
-          <label className="mt-6 flex items-center gap-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--dim)]">
-            <span className="shrink-0 font-bold">ملاحظة: اختصار خارجي</span>
-            <input
-              {...FIELDS.createShortcut.extShortcut}
-              aria-label="ملاحظة: اختصار خارجي"
-              dir="ltr"
-              value={extShortcut}
-              onChange={(e) => setExtShortcut(e.target.value)}
-              placeholder=";salam"
-              className="min-w-0 flex-1 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-1.5 font-mono text-xs text-[var(--dim)] outline-none focus:border-[var(--accent)]"
-            />
-          </label>
-
-          {error && (
-            <p role="alert" className="mt-4 rounded-[var(--radius)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">
-              {error}
-            </p>
-          )}
-          {confirmDiscard && (
-            <div ref={discardRef} role="alert" className="animate-rise mt-4 rounded-[var(--radius)] bg-[var(--warning-soft)] px-3.5 py-3">
-              <p className="text-sm font-bold">عندك تعديلات لسه ما اتحفظتش في المكتبة</p>
-              <p className="mt-0.5 text-[13px] font-medium text-[var(--dim)]">لو قفلت دلوقتي التعديلات دي هتضيع. تقفل من غير حفظ؟</p>
-              <div className="mt-2.5 flex gap-2">
-                <button
-                  type="button"
-                  aria-label="تجاهل التعديلات وقفل المحرر"
-                  data-tip="قفل وخسارة التعديلات غير المحفوظة"
-                  onClick={discardAndClose}
-                  className="lux-btn rounded-[var(--radius)] bg-[var(--danger)] px-4 py-2 text-[13px] font-bold text-white"
-                >
-                  تجاهل التعديلات وقفل
-                </button>
-                <button
-                  type="button"
-                  aria-label="كمّل تحرير"
-                  data-tip="رجوع للمحرر وكمل شغلك"
-                  onClick={() => setConfirmDiscard(false)}
-                  className="lux-btn lux-row rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[13px] font-bold hover:border-[var(--border-strong)]"
-                >
-                  كمّل تحرير
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="border-t border-[var(--border)] px-5 py-3.5">
-          {item && (
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--dim)]" aria-live="polite">
-              {(titleError ?? bodyError) ? (
-                <span className="text-[var(--warning)]">{titleError ?? bodyError}</span>
-              ) : saveState === "saving" || autosaveMut.isPending ? (
-                <>
-                  <span className="spinner" aria-hidden="true" />
-                  بيتحفظ تلقائياً…
-                </>
-              ) : saveState === "saved" ? (
-                <>
-                  <Icon d={I.circleCheck} size={14} />
-                  اتحفظ تلقائياً{savedAt ? ` · ${savedAt}` : ""} — تعديلاتك في المكتبة خلاص
-                </>
-              ) : saveState === "error" ? (
-                <span className="text-[var(--danger)]">الحفظ التلقائي متمّش — دوس «حفظ» أو ما تقفلش لحد ما يتحفظ</span>
-              ) : dirty ? (
-                <>فيه تعديلات لسه ما اتحفظتش — هتتحفظ تلقائياً وانت واقف</>
-              ) : (
-                <>
-                  <Icon d={I.circleCheck} size={14} />
-                  كل التعديلات محفوظة في المكتبة
-                </>
-              )}
-            </p>
-          )}
-          <div className="flex gap-2">
-          <button
-            type="button"
-            aria-label="حفظ الرد" data-tip="حفظ الرد في مكتبتك"
-            onClick={submit}
-            disabled={saveMut.isPending}
-            className="lux-btn flex flex-1 items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--accent)] py-3 font-semibold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] hover:text-[var(--bg)] disabled:opacity-60"
-          >
-            <Icon d={I.check} size={18} />
-            {saveMut.isPending ? "بيتحفظ…" : "حفظ"}
-          </button>
-          <button
-            type="button"
-            aria-label="إلغاء"
-            data-tip="إلغاء والرجوع من غير حفظ"
-            data-tip-align="end"
-            onClick={attemptClose}
-            className="lux-btn lux-row flex items-center justify-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-5 py-3 font-bold hover:border-[var(--border-strong)]"
-          >
-            <Icon d={I.x} size={17} />
-            إلغاء
-          </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ---------- bulk import modal ---------- */
 type BulkItem = { title: string; body: string; category: string };

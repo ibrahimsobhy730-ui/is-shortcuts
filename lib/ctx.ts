@@ -16,7 +16,8 @@ export { z };
      by the avatar_blobs table (same keys as before: `avatars/<userId>`).
      `invalidateQueries()` only sets a flag: the /api/actions route
      reads it and tells the client to refetch (the SDK did the same
-     over its own bridge). */
+     over its own bridge). `invalidateKeys(...keys)` records instead
+     the exact query keys to refetch — see Ctx below. */
 
 export interface ActionDefinition<
   Req extends z.ZodTypeAny = z.ZodTypeAny,
@@ -58,8 +59,19 @@ export interface Ctx {
   db<S extends Record<string, unknown>>(): NodePgDatabase<S>;
   blobs: BlobStore;
   invalidateQueries(): void;
+  /** Targeted invalidation (خفيف 2026-11-26): records the query-key
+      prefixes the client should refetch (e.g. "shortcuts"), so a
+      mutation does not force a refetch of me + folders + smart
+      folders too. The /api/actions route returns these keys and
+      the client invalidates exactly them. Calling
+      invalidateQueries() means "everything" (invalidatedKeys
+      stays null) — kept for auth/account/import actions whose
+      affected surface is broad. */
+  invalidateKeys(...keys: string[]): void;
   /** True when any handler in this request called invalidateQueries(). */
   readonly invalidated: boolean;
+  /** Key prefixes to refetch, or null when the whole cache must go. */
+  readonly invalidatedKeys: string[] | null;
 }
 
 function createBlobStore(db: NodePgDatabase<typeof schema>): BlobStore {
@@ -116,6 +128,7 @@ function createBlobStore(db: NodePgDatabase<typeof schema>): BlobStore {
 export function createCtx(): Ctx {
   const db = getDb();
   let invalidated = false;
+  let invalidatedKeys: string[] | null = null;
   return {
     db<S extends Record<string, unknown>>(): NodePgDatabase<S> {
       return db as unknown as NodePgDatabase<S>;
@@ -124,8 +137,18 @@ export function createCtx(): Ctx {
     invalidateQueries(): void {
       invalidated = true;
     },
+    invalidateKeys(...keys: string[]): void {
+      invalidated = true;
+      if (invalidatedKeys === null) invalidatedKeys = [];
+      for (const k of keys) {
+        if (!invalidatedKeys.includes(k)) invalidatedKeys.push(k);
+      }
+    },
     get invalidated(): boolean {
       return invalidated;
+    },
+    get invalidatedKeys(): string[] | null {
+      return invalidatedKeys;
     },
   };
 }

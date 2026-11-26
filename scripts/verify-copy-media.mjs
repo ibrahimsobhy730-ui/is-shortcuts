@@ -12,6 +12,9 @@ import {
   mediaFileName,
   copyButtonLabels,
   COPY_FILL_NOTE,
+  COPY_FAILED_TEXT,
+  copyOutcome,
+  copySuccessToast,
   videoCopyToast,
   imageFallbackToast,
   formatMediaSize,
@@ -126,6 +129,47 @@ try {
     "imageFallbackToast",
     toastImg.text === "اتنسخ النص بس — الصورة ما اتنسختش، نزّلها من التفاصيل" && toastImg.kind === "error",
     toastImg.text,
+  );
+
+  // ---- copyOutcome: the zero-error decision table (2026-11-26).
+  // Every combination of step results, for every plan. The rule
+  // under test: the image must land WITH the text for a full
+  // success; any failure shows a real error, never a fake
+  // success; a failed text write records no use and (for video)
+  // starts no download.
+  const steps = (combinedOk, textOk, download) => ({ combinedOk, textOk, download });
+  const pText = planCopy(null, "تيست");
+  const pImg2 = planCopy(IMG, "تيست");
+  const pVid2 = planCopy(VID, "تيست");
+  check("copySuccessToast", copySuccessToast("تيست").text === "اتنسخ «تيست» — الصقه في أي شات" && copySuccessToast("تيست").kind === "ok");
+  check("COPY_FAILED_TEXT", COPY_FAILED_TEXT === "النسخ متعذر هنا");
+  let o = copyOutcome(pText, steps(false, true, "pending"), "تيست");
+  check("outcome text ok", o.button === "copied" && o.toast?.kind === "ok" && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(pText, steps(false, false, "pending"), "تيست");
+  check("outcome text failed: no success, no use", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.toast?.kind === "error" && o.recordUse === false, JSON.stringify(o));
+  o = copyOutcome(pImg2, steps(true, false, "pending"), "تيست");
+  check("outcome image combined ok = full success", o.button === "copied" && o.toast?.kind === "ok" && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(pImg2, steps(true, true, "pending"), "تيست");
+  check("outcome image combined wins over text fallback", o.button === "copied" && o.toast?.kind === "ok" && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(pImg2, steps(false, true, "pending"), "تيست");
+  check(
+    "outcome image convert/write failed + text ok = text-only + honest error toast, use recorded",
+    o.button === "copied" && o.toast?.kind === "error" && o.toast?.text === imageFallbackToast().text && o.recordUse === true,
+    JSON.stringify(o),
+  );
+  o = copyOutcome(pImg2, steps(false, false, "pending"), "تيست");
+  check("outcome image + text both failed = failed, no use", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.recordUse === false, JSON.stringify(o));
+  o = copyOutcome(pVid2, steps(false, false, "pending"), "تيست");
+  check("outcome video text failed = failed, no use, no download", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.recordUse === false, JSON.stringify(o));
+  o = copyOutcome(pVid2, steps(false, true, "pending"), "تيست");
+  check("outcome video text ok + download pending = copied, NO toast yet, use recorded", o.button === "copied" && o.toast === null && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(pVid2, steps(false, true, true), "تيست");
+  check("outcome video download settled ok", o.button === "copied" && o.toast?.kind === "ok" && o.toast?.text === videoCopyToast("تيست", true).text && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(pVid2, steps(false, true, false), "تيست");
+  check(
+    "outcome video download failed = copied text + error toast, use recorded",
+    o.button === "copied" && o.toast?.kind === "error" && o.toast?.text === videoCopyToast("تيست", false).text && o.recordUse === true,
+    JSON.stringify(o),
   );
 
   // ---- formatting.

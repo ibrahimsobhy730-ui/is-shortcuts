@@ -307,14 +307,8 @@
 /* ============================================================
    ألوان التمييز الستة — يختارها المستخدم، × وضعان
    ============================================================ */
-:root[data-accent="royal"], :root[data-theme="light"][data-accent="royal"] {
-  --accent: oklch(0.52 0.185 262); --accent-strong: oklch(0.44 0.17 264);
-  --accent-soft: oklch(0.925 0.045 256); --accent-ink: oklch(1 0 0);
-}
-:root[data-theme="dark"][data-accent="royal"] {
-  --accent: oklch(0.74 0.135 256); --accent-strong: oklch(0.83 0.095 252);
-  --accent-soft: oklch(0.74 0.135 256 / 0.16); --accent-ink: oklch(0.13 0.03 258);
-}
+
+
 :root[data-accent="sky"], :root[data-theme="light"][data-accent="sky"] {
   --accent: oklch(0.57 0.15 232); --accent-strong: oklch(0.47 0.135 236);
   --accent-soft: oklch(0.935 0.04 228); --accent-ink: oklch(1 0 0);
@@ -404,10 +398,7 @@
   --accent-soft: oklch(0.74 0.135 45 / 0.15); --accent-ink: oklch(0.15 0.04 42);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"])[data-accent="royal"] {
-    --accent: oklch(0.74 0.135 256); --accent-strong: oklch(0.83 0.095 252);
-    --accent-soft: oklch(0.74 0.135 256 / 0.16); --accent-ink: oklch(0.13 0.03 258);
-  }
+  
   :root:not([data-theme="light"])[data-accent="sky"] {
     --accent: oklch(0.76 0.13 226); --accent-strong: oklch(0.85 0.09 224);
     --accent-soft: oklch(0.76 0.13 226 / 0.16); --accent-ink: oklch(0.15 0.04 230);
@@ -492,7 +483,7 @@
    الأساس: الخط والإيقاع والتركيز
    ============================================================ */
 body {
-  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-amiri), "Amiri", system-ui, sans-serif;
   font-size: var(--fs-body);
   line-height: 1.7;
   font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
@@ -500,24 +491,21 @@ body {
   text-rendering: optimizeLegibility;
 }
 h1, h2, h3, .font-display, .folder-bar-title {
-  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-amiri), "Amiri", system-ui, sans-serif;
   letter-spacing: 0;
 }
-.verse { font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif; }
+.verse { font-family: var(--font-amiri), "Amiri", system-ui, sans-serif; }
 svg.lucide { stroke-width: 1.75; }
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-::selection {
-  background: color-mix(in srgb, var(--accent) 26%, transparent);
-  color: var(--ink);
-}
+
 [class*="count"], .folder-bar-count, .pill-btn, .seg-btn {
   font-variant-numeric: tabular-nums;
 }
 .lux-card p { text-wrap: pretty; }
-* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong)) transparent; }
+
 *::-webkit-scrollbar { width: 6px; height: 6px; }
 *::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 35%, var(--border-strong)); border-radius: 99px; }
 *::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 60%, var(--border-strong)); }
@@ -580,30 +568,15 @@ select:not(:focus-visible) {
     radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 65%),
     radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.08), transparent 65%);
   filter: blur(30px);
-  animation: neb-drift 38s ease-in-out infinite alternate;
+  /* خفيف (2026-11-26): انجراف neb-drift اللانهائي أُزيل — التدرج
+     الساكن هو نفسه شكل الراحة تمامًا، بلا تركيب مستمر لملء الشاشة. */
 }
-:root[data-theme="dark"] .app-shell::before {
-  background:
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.12), transparent 65%);
-}
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .app-shell::before {
-    background:
-      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 65%),
-      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 18%, transparent), transparent 65%),
-      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 65%),
-      radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.12), transparent 65%);
-  }
+  
 }
 /* نمط الشبكة (المربعات) أُزيل نهائيًا بطلب المالك (v84): الأرض
    ضوء سديمي ناعم فقط — لا خطوط، لا مربعات، لا نسيج هندسي. */
-@keyframes neb-drift {
-  from { transform: translate3d(-1.6%, -1%, 0) scale(1); }
-  to { transform: translate3d(1.6%, 1.6%, 0) scale(1.07); }
-}
 
 /* الشعار العاري: ظل يتبع حروف IS نفسها (مفرّغ كما اختار
    المالك) — لا بلاطة ولا إطار ولا حلقة أبدًا. */
@@ -1135,13 +1108,7 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
   color: var(--success-ink);
 }
 /* أي زر رئيسي آخر بملء التمييز المسطح يرث التدرّج والتوهّج */
-button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"] {
-  background-image: var(--grad);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.26),
-    0 14px 30px -10px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 4px 12px -4px color-mix(in srgb, var(--accent) 35%, transparent);
-}
+
 @media (hover: hover) {
   button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"]:hover { filter: brightness(1.07); }
 }
@@ -1280,6 +1247,39 @@ button[class*="bg-[var(--accent-soft)]"] {
   }
 }
 .card-menu-btn { display: none; }
+/* مجموعة إجراءات الإدارة (2026-11-26): التثبيت والتعديل
+   والحذف جنب بعض في حبّة واحدة مقسّمة — ثلاثة أقسام متساوية
+   بفواصل 1px ونفس المقاس والنمط، فالعين بتقراهم مجموعة واحدة
+   مش ثلاث أيقونات متبعثرة. النجمة (مفضّلة) بتفضل برّه
+   المجموعة لأنها حالة مش إجراء إدارة؛ المعاينة والتكرار
+   بيفضلوا في قائمة «⋯». الحالة النشطة (مثبّت) والتأكيد
+   (متأكد؟) بيتظبطوا من هنا، مش من كلاسات الطلب — عشان
+   تنسيق المجموعة يفضل واحد في البطاقة ولوحة التفاصيل. */
+.card-action-group {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+.card-action-group > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  min-height: 34px;
+  padding: 6px 10px;
+  color: var(--dim);
+  transition: background-color 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card-action-group > button + button { border-inline-start: 1px solid var(--border); }
+.card-action-group > button:hover { background: var(--surface); color: var(--text); }
+.card-action-group > button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.card-action-group > button.card-action-danger:hover { background: var(--danger-soft); color: var(--danger); }
+.card-action-group > button.card-action-danger-confirm { background: var(--danger-soft); color: var(--danger); font-weight: 700; }
 @media (hover: none), (pointer: coarse) {
   .card-menu-btn { display: inline-flex; }
 }
@@ -1668,12 +1668,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 @media (min-width: 1024px) { .bottom-nav { display: none; } }
 
 /* الصورة الشخصية: حلقة دقيقة بتدرّج التمييز */
-.avatar-face {
-  box-shadow:
-    0 0 0 2px var(--surface),
-    0 0 0 3.5px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 8px 16px -6px color-mix(in srgb, var(--accent) 45%, transparent);
-}
+
 
 /* التوست وشريط الإجراءات الجماعية ولوحة التفاصيل */
 .toast-card {
@@ -1802,7 +1797,8 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
     radial-gradient(720px 540px at 50% 108%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
     radial-gradient(480px 380px at 92% 88%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
   filter: blur(30px);
-  animation: neb-drift 34s ease-in-out infinite alternate;
+  /* خفيف (2026-11-26): انجراف neb-drift اللانهائي أُزيل — التدرج
+     الساكن هو نفسه شكل الراحة تمامًا. */
   pointer-events: none;
 }
 /* شبكة صفحة الدخول أُزيلت أيضًا (v84) — المشهد سديم وضوء فقط. */
@@ -1886,14 +1882,10 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   box-shadow: none;
   transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.auth-input:focus {
-  background: var(--surface-elevated);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.auth-field-icon { transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1); }
-label:focus-within .auth-field-icon { color: var(--accent); }
-.auth-submit { border-radius: 16px; letter-spacing: 0.01em; }
+
+
+
+
 .auth-features {
   display: flex;
   align-items: flex-start;
@@ -2072,9 +2064,7 @@ label:focus-within .auth-field-icon { color: var(--accent); }
   box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border);
   transition: inset-inline-start 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1);
 }
-.pv-chip {
-  transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
+
 .pv-chip[data-on="true"] {
   background: var(--grad);
   color: var(--on-grad);
@@ -2180,31 +2170,13 @@ label:focus-within .auth-field-icon { color: var(--accent); }
 :root[data-accent="orange"] { --grad-end: oklch(0.72 0.13 55); }
 
 /* السديم أهدأ نهارًا (أرقى = أخفت)، وأنقى قليلًا ليلًا */
-.app-shell::before {
-  background:
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.05), transparent 65%);
-}
-:root[data-theme="dark"] .app-shell::before {
-  background:
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
-}
+
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .app-shell::before {
-    background:
-      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
-      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
-      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
-      radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
-  }
+  
 }
 /* لمعة حدّ علوية على الكبسولة العلوية واللوح الجانبي */
-.float-header { box-shadow: var(--shadow-2), inset 0 1px 0 var(--glass-line); }
+
 .modern-sidebar {
   border-radius: 28px;
   box-shadow: var(--shadow-3), inset 0 1px 0 var(--glass-line);
@@ -2283,19 +2255,8 @@ label:focus-within .auth-field-icon { color: var(--accent); }
 .drawer-nav [data-tree-row]:active .tree-icon { transform: scale(0.93); }
 /* الصف النشط: بلاطته تمتلئ بالتدرّج الحيّ وأيقونته تقفز
    مرة واحدة عند التفعيل، وملؤه أهدأ من قبل */
-.nav-item-active {
-  background: linear-gradient(120deg, var(--accent-soft), color-mix(in srgb, var(--accent) 7%, var(--surface)));
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent),
-    0 10px 22px -12px color-mix(in srgb, var(--accent) 42%, transparent);
-}
-.nav-item-active .tree-icon {
-  background: var(--grad);
-  color: var(--on-grad);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.25),
-    0 10px 20px -10px color-mix(in srgb, var(--accent) 65%, transparent);
-}
+
+
 @media (prefers-reduced-motion: no-preference) {
   .nav-item-active .tree-icon > svg { animation: neb-icon-in 420ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
 }
@@ -2339,12 +2300,7 @@ label:focus-within .auth-field-icon { color: var(--accent); }
 }
 /* قسم المصادر: بطاقة هادئة بحدّ واحد نظيف بدل الإطار
    المتدرج الصارخ — تبقى مميزة بعلامتها وبلاطتها */
-.tree-node-sources > [data-tree-row] {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-line);
-}
+
 
 /* ============================================================
    حركة الأيقونات في كل الموقع: زنبرك واحد نظيف
@@ -3136,7 +3092,8 @@ label:focus-within .auth-field-icon {
     radial-gradient(820px 560px at 14% -6%, color-mix(in srgb, var(--accent) 17%, transparent), transparent 62%),
     radial-gradient(760px 560px at 98% 104%, color-mix(in srgb, var(--cyan) 13%, transparent), transparent 65%),
     radial-gradient(520px 380px at 88% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%);
-  animation: neb-drift 52s ease-in-out infinite alternate;
+  /* خفيف (2026-11-26): انجراف neb-drift اللانهائي أُزيل — التدرج
+     الساكن هو نفسه شكل الراحة تمامًا. */
 }
 
 /* ---- لوحة العلامة: حبر أعمق وطبقات ضوء مصنوعة ---- */
@@ -3307,12 +3264,7 @@ label:focus-within .auth-field-icon {
   --grad-brand: linear-gradient(120deg, oklch(0.58 0.16 260) 0%, oklch(0.72 0.14 256) 48%, oklch(0.78 0.11 224) 128%);
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --brand: oklch(0.74 0.135 256);
-    --brand-strong: oklch(0.84 0.09 252);
-    --brand-ink: oklch(0.12 0.03 258);
-    --grad-brand: linear-gradient(120deg, oklch(0.58 0.16 260) 0%, oklch(0.72 0.14 256) 48%, oklch(0.78 0.11 224) 128%);
-  }
+  
 }
 
 /* ---- الأزرار الأساسية: أزرق الهوية دائمًا ---- */
@@ -3558,28 +3510,10 @@ summary svg.lucide {
 }
 /* غسلة السديم البنفسجية الثابتة في أرض الموقع تصبح من عائلة
    لون التمييز أيضًا — لا لون غريب عن المختار في أي مكان */
-.app-shell::before {
-  background:
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 65%);
-}
-:root[data-theme="dark"] .app-shell::before {
-  background:
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%);
-}
+
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .app-shell::before {
-    background:
-      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 65%),
-      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
-      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
-      radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 65%);
-  }
+  
 }
 
 /* ---- ٤) العلامة المائية: اسم المالك على صفحة الدخول فقط ----
@@ -3593,7 +3527,7 @@ summary svg.lucide {
   bottom: 3.5vh;
   z-index: 0;
   text-align: center;
-  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-amiri), "Amiri", system-ui, sans-serif;
   font-weight: 700;
   font-size: clamp(42px, 8.5vw, 118px);
   line-height: 1.02;
@@ -3666,18 +3600,8 @@ summary svg.lucide {
 }
 
 /* ---- عمق واحد فاخر لكل الأسطح العائمة ---- */
-.float-header {
-  box-shadow:
-    var(--shadow-3),
-    inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, var(--glass-line)),
-    0 24px 44px -24px color-mix(in srgb, var(--accent) 30%, transparent);
-}
-.modern-sidebar {
-  box-shadow:
-    var(--shadow-3),
-    inset 0 1px 0 color-mix(in srgb, var(--accent) 20%, var(--glass-line)),
-    0 28px 52px -26px color-mix(in srgb, var(--accent) 32%, transparent);
-}
+
+
 .drawer-nav {
   box-shadow:
     var(--shadow-4),
@@ -3689,12 +3613,7 @@ summary svg.lucide {
     inset 0 1px 0 var(--glass-line),
     0 34px 70px -30px color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.details-panel {
-  box-shadow:
-    var(--shadow-4),
-    inset 0 1px 0 color-mix(in srgb, var(--accent) 26%, var(--glass-line)),
-    0 30px 60px -28px color-mix(in srgb, var(--accent) 32%, transparent);
-}
+
 .toast-card {
   box-shadow:
     var(--shadow-4),
@@ -3709,12 +3628,7 @@ summary svg.lucide {
     inset -3px 0 0 color-mix(in srgb, var(--accent) 75%, transparent),
     0 22px 44px -20px color-mix(in srgb, var(--accent) 38%, transparent);
 }
-.bulk-dock {
-  box-shadow:
-    var(--shadow-4),
-    inset 0 1px 0 var(--glass-line),
-    0 24px 48px -22px color-mix(in srgb, var(--accent) 36%, transparent);
-}
+
 
 /* ---- الهيرو: حافة متدرجة حيّة تتنفس ببطء + توهّج أعمق ---- */
 .verse-hero {
@@ -3792,12 +3706,7 @@ summary svg.lucide {
     var(--shadow-1),
     0 6px 16px -8px color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.modern-switcher {
-  box-shadow:
-    var(--shadow-2),
-    inset 0 1px 0 var(--glass-line),
-    0 16px 34px -18px color-mix(in srgb, var(--accent) 30%, transparent);
-}
+
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .pill-btn { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1); }
   .pill-btn:hover { transform: translateY(-1px); }
@@ -3805,11 +3714,7 @@ summary svg.lucide {
 }
 
 /* ---- رأس المجلد في المحتوى: بلاطته تلمع بحلقة متدرجة ---- */
-.folder-bar-icon {
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--accent)) 26%, transparent),
-    0 10px 22px -12px color-mix(in srgb, var(--fhue, var(--accent)) 55%, transparent);
-}
+
 .icon-tile {
   background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 13%, transparent), color-mix(in srgb, var(--grad-end, var(--cyan)) 8%, transparent));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
@@ -3855,31 +3760,10 @@ summary svg.lucide {
 .pattern-star { background-image: none; }
 
 /* ---- الأرض السديمية أغنى: بركة ضوء علوية وحضور أعمق ---- */
-.app-shell::before {
-  background:
-    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.09), transparent 65%);
-}
-:root[data-theme="dark"] .app-shell::before {
-  background:
-    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.13), transparent 65%);
-}
+
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .app-shell::before {
-    background:
-      radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
-      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
-      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
-      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
-      radial-gradient(520px 420px at 6% 94%, oklch(0.62 0.14 300 / 0.13), transparent 65%);
-  }
+  
 }
 
 /* ---- سلّم ظلال أعمق وأفخم لكل ما يستخدم التوكنز ---- */
@@ -3944,25 +3828,10 @@ summary svg.lucide {
 
 /* ---- الشعار المعدني المستعاد: ظل ياقوتي يتبع الحروف + هالة
    ضوئية خفيفة خلفه، فيقرأ كقطعة معدن مصقولة لا كصورة مسطّحة ---- */
-.logo-modern {
-  filter:
-    drop-shadow(0 14px 26px oklch(0.32 0.13 262 / 0.38))
-    drop-shadow(0 3px 7px oklch(0.32 0.13 262 / 0.24))
-    drop-shadow(0 0 22px oklch(0.62 0.13 250 / 0.20));
-}
-:root[data-theme="dark"] .logo-modern {
-  filter:
-    drop-shadow(0 14px 28px oklch(0 0 0 / 0.55))
-    drop-shadow(0 3px 8px oklch(0 0 0 / 0.4))
-    drop-shadow(0 0 26px oklch(0.68 0.13 245 / 0.30));
-}
+
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .logo-modern {
-    filter:
-      drop-shadow(0 14px 28px oklch(0 0 0 / 0.55))
-      drop-shadow(0 3px 8px oklch(0 0 0 / 0.4))
-      drop-shadow(0 0 26px oklch(0.68 0.13 245 / 0.30));
-  }
+  
 }
 
 /* ---- الأسطح العائمة: خط ضوء علوي أصفى وظلّ ملوّن أعمق ---- */
@@ -3991,12 +3860,7 @@ summary svg.lucide {
     inset 0 1px 0 color-mix(in srgb, var(--accent) 32%, var(--glass-line)),
     0 36px 68px -30px color-mix(in srgb, var(--accent) 38%, transparent);
 }
-.bulk-dock {
-  box-shadow:
-    var(--shadow-4),
-    inset 0 1px 0 color-mix(in srgb, var(--accent) 26%, var(--glass-line)),
-    0 26px 50px -22px color-mix(in srgb, var(--accent) 40%, transparent);
-}
+
 .bottom-nav {
   box-shadow:
     var(--shadow-3),
@@ -4125,31 +3989,10 @@ summary svg.lucide {
 /* ---- السديم: آخر بقعة لون ثابتة (الغسلة البنفسجية في
    الركن) صارت من عائلة لون التمييز نفسه — لا لون غريب
    عن الاختيار في أي بقعة من الأرض ---- */
-.app-shell::before {
-  background:
-    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 13%, transparent), transparent 70%),
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 15%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 9%, transparent), transparent 65%);
-}
-:root[data-theme="dark"] .app-shell::before {
-  background:
-    radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
-    radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
-    radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
-    radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
-    radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 13%, transparent), transparent 65%);
-}
+
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .app-shell::before {
-    background:
-      radial-gradient(900px 480px at 50% -140px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
-      radial-gradient(560px 420px at 12% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 65%),
-      radial-gradient(640px 480px at 88% 2%, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 65%),
-      radial-gradient(760px 560px at 80% 98%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%),
-      radial-gradient(520px 420px at 6% 94%, color-mix(in srgb, var(--grad-end, var(--cyan)) 13%, transparent), transparent 65%);
-  }
+  
 }
 
 /* ---- تطوير ليلي: زجاج أعمق قليلًا وخط ضوء أعلى أنقى على
@@ -4923,7 +4766,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   0% { transform: translateX(-110%) skewX(-18deg); }
   100% { transform: translateX(110%) skewX(-18deg); }
 }
-@keyframes neb-trig-zap {
+@keyframes neb-trig-mark {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.75); opacity: 0.5; }
 }
@@ -4975,6 +4818,15 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 }
 /* #5 — توهّج النسخ بقى حلقة ::before (neb-ring-out فوق) بدل
    box-shadow. */
+/* حبّة الاختصار — شكل مفتاح (2026-11-26، تمييز الاختصار):
+   الحبّة مش حبّة مستديرة — هي «مفتاح»: زوايا مربّعة 8px وحافة
+   سفلية غامقة 2px (inset) زي قاعدة زر لوحة مفاتيح حقيقي.
+   لا بلاطة مجلد (مربع 36px بأيقونة بس) ولا بطاقة رد (مستطيل
+   كبير) عندها الشكل ده، فالاختصار بيتعرف من سيلويته قبل ما
+   تقرا الكلمة. العلامة جوّاه ⌘ (Command — I.shortcut)، مش
+   برق ولا أي أيقونة مجلد/رد. لون الحبّة = لون مجلد الرد زي ما
+   هو (قاعدة التماسك باللون ما اتغيرتش)، واللمعة والتوهّج
+   والنبضة زي ما هم. */
 .trig-icon {
   position: relative;
   overflow: hidden;
@@ -4982,11 +4834,11 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  border-radius: 9999px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--trig) 45%, transparent);
   background: linear-gradient(120deg, var(--trig-soft), color-mix(in srgb, var(--trig) 22%, var(--surface)));
   color: var(--trig-strong);
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 50%, transparent);
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 38%, transparent);
   cursor: pointer;
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -5049,9 +4901,9 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 :root[data-theme="dark"] .trig-hero-pill::after {
   background: linear-gradient(100deg, transparent 22%, rgb(255 255 255 / 0.95) 44%, rgb(255 255 255 / 0.95) 56%, transparent 78%);
 }
-/* نبضة البرق — في القاعدة نفسها زي التوهّج واللمعة. */
-.trig-zap {
-  animation: neb-trig-zap 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+/* نبضة العلامة — في القاعدة نفسها زي التوهّج واللمعة. */
+.trig-mark {
+  animation: neb-trig-mark 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   animation-delay: var(--trig-delay, 0s);
 }
 /* بلا اختصار بعد: هادئ وباهت، بإطار متقطع يدعو للدوس */
@@ -5066,25 +4918,11 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
    للتلميح (data-tip)، فإخفاؤه كان بيلغي تلميح «أضف اختصار». */
 .trig-icon-empty::before { display: none; }
 .trig-icon-empty .trig-sheen { display: none; }
-.trig-icon-empty .trig-zap { animation: none; }
-/* #4 (light + smooth) — حبّة برّه الشاشة بتوقف حركتها: الـ
-   IntersectionObserver في TriggerIcon بيضيف trig-paused على
-   الزرار، فالتوهّج واللمعة والبرق بيتوقفوا (animation-play-state)
-   بدل ما 88 حبّة يتحركوا طول الوقت تحت الشاشة. الـ hover/focus
-   بيشغّلهم تاني فورًا، والشكل وهو ظاهر زي ما هو بالظبط. */
-.trig-icon.trig-paused::before,
-.trig-icon.trig-paused .trig-sheen,
-.trig-icon.trig-paused .trig-zap { animation-play-state: paused; }
-.trig-icon.trig-paused:hover::before,
-.trig-icon.trig-paused:hover .trig-sheen,
-.trig-icon.trig-paused:hover .trig-zap,
-.trig-icon.trig-paused:focus-visible::before,
-.trig-icon.trig-paused:focus-visible .trig-sheen,
-.trig-icon.trig-paused:focus-visible .trig-zap { animation-play-state: running; }
+.trig-icon-empty .trig-mark { animation: none; }
 .trig-icon:hover {
   transform: translateY(-1px) scale(1.05);
   border-color: color-mix(in srgb, var(--trig) 70%, transparent);
-  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--trig) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--trig) 14%, transparent);
+  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--trig) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--trig) 14%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 38%, transparent);
 }
 .trig-icon-empty:hover { color: var(--trig-strong); }
 .trig-icon:active { transform: scale(0.95); }
@@ -5107,21 +4945,21 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   border-color: color-mix(in srgb, var(--fhue) 45%, transparent);
   background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 12%, var(--surface)));
   color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--fhue) 50%, transparent);
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--fhue) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
 }
 .trig-icon.trig-folder::before {
   background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--fhue) 70%, transparent), transparent 70%);
 }
 .trig-icon.trig-folder:hover {
   border-color: color-mix(in srgb, var(--fhue) 70%, transparent);
-  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--fhue) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--fhue) 14%, transparent);
+  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--fhue) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--fhue) 14%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
 }
 .trig-icon.trig-folder:focus-visible {
   outline-color: var(--fhue);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--fhue) 22%, transparent);
 }
 @media (prefers-reduced-motion: no-preference) {
-  /* حركة الحبّة الخاملة (اللمعة والتوهّج والبرق) عايشة في
+  /* حركة الحبّة الخاملة (اللمعة والتوهّج والعلامة) عايشة في
      القواعد الأساسية نفسها فوق، متزاحة لكل رد عبر
      --trig-delay (بيتحط من الكومبوننت)، فالـ 88 حبّة عمرها
      ما تتحرك في نفس اللحظة — هنا بس الحركات اللي بتحصل
@@ -5184,7 +5022,13 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .trig-icon::before, .trig-sheen, .trig-zap, .trig-panel { animation: none; }
+  /* قرار منتج مقصود (2026-11-26): حركة حبّة الاختصار الخاملة
+     (اللمعة .trig-sheen والتوهّج .trig-icon::before والعلامة
+     .trig-mark) مستثناة عمدًا من إيقاف reduced-motion — المالك
+     طلب صراحةً أن اللمعة تتحرك دائمًا، وهي عنصر التوقيع الوحيد
+     المستثنى؛ كل الحركات الأخرى (لقطة واحدة/تفاعلية) ما زالت
+     تتوقف هنا. اللمعة كانت تتجمد لأن هذا البلوك كان يلغي حركتها. */
+  .trig-panel { animation: none; }
   .trig-icon:hover { transform: none; }
   .trig-icon-saved, .trig-chip-active, .trig-search-pulsed, .trig-row-flash, .copy-success, .trig-input-error { animation: none; }
   /* #5 — الـ ::before البديلة للحلقات/الوميض بتتخفي خالص
@@ -5257,18 +5101,19 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   pointer-events: none;
   animation: neb-trig-sheen 5.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
-/* حبّة الاختصار داخل المعاينة — النص كما كتبه صاحبه بالظبط */
+/* حبّة الاختصار داخل المعاينة — النص كما كتبه صاحبه بالظبط.
+   نفس شكل المفتاح (زوايا 8px + حافة سفلية) زي حبّة البطاقة. */
 .trig-hero-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  border-radius: 9999px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--trig) 45%, transparent);
   background: linear-gradient(120deg, var(--trig-soft), color-mix(in srgb, var(--trig) 16%, var(--surface)));
   color: var(--trig-strong);
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 50%, transparent);
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 38%, transparent);
   padding: 4px 10px;
   font-size: 13px;
   font-weight: 800;
@@ -5298,34 +5143,36 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   border-color: color-mix(in srgb, var(--fhue) 45%, transparent);
   background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 12%, var(--surface)));
   color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--fhue) 50%, transparent);
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--fhue) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
 }
-/* شرائح الاختصارات الموجودة — تطفو وتتوهّج عند الـ hover */
+/* شرائح الاختصارات الموجودة — تطفو وتتوهّج عند الـ hover.
+   نفس شكل المفتاح (زوايا 8px + حافة سفلية) زي حبّة البطاقة،
+   فالشريحة في أي صف بتتقرأ «اختصار» من شكلها. */
 .trig-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: 9999px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--trig) 38%, transparent);
   background: linear-gradient(120deg, var(--trig-soft), color-mix(in srgb, var(--trig) 10%, var(--surface)));
   color: var(--trig-strong);
   padding: 5px 11px;
   font-size: 12.5px;
   font-weight: 800;
-  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--trig) 38%, transparent);
+  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--trig) 38%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 30%, transparent);
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 160ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .trig-chip:hover {
   transform: translateY(-1px) scale(1.04);
   border-color: color-mix(in srgb, var(--trig) 65%, transparent);
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--trig) 65%, transparent);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--trig) 65%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 30%, transparent);
 }
 .trig-chip:active { transform: scale(0.96); }
 .trig-chip-active {
   background: linear-gradient(150deg, var(--trig), var(--trig-strong));
   color: var(--trig-ink);
   border-color: transparent;
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--trig) 75%, transparent);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--trig) 75%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig-strong) 45%, transparent);
 }
 /* شريحة اختصار بتلبس لون مجلد الرد — نفس خلطات حبّة البطاقة،
    فتفضل مقروءة في الفاتح والغامق لأي لون مجلد. الشريحة النشطة
@@ -5336,11 +5183,11 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   border-color: color-mix(in srgb, var(--fhue) 38%, transparent);
   background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 10%, var(--surface)));
   color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--fhue) 38%, transparent);
+  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--fhue) 38%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 30%, transparent);
 }
 .trig-chip.trig-folder:hover {
   border-color: color-mix(in srgb, var(--fhue) 65%, transparent);
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--fhue) 65%, transparent);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--fhue) 65%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 30%, transparent);
 }
 .trig-chip.trig-folder .trig-chip-count {
   background: color-mix(in srgb, var(--fhue) 14%, transparent);
@@ -5350,7 +5197,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 12%, var(--surface)));
   color: color-mix(in srgb, var(--fhue) 40%, var(--text));
   border-color: var(--fhue);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fhue) 28%, transparent), 0 6px 18px -6px color-mix(in srgb, var(--fhue) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fhue) 28%, transparent), 0 6px 18px -6px color-mix(in srgb, var(--fhue) 55%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
 }
 .trig-chip.trig-folder.trig-chip-active .trig-chip-count {
   background: color-mix(in srgb, var(--fhue) 16%, transparent);

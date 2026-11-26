@@ -1,20 +1,16 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "../components/query-client";
+import { App } from "../components/App";
 
-/* The app is fully client-rendered (ssr: false) — same as the Muse
-   artifact, which was a SPA. App reads window/localStorage during
-   render (theme, session token, #/preview hash), so server
-   prerendering it would crash; the login page shell and all SEO meta
-   still ship in the HTML from layout.tsx. */
-
-const App = dynamic(
-  () => import("../components/App").then((m) => m.App),
-  { ssr: false },
-);
+/* The app shell is server-rendered now (the login page paints for
+   real instead of a blank shell). App reads window/localStorage only
+   after mount — theme, language, session token and the #/preview
+   hash all start from server-safe defaults and are restored in
+   effects — so prerendering it is safe. The Workspace itself still
+   only renders once the user is authenticated. */
 
 export default function Home() {
   useEffect(() => {

@@ -112,7 +112,9 @@ function makeCtx(db, blobs) {
       },
     },
     invalidateQueries() {},
+    invalidateKeys() {},
     invalidated: false,
+    invalidatedKeys: null,
   };
 }
 

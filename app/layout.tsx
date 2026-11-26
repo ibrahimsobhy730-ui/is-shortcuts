@@ -1,20 +1,30 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Readex_Pro } from "next/font/google";
+import { Amiri } from "next/font/google";
 import "./globals.css";
 import "./theme.css";
 import "./tokens.css";
 
-/* #11 (light + smooth) — Readex Pro self-hosted: the same
-   typeface and the same 4 weights (400/500/600/700), fetched
-   once at build time and served from the site itself instead of
-   a render-blocking Google Fonts @import on every first visit.
-   display: swap keeps text visible while the font loads. */
-const readexPro = Readex_Pro({
+/* الخط الوحيد للموقع كله (قرار المالك 2026-11-26): أميري —
+   نفس الخط اللي كانت الآية به قبل توحيد Readex Pro — لكن
+   بعرض نظيف مناسب لواجهة الموقع، لا بشكل رقعة/زخرفي: وزن 400
+   للنص والواجهة، و700 باعتدال للعناوين فقط، بلا معالجات
+   زخرفية. أميري ليس متغيرًا وله وزنان فقط (400/700). يُحمَّل
+   من Google Fonts وقت البناء ويُقدَّم من الموقع نفسه؛
+   display: swap يبقي النص ظاهرًا أثناء التحميل. التكلفة
+   الصريحة: أميري 400+700 × عربي+لاتيني = 248 كيلوبايت إجمالًا
+   (عربي 400: 108 ك، عربي 700: 100 ك، لاتيني 400: 20 ك، لاتيني
+   700: 20 ك) مقابل 54 ك فعليًا لـ Readex — نحو 4.6× (+194 ك).
+   التخفيف: preload لملفّي وزن 400 فقط (روابط <link> أدناه،
+   عناوينها من ناتج البناء)، وملفّا 700 يُحمَّلان عند الطلب؛
+   أول رسم ≈ 128 ك خط بدل 248 ك. الباقي هو ثمن اختيار المالك
+   للخط — غير مخفي. */
+const amiri = Amiri({
   subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "700"],
   display: "swap",
-  variable: "--font-readex",
+  variable: "--font-amiri",
+  preload: false,
 });
 
 /* App shell: Arabic RTL, the IS identity, and the search/social meta
@@ -78,8 +88,43 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning className={readexPro.variable}>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className={amiri.variable}>
+      <head>
+        {/* Preload the two 400-weight files only (arabic 400 +
+            latin 400 = 128 KB): first paint carries ~128 KB of
+            font instead of 248 KB; the 700 files load on demand.
+            The hrefs are the build-emitted filenames
+            (.next/static/media/) — if Amiri is ever re-fetched
+            or its subsets change, re-read them from the build
+            output; a stale href only wastes one preload, the
+            @font-face rules still load the real files. */}
+        <link
+          rel="preload"
+          href="/_next/static/media/05d29f0ed5b0e698-s.6d7a8113.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/_next/static/media/648474ecaeaf4c9a-s.caba5483.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
+        {/* Theme before paint: the login shell is server-rendered,
+            so the server cannot know the stored/OS theme. This tiny
+            inline script sets data-theme from is-theme-v3 (or the OS
+            preference) before React hydrates, so dark users never see
+            a light flash; useDarkMode in App.tsx then syncs its state
+            to the same value. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem("is-theme-v3");var d=m==="dark"||(m!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
+          }}
+        />
         {/* Structured data, carried from the artifact's index.html:
             tells search engines plainly what this application is,
             that it is free to start, and what it runs on. */}

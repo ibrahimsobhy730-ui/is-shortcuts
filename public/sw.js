@@ -6,7 +6,7 @@
    - Anything else: network first, cache as a fallback.
    Version the cache so a new deploy replaces the old shell. */
 
-const CACHE = "is-cache-v2";
+const CACHE = "is-cache-v3"; /* v3 (2026-11-26): خط أميري الجديد + بناء الإصلاح — يضمن وصول الخط والبناء الجديدين للمستخدمين بدل نسخة مخزنة قديمة */
 const STATIC_PATTERNS = [/^\/_next\/static\//, /^\/icons\//, /^\/manifest\.webmanifest$/];
 
 self.addEventListener("install", (event) => {

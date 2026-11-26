@@ -40,7 +40,9 @@ const ctx = {
     async delete(key) { blobs.delete(key); },
   },
   invalidateQueries() {},
+  invalidateKeys() {},
   invalidated: false,
+  invalidatedKeys: null,
 };
 
 const results = [];
