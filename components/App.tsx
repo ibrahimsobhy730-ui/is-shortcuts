@@ -5506,6 +5506,9 @@ function Workspace({
       onDelete={() => deleteMut.mutate(s.id)}
       onPreview={() => setPreviewItem(s)}
       onMove={(folderId) => moveShortcutsTo([s.id], folderId, null)}
+      onSaveTrigger={async (s, trigger) => {
+        await updateTriggerMut.mutateAsync({ s, trigger });
+      }}
       folders={folders}
       folderCounts={folderReplyCounts}
       dnd={{
@@ -7909,6 +7912,9 @@ function Workspace({
           onPin={() => togglePin.mutate(detailFresh)}
           onFavorite={() => toggleFavorite.mutate(detailFresh)}
           onMove={(folderId) => moveShortcutsTo([detailFresh.id], folderId, null)}
+          onSaveTrigger={async (s, trigger) => {
+            await updateTriggerMut.mutateAsync({ s, trigger });
+          }}
           onExport={() => exportOneJson(detailFresh)}
         />
       )}
@@ -8265,6 +8271,7 @@ function DetailsPanel({
   onPin,
   onFavorite,
   onMove,
+  onSaveTrigger,
   onExport,
 }: {
   item: Shortcut;
@@ -8279,6 +8286,7 @@ function DetailsPanel({
   onPin: () => void;
   onFavorite: () => void;
   onMove: (folderId: number | null) => void;
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   onExport: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -8407,11 +8415,7 @@ function DetailsPanel({
         )}
         <dt className="font-semibold text-[var(--faint)]">الاختصار</dt>
         <dd className="font-semibold">
-          {item.trigger ? (
-            <span dir="ltr" className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[var(--accent-strong)]">{item.trigger}</span>
-          ) : (
-            <span className="text-[var(--faint)]">—</span>
-          )}
+          <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} size="full" />
         </dd>
         {item.source && (
           <>
@@ -11202,6 +11206,199 @@ function AccountModal({
   );
 }
 
+/* ---------- animated trigger icon ----------
+   The ONE trigger mark in the whole site — a small crafted
+   NEBULA-glass pill (Zap + the trigger word, e.g. ⚡ ;salam) that
+   lives on every reply card, in every folder and every density
+   (compact / comfortable / grid), in the details panel and in the
+   Shortcuts section rows. A reply with no trigger yet wears the
+   same pill quiet and dimmed (dashed, inviting a tap to add one).
+   Idle motion is cheap transform/opacity only — a slow sheen
+   sweeping the glass + a gentle pulse on the Zap, each with a
+   literal cubic-bezier (var(--ease-out) does not animate in this
+   build) — plus a scale/glow answer on hover and press.
+   Tapping the pill opens its inline editor right there on the
+   card (a small portal panel glued to the pill, never the full
+   reply editor): input prefilled with the current trigger, Save +
+   Clear + Cancel, format errors from the shared `triggerError`
+   and server duplicate errors shown inline in the panel. Saving
+   goes through the existing `onSaveTrigger`, so the card, the
+   Shortcuts section and search all refresh through the site's
+   own refetch. The pill stops its own pointer/click so it never
+   fires the card's copy/open actions, and the portal panel stops
+   its own pointerdown so a layer behind it (e.g. the details
+   panel's click-outside close) never fires with it. */
+function TriggerIcon({
+  item,
+  onSaveTrigger,
+  size = "full",
+}: {
+  item: Shortcut;
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
+  /* compact: the tight row — smaller pill, text truncated.
+     full: comfortable/grid cards, the details panel, Shortcuts rows. */
+  size?: "compact" | "full";
+}) {
+  const { lang, t } = useLang();
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(item.trigger ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(open, [rootRef, panelRef], () => setOpen(false));
+
+  /* When the saved trigger changes elsewhere (the reply editor,
+     the Shortcuts section, another save), the pill follows it —
+     unless its editor is open right now. */
+  useEffect(() => {
+    if (!open) setValue(item.trigger ?? "");
+  }, [item.trigger, open]);
+
+  const has = Boolean(item.trigger);
+  const save = async (next: string) => {
+    const err = triggerError(next);
+    if (err) return setError(err);
+    setError(null);
+    setSaving(true);
+    try {
+      await onSaveTrigger(item, normalizeTriggerInput(next));
+      setOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <span ref={rootRef} className="relative inline-flex shrink-0">
+      <button
+        ref={anchorRef}
+        type="button"
+        aria-label={
+          has
+            ? lang === "en"
+              ? `Edit trigger ${item.trigger} of ${item.title}`
+              : `تعديل اختصار ${item.title}`
+            : lang === "en"
+              ? `Add a trigger to ${item.title}`
+              : `أضف اختصار لرد ${item.title}`
+        }
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-tip={has ? t("تعديل الاختصار") : t("أضف اختصار")}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setValue(item.trigger ?? "");
+          setError(null);
+          setOpen((v) => !v);
+        }}
+        className={`trig-icon lux-btn ${
+          has ? "" : "trig-icon-empty "
+        }${size === "compact" ? "h-6 max-w-32 px-1.5 text-[11px]" : "h-[26px] max-w-44 px-2 text-[11.5px]"}`}
+      >
+        {/* The pulse is staggered per reply so a list of 88 pills
+            never breathes in lockstep. */}
+        <span className="trig-zap flex shrink-0" style={{ animationDelay: `${(item.id % 5) * 0.45}s` }}>
+          <Icon d={I.zap} size={size === "compact" ? 13 : 14} />
+        </span>
+        {has ? (
+          <span dir="ltr" className="truncate font-mono font-bold">
+            {item.trigger}
+          </span>
+        ) : size === "compact" ? (
+          <span className="flex shrink-0">
+            <Icon d={I.plus} size={10} />
+          </span>
+        ) : (
+          <span className="font-bold">{lang === "en" ? "Add shortcut" : "أضف اختصار"}</span>
+        )}
+      </button>
+      {open && (
+        <FloatingFolderPanel anchorRef={anchorRef} panelRef={panelRef} width={272}>
+          <div
+            role="dialog"
+            aria-label={lang === "en" ? `Trigger of ${item.title}` : `اختصار رد ${item.title}`}
+            className="trig-panel glass-panel elev-pop rounded-[var(--radius)] border border-[var(--border-strong)] p-3"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-1.5 truncate text-[13px] font-bold">{item.title}</p>
+            <label htmlFor={`trig-input-${item.id}`} className="mb-1 block text-xs font-semibold text-[var(--dim)]">
+              {lang === "en" ? "Trigger word" : "كلمة الاختصار"}
+            </label>
+            <input
+              id={`trig-input-${item.id}`}
+              dir="ltr"
+              autoFocus
+              maxLength={24}
+              value={value}
+              disabled={saving}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void save(value);
+              }}
+              placeholder=";salam"
+              className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 font-mono text-sm outline-none focus:border-[var(--accent)] disabled:opacity-60"
+            />
+            <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--faint)]">
+              {lang === "en"
+                ? "Starts with ; — small English letters, digits, _ or -, 2–24 characters."
+                : "يبدأ بـ ; — حروف إنجليزي صغيرة وأرقام و _ أو - بس، من حرفين لـ 24 حرف."}
+            </p>
+            {error && (
+              <p role="alert" className="mt-1.5 text-xs font-semibold leading-snug text-[var(--danger)]">
+                {error}
+              </p>
+            )}
+            <div className="mt-2.5 flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void save(value)}
+                className="lux-btn flex items-center gap-1 rounded-full bg-[var(--accent)] px-3.5 py-1.5 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+              >
+                <Icon d={I.check} size={14} />
+                {saving ? (lang === "en" ? "Saving…" : "بيتحفظ…") : t("حفظ")}
+              </button>
+              {has && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void save("")}
+                  className="lux-btn rounded-full px-3 py-1.5 text-[13px] font-bold text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-60"
+                >
+                  {lang === "en" ? "Clear" : "مسح"}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => {
+                  setValue(item.trigger ?? "");
+                  setError(null);
+                  setOpen(false);
+                }}
+                className="lux-btn ms-auto rounded-full px-3 py-1.5 text-[13px] font-bold text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)] disabled:opacity-60"
+              >
+                {lang === "en" ? "Cancel" : "إلغاء"}
+              </button>
+            </div>
+          </div>
+        </FloatingFolderPanel>
+      )}
+    </span>
+  );
+}
+
 /* ---------- shortcut card ---------- */
 function ShortcutCard({
   item,
@@ -11219,6 +11416,7 @@ function ShortcutCard({
   onDelete,
   onPreview,
   onMove,
+  onSaveTrigger,
   folders,
   folderCounts,
   dnd,
@@ -11246,6 +11444,7 @@ function ShortcutCard({
   onDelete: () => void;
   onPreview: () => void;
   onMove?: (folderId: number | null) => void;
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   folders?: FolderRowT[];
   folderCounts?: Map<number, number>;
   dnd?: {
@@ -11464,11 +11663,6 @@ function ShortcutCard({
                     <Icon d={I.star} size={13} />
                   </span>
                 )}
-                {item.trigger && (
-                  <span dir="ltr" className="shrink-0 rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 font-mono text-[11px] font-bold text-[var(--accent-strong)]">
-                    {item.trigger}
-                  </span>
-                )}
               </span>
               <span className="mt-0.5 block truncate text-[13px] text-[var(--dim)]">
                 <HighlightText
@@ -11481,6 +11675,10 @@ function ShortcutCard({
                 />
               </span>
             </button>
+            {/* The trigger pill lives beside the title — never inside
+                the title button (a button cannot hold a button) — so
+                its tap opens its own editor instead of the details. */}
+            <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} size="compact" />
             <button
               type="button"
               aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`}
@@ -11678,9 +11876,7 @@ function ShortcutCard({
             {tags.length > 2 && <span className="font-semibold text-[var(--faint)]">+{tags.length - 2}</span>}
             {item.usageCount > 0 && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{lang === "en" ? `Used ${item.usageCount} times` : `اتستخدم ${item.usageCount} مرة`}</span>}
             {updatedLabel && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{relDateLabel(item.updatedAt, lang)}</span>}
-            {item.trigger && (
-              <span dir="ltr" className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[11.5px] font-bold text-[var(--accent-strong)]">{item.trigger}</span>
-            )}
+            <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} size="full" />
           </div>
           <div className={density === "grid" ? "mt-auto pt-4" : "mt-4"}>
             {copyBtn}
@@ -12444,8 +12640,9 @@ function FolderPicker({
    «الاختصارات»: every trigger in one place, grouped by folder, each
    row showing the trigger → the reply's title + one-line preview,
    a one-click copy (records use, like every copy), and inline
-   trigger editing. Replies with no trigger yet sit in a second
-   group below, each with a quick inline "add trigger" input. */
+   trigger editing through the shared animated TriggerIcon pill.
+   Replies with no trigger yet sit in a second group below, each
+   with the same pill dimmed — tap it to add one. */
 function TriggerRow({
   s,
   onCopy,
@@ -12458,19 +12655,11 @@ function TriggerRow({
   const { lang, t } = useLang();
   const [copied, setCopied] = useState(false);
   const [copying, setCopying] = useState(false);
-  /* Editing starts open for trigger-less replies (the quick-add
-     input) and behind a pencil for replies that already have one. */
-  const [editing, setEditing] = useState(!s.trigger);
-  const [value, setValue] = useState(s.trigger ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /* Trigger display + editing live in the one shared TriggerIcon
+     (the same animated pill as on every reply card) — the row
+     keeps only its copy action. */
   const copiedTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
-  /* When the saved trigger changes elsewhere (editor, another row
-     save), the row follows it — unless it is being edited now. */
-  useEffect(() => {
-    if (!editing) setValue(s.trigger ?? "");
-  }, [s.trigger, editing]);
 
   const doCopy = async () => {
     if (copying) return;
@@ -12485,98 +12674,12 @@ function TriggerRow({
       setCopying(false);
     }
   };
-  const save = async () => {
-    const err = triggerError(value);
-    if (err) return setError(err);
-    setError(null);
-    setSaving(true);
-    try {
-      await onSaveTrigger(s, normalizeTriggerInput(value));
-      setEditing(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني");
-    } finally {
-      setSaving(false);
-    }
-  };
   const preview = s.body.replace(/\s+/g, " ").trim().slice(0, 90);
 
   return (
     <li className="lux-card flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        {editing ? (
-          <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <input
-              aria-label={lang === "en" ? `Trigger for ${s.title}` : `اختصار رد ${s.title}`}
-              dir="ltr"
-              maxLength={24}
-              value={value}
-              onChange={(e) => {
-                setValue(e.target.value);
-                setError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void save();
-                if (e.key === "Escape") {
-                  setValue(s.trigger ?? "");
-                  setError(null);
-                  setEditing(false);
-                }
-              }}
-              placeholder=";salam"
-              className="w-36 min-w-0 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-sm outline-none focus:border-[var(--accent)]"
-            />
-            <button
-              type="button"
-              aria-label={t("حفظ الاختصار")}
-              data-tip={t("حفظ الاختصار")}
-              disabled={saving}
-              onClick={() => void save()}
-              className="lux-btn shrink-0 rounded-full bg-[var(--accent)] p-2 text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
-            >
-              <Icon d={I.check} size={15} />
-            </button>
-            {s.trigger && (
-              <button
-                type="button"
-                aria-label={t("إلغاء تعديل الاختصار")}
-                data-tip={t("إلغاء")}
-                disabled={saving}
-                onClick={() => {
-                  setValue(s.trigger ?? "");
-                  setError(null);
-                  setEditing(false);
-                }}
-                className="lux-btn shrink-0 rounded-full p-2 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)] disabled:opacity-60"
-              >
-                <Icon d={I.x} size={15} />
-              </button>
-            )}
-          </span>
-        ) : (
-          <>
-            <button
-              type="button"
-              aria-label={lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
-              data-tip={t("نسخ الرد")}
-              onClick={() => void doCopy()}
-              className="shrink-0"
-            >
-              <span dir="ltr" className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 font-mono text-[13px] font-bold text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-[var(--accent-ink)]">
-                {s.trigger}
-              </span>
-            </button>
-            <button
-              type="button"
-              aria-label={lang === "en" ? `Edit trigger of ${s.title}` : `تعديل اختصار ${s.title}`}
-              data-tip={t("تعديل الاختصار")}
-              onClick={() => setEditing(true)}
-              className="lux-btn shrink-0 rounded-full p-1.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-            >
-              <Icon d={I.edit} size={14} />
-            </button>
-          </>
-        )}
+        <TriggerIcon item={s} onSaveTrigger={onSaveTrigger} size="full" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-bold">{s.title}</span>
           {preview && (
@@ -12585,11 +12688,6 @@ function TriggerRow({
         </span>
       </div>
       <span className="flex shrink-0 items-center gap-1.5">
-        {error && (
-          <span role="alert" className="max-w-56 text-xs font-semibold leading-snug text-[var(--danger)]">
-            {error}
-          </span>
-        )}
         <button
           type="button"
           aria-label={copied ? (lang === "en" ? `Copied reply ${s.title}` : `اتنسخ رد ${s.title}`) : lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
