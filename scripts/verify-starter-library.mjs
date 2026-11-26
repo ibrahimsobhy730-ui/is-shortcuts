@@ -304,7 +304,9 @@ try {
   );
   check(
     "new-reply call site passes ALL triggers as taken (item null -> -1)",
-    appSrc.includes("takenTriggers={otherTriggers(shortcuts, editor.item?.id ?? -1)}"),
+    appSrc.includes(
+      "takenTriggers={takenTriggersById.get(editor.item?.id ?? -1) ?? []}",
+    ) && appSrc.includes("m.set(-1, otherTriggers(shortcuts, -1))"),
   );
   check(
     "no second suggestions engine invented (single suggestTriggers def)",

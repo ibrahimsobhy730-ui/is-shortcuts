@@ -3788,10 +3788,13 @@ function Workspace({
   /* #2/#3 — every reply's OTHER triggers, computed once per
      library change and stable by id: the old `otherTriggers()`
      built a fresh array on every render, which defeated the
-     suggestion memo in TriggerIcon and every memo below. */
+     suggestion memo in TriggerIcon and every memo below.
+     Key -1 is the "new reply" (no id yet): all triggers count
+     as taken, so suggestions never offer a trigger already in use. */
   const takenTriggersById = useMemo(() => {
     const m = new Map<number, string[]>();
     for (const s of shortcuts) m.set(s.id, otherTriggers(shortcuts, s.id));
+    m.set(-1, otherTriggers(shortcuts, -1));
     return m;
   }, [shortcuts]);
 
@@ -14868,10 +14871,12 @@ function ShortcutsView({
   const searching = q.length > 0;
   /* Stable per-id OTHER-triggers (same #2/#3 fix as Workspace):
      a fresh array per row per render defeated TriggerIcon's
-     suggestion memo. */
+     suggestion memo. Key -1 is the "new reply": all triggers
+     count as taken, so suggestions never offer one already in use. */
   const takenTriggersById = useMemo(() => {
     const m = new Map<number, string[]>();
     for (const s of shortcuts) m.set(s.id, otherTriggers(shortcuts, s.id));
+    m.set(-1, otherTriggers(shortcuts, -1));
     return m;
   }, [shortcuts]);
   /* The card lists ALL the user's triggers, most recently used
