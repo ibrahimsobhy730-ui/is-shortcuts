@@ -12,9 +12,14 @@
  * 2) Full export (all tables, original ids, password hashes as-is):
  *      node scripts/import-backup.ts --full full-export.json
  *    Format: { users, folders, shortcuts, copyHistory, sessions,
- *    smartFolders, siteConfig, avatars: [{userId, mimeType,
+ *    smartFolders, siteConfig, media: [{id, shortcutId, userId,
+ *    kind, blobUrl, blobPathname, contentType, byteSize, width,
+ *    height, durationMs, createdAt, updatedAt}],
+ *    avatars: [{userId, mimeType,
  *    dataBase64}] }. Idempotent (ON CONFLICT DO NOTHING) and resets
- *    the id sequences afterwards.
+ *    the id sequences afterwards. Media rows carry URLs only — the
+ *    bytes stay in Vercel Blob; a URL that 404s at render time
+ *    shows a "media unavailable" placeholder, never a crash.
  *
  * NOTE — what the site's JSON backup does and does NOT carry:
  * the backup file is { shortcuts: [{title, body, category, tags,
@@ -213,11 +218,12 @@ try {
     const sessions = (data.sessions as Record<string, unknown>[] | undefined) ?? [];
     const smartFolders = (data.smartFolders as Record<string, unknown>[] | undefined) ?? [];
     const siteConfig = (data.siteConfig as Record<string, unknown>[] | undefined) ?? [];
+    const media = (data.media as Record<string, unknown>[] | undefined) ?? [];
     const avatars = (data.avatars as Record<string, unknown>[] | undefined) ?? [];
     console.log(
       `Full export: ${users.length} users, ${folders.length} folders, ${shortcuts.length} shortcuts, ` +
         `${copyHistory.length} copy-history rows, ${sessions.length} sessions, ` +
-        `${smartFolders.length} smart folders, ${avatars.length} avatars${dryRun ? " (dry-run)" : ""}.`,
+        `${smartFolders.length} smart folders, ${media.length} media rows, ${avatars.length} avatars${dryRun ? " (dry-run)" : ""}.`,
     );
     if (dryRun) process.exit(0);
 
@@ -307,6 +313,25 @@ try {
           [c.key, c.value],
         );
       }
+      /* Reply media (URLs only — the bytes stay in Vercel Blob).
+         Rows whose shortcut was not restored (or was skipped) are
+         left out: the FK would reject them, so only rows whose
+         shortcut exists in this database are inserted. */
+      let nMedia = 0;
+      for (const m of media) {
+        if (m.kind !== "image" && m.kind !== "video") continue;
+        if (typeof m.blobUrl !== "string" || typeof m.blobPathname !== "string") continue;
+        const shortcutExists = await client.query(
+          "SELECT 1 FROM shortcuts WHERE id = $1",
+          [m.shortcutId],
+        );
+        if (shortcutExists.rows.length === 0) continue;
+        nMedia += await ins(
+          `INSERT INTO reply_media (id, shortcut_id, user_id, kind, blob_url, blob_pathname, content_type, byte_size, width, height, duration_ms, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (id) DO NOTHING`,
+          [m.id, m.shortcutId, m.userId, m.kind, m.blobUrl, m.blobPathname, m.contentType ?? "", m.byteSize ?? 0, m.width ?? null, m.height ?? null, m.durationMs ?? null, m.createdAt ?? new Date(), m.updatedAt ?? new Date()],
+        );
+      }
       let nAvatars = 0;
       for (const a of avatars) {
         const key = `avatars/${a.userId}`;
@@ -318,7 +343,7 @@ try {
         await client.query("UPDATE users SET avatar_blob_key = $1 WHERE id = $2", [key, a.userId]);
       }
       // Reset the id sequences past the imported rows.
-      for (const [table] of [["users"], ["folders"], ["shortcuts"], ["copy_history"], ["smart_folders"]]) {
+      for (const [table] of [["users"], ["folders"], ["shortcuts"], ["copy_history"], ["smart_folders"], ["reply_media"]]) {
         await client.query(
           `SELECT setval(pg_get_serial_sequence($1, 'id'), COALESCE((SELECT MAX(id) FROM ${table}), 1))`,
           [table],
@@ -328,7 +353,7 @@ try {
       console.log(
         `Inserted: ${nUsers} users, ${nFolders} folders, ${nShortcuts} shortcuts, ` +
           `${nHistory} copy-history rows, ${nSessions} sessions, ${nSmart} smart folders, ` +
-          `${nConfig} config rows, ${nAvatars} avatars.`,
+          `${nConfig} config rows, ${nMedia} media rows, ${nAvatars} avatars.`,
       );
     } catch (e) {
       await client.query("ROLLBACK");

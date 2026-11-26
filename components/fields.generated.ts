@@ -118,6 +118,76 @@ export const FIELDS = {
       "name": "token"
     }
   },
+  "attachMedia": {
+    "token": {
+      "name": "token"
+    },
+    "shortcutId": {
+      "name": "shortcutId",
+      "type": "number",
+      "step": 1,
+      "required": true,
+      "min": 1
+    },
+    "kind": {
+      "name": "kind"
+    },
+    "blobUrl": {
+      "name": "blobUrl",
+      "minLength": 1,
+      "required": true,
+      "maxLength": 500
+    },
+    "blobPathname": {
+      "name": "blobPathname",
+      "minLength": 1,
+      "required": true,
+      "maxLength": 300
+    },
+    "contentType": {
+      "name": "contentType",
+      "minLength": 1,
+      "required": true,
+      "maxLength": 100
+    },
+    "byteSize": {
+      "name": "byteSize",
+      "type": "number",
+      "step": 1,
+      "required": true,
+      "min": 1
+    },
+    "width": {
+      "name": "width",
+      "type": "number",
+      "step": 1,
+      "min": 1
+    },
+    "height": {
+      "name": "height",
+      "type": "number",
+      "step": 1,
+      "min": 1
+    },
+    "durationMs": {
+      "name": "durationMs",
+      "type": "number",
+      "step": 1,
+      "min": 1
+    }
+  },
+  "removeMedia": {
+    "token": {
+      "name": "token"
+    },
+    "shortcutId": {
+      "name": "shortcutId",
+      "type": "number",
+      "step": 1,
+      "required": true,
+      "min": 1
+    }
+  },
   "exportFullBackup": {
     "token": {
       "name": "token"
@@ -380,6 +450,22 @@ export const FIELDS = {
   "loadStarterPack": {
     "token": {
       "name": "token"
+    }
+  },
+  "getStarterLibrary": {
+    "token": {
+      "name": "token"
+    }
+  },
+  "setStarterLibrary": {
+    "token": {
+      "name": "token"
+    },
+    "shortcutIds": {
+      "name": "shortcutIds",
+      "type": "number",
+      "step": 1,
+      "min": 1
     }
   },
   "importContentPackForOwner": {},

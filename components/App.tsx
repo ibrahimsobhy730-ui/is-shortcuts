@@ -4,6 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "./safe-area";
 import { FIELDS } from "./fields.generated";
 import { api, type ApiResponse } from "./api";
+import { upload } from "@vercel/blob/client";
+import {
+  COPY_FILL_NOTE,
+  copyButtonLabels,
+  formatMediaDuration,
+  formatMediaSize,
+  imageFallbackToast,
+  mediaFileName,
+  planCopy,
+  videoCopyToast,
+} from "./copy-media";
 import { PreviewPage } from "./Preview";
 import {
 AlarmClock,
@@ -86,6 +97,7 @@ HeartPulse,
 History,
 Hourglass,
 House,
+Image as ImageIcon,
 Inbox,
 Info,
 Italic,
@@ -129,6 +141,7 @@ Phone,
 PiggyBank,
 Pin,
 Plane,
+Play,
 Plus,
 Presentation,
 Printer,
@@ -270,6 +283,8 @@ const I = {
   search: Search,
   plus: Plus,
   download: Download,
+  image: ImageIcon,
+  play: Play,
   upload: Upload,
   trash: Trash2,
   edit: SquarePen,
@@ -510,21 +525,24 @@ function folderColorStyle(folder: { iconColor?: string | null }): React.CSSPrope
     : undefined;
 }
 
-/* The colour a SET trigger pill wears: its reply's folder colour,
-   when the folder has one — the named swatch's fcol-* class (the
-   class itself sets --fhue) or the custom hex's inline --fhue
-   (via folderColorStyle). The exact value/mapping the sidebar
-   folder icon wears — no second colour system. Auto folders (no
-   iconColor) wear nothing: the pill keeps the fixed NEBULA
-   --trig tokens. Only SET pills take it — the dimmed «أضف اختصار»
-   pill never gets it (TriggerIcon applies it only when has). */
+/* The colour a SET trigger pill wears: its reply's folder colour —
+   the SAME value/mapping the sidebar folder icon wears (the named
+   swatch's fcol-* class, the automatic name-hash fhue-* class, or
+   the custom hex's inline --fhue via folderColorStyle) — no second
+   colour system, so trigger → reply → folder read as one thing at
+   a glance. Only SET pills take it — the dimmed «أضف اختصار» pill
+   never does (TriggerIcon applies it only when has). Blue (the
+   fixed NEBULA --trig tokens) remains only when there is NO folder
+   at all. (Fix 2026-11-26: the old version returned nothing for
+   Auto folders, so the pill stayed blue while the folder tile
+   wore its name-hash hue — pink tile, blue pill.) */
 function triggerPillFolder(folder: { name: string; iconColor?: string | null } | null | undefined): {
   className: string;
   style: React.CSSProperties | undefined;
 } {
-  if (!folder?.iconColor) return { className: "", style: undefined };
+  if (!folder) return { className: "", style: undefined };
   return {
-    className: `trig-folder${FOLDER_COLOR_KEYS_CLIENT.has(folder.iconColor) ? ` fcol-${folder.iconColor}` : ""}`,
+    className: `trig-folder ${folderColorClass(folder)}`,
     style: folderColorStyle(folder),
   };
 }
@@ -1791,6 +1809,129 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/* What a copy attempt ended as — the one result every copy
+   button reads:
+   - "copied": the text landed on the clipboard. For a video reply
+     the file download may still have failed — the toast says so —
+     but the text copy itself succeeded, so the button flips.
+   - "fill": the reply has manual {variables}, so the fill-in sheet
+     opened instead — nothing was copied yet. The button flips to
+     the neutral «كمّل البيانات…», never to «اتنسخ».
+   - "failed": the text never landed. The button stays put;
+     copyFilled already toasted the error. */
+type CopyResult = "copied" | "fill" | "failed";
+
+/* Copies text AND an image in ONE clipboard write — one
+   ClipboardItem carrying both "text/plain" and "image/png", so a
+   paste target that takes the richest format gets both. The image
+   is converted to PNG first (JPEG/WebP are not portable clipboard
+   image types). Returns "ok" when both landed, "text-only" when
+   the image could not be converted or written but the text did
+   land (the caller toasts that honestly), "failed" when even the
+   text did not land. */
+async function copyTextWithImage(
+  text: string,
+  imageUrl: string,
+): Promise<"ok" | "text-only" | "failed"> {
+  let png: Blob | null = null;
+  try {
+    const res = await fetch(imageUrl, { mode: "cors" });
+    if (!res.ok) throw new Error("image fetch failed");
+    const src = await res.blob();
+    const bmp = await createImageBitmap(src);
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    const g = canvas.getContext("2d");
+    if (!g) throw new Error("no 2d context");
+    g.drawImage(bmp, 0, 0);
+    png = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
+        "image/png",
+      ),
+    );
+  } catch {
+    png = null;
+  }
+  if (png) {
+    try {
+      const item = new ClipboardItem({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "image/png": png,
+      });
+      await navigator.clipboard.write([item]);
+      return "ok";
+    } catch {
+      /* fall through to the text-only fallback */
+    }
+  }
+  const ok = await copyText(text);
+  return ok ? "text-only" : "failed";
+}
+
+/* Downloads a media file in the same tap as the copy: fetch the
+   Blob URL (cross-origin, so a bare <a download> would be
+   ignored and the file would just open in a tab), turn it into a
+   same-origin object URL, and click a hidden <a download>.
+   Returns false when the download could not start — the caller
+   toasts that and offers a retry from the details panel. */
+async function downloadMediaFile(url: string, filename: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 2000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* Probes the media-upload token route and surfaces its exact
+   error string. The @vercel/blob client swallows the route's
+   error body behind a generic "Failed to retrieve the client
+   token", so without this probe the editor could never show the
+   server's real message — including the 503 «التخزين مش
+   متظبط…» when no Blob store is connected yet. The probe mints
+   a token that is never used (tokens live 30s and cost no Blob
+   operation); the real upload() mints its own right after. */
+async function mintUploadToken(
+  token: string,
+  pathname: string,
+  shortcutId: number,
+  kind: "image" | "video",
+): Promise<void> {
+  const res = await fetch("/api/media/upload", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      type: "blob.generate-client-token",
+      payload: {
+        pathname,
+        clientPayload: JSON.stringify({ token, shortcutId, kind }),
+      },
+    }),
+  });
+  if (!res.ok) {
+    const body: unknown = await res.json().catch(() => null);
+    const msg =
+      body !== null &&
+      typeof body === "object" &&
+      typeof (body as Record<string, unknown>).error === "string"
+        ? ((body as Record<string, unknown>).error as string)
+        : "الرفع متمّش — حاول تاني";
+    throw new Error(msg);
+  }
+}
+
 /* ألوان التمييز الاثنا عشر — مفاتيحها تطابق [data-accent] في الثيم */
 const ACCENTS: Array<{ key: string; label: string; swatch: string }> = [
   { key: "royal", label: "أزرق ملكي", swatch: "#1668C4" },
@@ -1974,6 +2115,22 @@ const EN: Record<string, string> = {
   "بيتنسخ…": "Copying…",
   "نسخ الرد": "Copy reply",
   "اتنسخ — الصقه في أي شات": "Copied — paste it in any chat",
+  "كمّل البيانات…": "Fill in the details…",
+  // reply media — copy wording (a video is never "copied": the
+  // text is copied and the file downloads with it)
+  "نسخ النص + تنزيل الفيديو": "Copy text + download video",
+  "اتنسخ النص ✓ · الفيديو بينزل": "Text copied ✓ · video downloading",
+  "نسخ + تنزيل": "Copy + download",
+  "اتنسخ ✓": "Copied ✓",
+  "الوسائط مش متاحة دلوقتي": "Media is unavailable right now",
+  "فتح الصورة الأصلية": "Open the original image",
+  "فيديو": "Video",
+  "صورة": "Image",
+  "تنزيل": "Download",
+  "بينزّل…": "Downloading…",
+  "التنزيل فشل — جرّب تاني": "Download failed — try again",
+  "نسخ رابط الفيديو": "Copy video link",
+  "اتنسخ الرابط": "Link copied",
   // triggers — suggestions, assign, empty state
   "اقتراحات جاهزة — دوس على أي واحدة:": "Ready suggestions — tap one to fill it in:",
   "اختار رد تاني": "Pick another reply",
@@ -3862,28 +4019,75 @@ function Workspace({
     onError: () => showToast("التحميل متمّش — حاول تاني", "error"),
   });
 
-  const copyFilled = async (s: Shortcut, text: string): Promise<boolean> => {
-    const ok = await copyText(text);
-    if (ok) {
-      /* One press = one use, even if the button is hit twice while
-         the first record is still in flight (the preview's copy
-         button had no guard of its own — it does now — and this
-         is the second lock for every surface). */
-      if (!recordingRef.current.has(s.id)) {
-        recordingRef.current.add(s.id);
-        recordUse.mutate(s.id);
-      }
-      showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
-    } else {
-      showToast("النسخ متعذر هنا — افتح الرد وانسخه يدوي", "error");
+  /* One press = one use, even if the button is hit twice while
+     the first record is still in flight (the preview's copy
+     button had no guard of its own — it does now — and this
+     is the second lock for every surface). Only ever called after
+     the TEXT actually landed: a failed copy records nothing, and
+     a video download or an image conversion is never a separate
+     use. */
+  const recordCopyUse = (s: Shortcut) => {
+    if (!recordingRef.current.has(s.id)) {
+      recordingRef.current.add(s.id);
+      recordUse.mutate(s.id);
     }
-    return ok;
   };
 
-  /* Returns true only when text actually landed on the clipboard, so
-     the card's «اتنسخ» state never claims a copy that did not happen
-     (e.g. when the fill-in sheet opens instead). */
-  const handleCopy = async (s: Shortcut): Promise<boolean> => {
+  /* The one copy path every surface funnels through. Media-aware
+     (see planCopy in ./copy-media): text-only copies exactly as
+     before; text+image goes in ONE clipboard write; text+video
+     copies the text and DOWNLOADS the video in the same tap —
+     the video is never put on the clipboard (no video MIME type
+     exists in the Clipboard API) and the UI never claims it was.
+     Failure matrix: text-write fails → the whole action fails,
+     error toast, NO use recorded, NO download started. Text ok +
+     image fails → text-only fallback + honest toast, use recorded
+     once. Text ok + download fails → toast + retry from details,
+     use recorded once. */
+  const copyFilled = async (s: Shortcut, text: string): Promise<CopyResult> => {
+    const plan = planCopy(s.media, s.title);
+    if (plan.mode === "text") {
+      const ok = await copyText(text);
+      if (!ok) {
+        showToast("النسخ متعذر هنا", "error");
+        return "failed";
+      }
+      recordCopyUse(s);
+      showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
+      return "copied";
+    }
+    if (plan.mode === "text-image") {
+      const res = await copyTextWithImage(text, plan.imageUrl);
+      if (res === "failed") {
+        showToast("النسخ متعذر هنا", "error");
+        return "failed";
+      }
+      recordCopyUse(s);
+      if (res === "ok") {
+        showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
+      } else {
+        showToast(imageFallbackToast().text, "error");
+      }
+      return "copied";
+    }
+    const ok = await copyText(text);
+    if (!ok) {
+      showToast("النسخ متعذر هنا", "error");
+      return "failed";
+    }
+    recordCopyUse(s);
+    const downloaded = await downloadMediaFile(plan.videoUrl, plan.fileName);
+    const toast = videoCopyToast(s.title, downloaded);
+    showToast(toast.text, toast.kind === "error" ? "error" : undefined);
+    return "copied";
+  };
+
+  /* Returns "copied" only when text actually landed on the
+     clipboard, so the card's «اتنسخ» state never claims a copy
+     that did not happen. "fill" means the fill-in sheet opened
+     instead (manual {variables}) — the copy happens later, from
+     the sheet, via copyFilled. */
+  const handleCopy = async (s: Shortcut): Promise<CopyResult> => {
     // Smart variables: anything the user must supply (الاسم، السنة
     // الدراسية، …) opens the fill-in sheet with a live preview first.
     // {التاريخ} و{الوقت} fill themselves, so they never block a copy.
@@ -3892,7 +4096,7 @@ function Workspace({
     );
     if (manual.length > 0) {
       setFillVarsItem(s);
-      return false;
+      return "fill";
     }
     return copyFilled(s, fillDynamic(s.body));
   };
@@ -7423,6 +7627,7 @@ function Workspace({
           ) : view === "history" ? (
             <CopyHistoryView
               entries={historyQuery.data?.entries ?? []}
+              shortcuts={shortcuts}
               isPending={historyQuery.isPending}
               isError={historyQuery.isError}
               onRetry={() => void historyQuery.refetch()}
@@ -7925,12 +8130,13 @@ function Workspace({
             </div>
             <p className="mt-3 text-sm leading-relaxed text-[var(--dim)]">
               نزّل نسخة احتياطية من مكتبتك واحتفظ بيها، أو استورد اختصارات من ملف نسخة
-              سابقة — المكرر منها بيتخطى لوحده.
+              سابقة — المكرر منها بيتخطى لوحده. النسخة العادية مش بتشمل الصور
+              والفيديو — دي في «تصدير نسخة كاملة» بس، وهناك كروابط مش كملفات.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                aria-label="تنزيل نسخة احتياطية JSON" data-tip="تنزيل نسخة احتياطية من مكتبتك (JSON)"
+                aria-label="تنزيل نسخة احتياطية JSON" data-tip="تنزيل نسخة احتياطية من مكتبتك (JSON) — مش بتشمل الصور والفيديو، دي في النسخة الكاملة بس"
                 onClick={() => {
                   noteBackup();
                   downloadText(
@@ -7960,7 +8166,7 @@ function Workspace({
               </button>
               <button
                 type="button"
-                aria-label="تصدير نسخة كاملة من الموقع كله" data-tip="نسخة كاملة من الموقع كله: الحسابات والمجلدات والردود وسلة المهملات والصور — لنقل الموقع كله لمكان تاني"
+                aria-label="تصدير نسخة كاملة من الموقع كله" data-tip="نسخة كاملة من الموقع كله: الحسابات والمجلدات والردود وسلة المهملات والصور — لنقل الموقع كله لمكان تاني. الصور والفيديو المرفقة بالردود كروابط بس، مش الملفات نفسها"
                 onClick={() => fullBackupMut.mutate()}
                 disabled={fullBackupMut.isPending}
                 className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)] disabled:opacity-60"
@@ -8599,7 +8805,7 @@ function DetailsPanel({
   folders: FolderRowT[];
   folderCounts: Map<number, number>;
   onClose: () => void;
-  onCopy: () => Promise<boolean>;
+  onCopy: () => Promise<CopyResult>;
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -8613,6 +8819,8 @@ function DetailsPanel({
   onExport: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  /* Neutral «كمّل البيانات…» state — see ShortcutCard. */
+  const [fillNote, setFillNote] = useState(false);
   const [copying, setCopying] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   /* Resizable on desktop: the panel's width is the user's own
@@ -8647,7 +8855,14 @@ function DetailsPanel({
     } catch { /* ignore */ }
   };
   const copiedTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  const fillTimer = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      window.clearTimeout(copiedTimer.current);
+      window.clearTimeout(fillTimer.current);
+    },
+    [],
+  );
   const panelRef = useRef<HTMLDivElement>(null);
   /* Click-outside dismissal: pressing anywhere outside the panel
      closes it — the default close for a floating layer. Presses
@@ -8667,6 +8882,9 @@ function DetailsPanel({
   const tags = parseTags(item.tags);
   const actBtn =
     "lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]";
+  /* Copy-button labels for this reply's media (video wording —
+     see ShortcutCard). */
+  const copyLabels = copyButtonLabels(item.media);
   return (
     <div
       ref={panelRef}
@@ -8780,10 +8998,19 @@ function DetailsPanel({
         </p>
       </div>
 
+      {/* Attached image/video, full block: player + meta + download,
+          and (video only) «نسخ رابط الفيديو» — a link, never the
+          default copy. */}
+      {item.media && (
+        <div className="mt-3">
+          <ReplyMediaBlock media={item.media} title={item.title} showCopyLink />
+        </div>
+      )}
+
       <button
         type="button"
-        aria-label={copied ? `اتنسخ رد ${item.title}` : `نسخ رد ${item.title}`}
-        data-tip={copied ? "اتنسخ" : "نسخ الرد كامل بضغطة واحدة"}
+        aria-label={copied ? `${copyLabels.done} — ${item.title}` : fillNote ? `${COPY_FILL_NOTE} — ${item.title}` : `${copyLabels.idle} — ${item.title}`}
+        data-tip={copied ? "اتنسخ" : fillNote ? COPY_FILL_NOTE : "نسخ الرد كامل بضغطة واحدة"}
         aria-live="polite"
         aria-busy={copying}
         disabled={copying}
@@ -8791,11 +9018,17 @@ function DetailsPanel({
           if (copying) return;
           setCopying(true);
           try {
-            const ok = await onCopy();
-            if (!ok) return;
+            const res = await onCopy();
+            if (res === "failed") return;
+            if (res === "fill") {
+              setFillNote(true);
+              window.clearTimeout(fillTimer.current);
+              fillTimer.current = window.setTimeout(() => setFillNote(false), 2000);
+              return;
+            }
             setCopied(true);
             window.clearTimeout(copiedTimer.current);
-            copiedTimer.current = window.setTimeout(() => setCopied(false), 1600);
+            copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
           } finally {
             setCopying(false);
           }
@@ -8812,12 +9045,14 @@ function DetailsPanel({
             <span className="animate-copy-pop flex">
               <Icon d={I.check} size={18} />
             </span>
-            اتنسخ
+            {copyLabels.done}
           </>
+        ) : fillNote ? (
+          <>{COPY_FILL_NOTE}</>
         ) : (
           <>
             <Icon d={I.copy} size={18} />
-            نسخ الرد
+            {copyLabels.idle}
           </>
         )}
       </button>
@@ -9517,6 +9752,7 @@ function TrashView({
 
 function CopyHistoryView({
   entries,
+  shortcuts = [],
   isPending,
   isError,
   onRetry,
@@ -9525,6 +9761,10 @@ function CopyHistoryView({
   onCopy,
 }: {
   entries: CopyHistoryEntry[];
+  /* The live library — a history row shows the media badge of the
+     reply it points at when that reply currently has media (the
+     flag rides free on the joined listShortcuts rows). */
+  shortcuts?: Shortcut[];
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
@@ -9641,7 +9881,16 @@ function CopyHistoryView({
               <Icon d={I.history} size={16} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-bold">{e.title}</span>
+              <span className="flex items-center gap-2">
+                <span className="block truncate text-[15px] font-bold">{e.title}</span>
+                <MediaBadge
+                  media={
+                    e.shortcutId !== null
+                      ? (shortcuts.find((x) => x.id === e.shortcutId)?.media ?? null)
+                      : null
+                  }
+                />
+              </span>
               <span className="block text-xs text-[var(--faint)]">
                 {new Date(e.copiedAt).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" })}
                 {e.shortcutId === null ? " · الرد ده اتمسح من المكتبة" : ""}
@@ -10507,7 +10756,8 @@ function ImportPreviewModal({
           <strong className="text-[var(--text)]">{items.length} رد</strong> — منهم{" "}
           <strong className="text-[var(--text)]">{fresh} جديد</strong> و
           <strong className="text-[var(--text)]"> {dupes.length} رد موجود عندك بالفعل</strong>.
-          لسه ما اتكتبش أي حاجة في مكتبتك.
+          لسه ما اتكتبش أي حاجة في مكتبتك. ملف النسخة ده مش بيشمل صور أو فيديو —
+          الردود المستوردة هتوصل من غير وسائط.
         </p>
         {dupes.length > 0 && (
           <div className="mt-3">
@@ -10614,11 +10864,25 @@ function PreviewModal({
 }: {
   item: Shortcut;
   onClose: () => void;
-  onCopy: () => Promise<boolean>;
+  onCopy: () => Promise<CopyResult>;
   onEdit: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  /* Neutral «كمّل البيانات…» state — see ShortcutCard. */
+  const [fillNote, setFillNote] = useState(false);
   const [copying, setCopying] = useState(false);
+  const copiedTimer = useRef<number | undefined>(undefined);
+  const fillTimer = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      window.clearTimeout(copiedTimer.current);
+      window.clearTimeout(fillTimer.current);
+    },
+    [],
+  );
+  /* Copy-button labels for this reply's media (video wording —
+     see ShortcutCard). */
+  const copyLabels = copyButtonLabels(item.media);
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
@@ -10659,24 +10923,36 @@ function PreviewModal({
         <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
           <RichPreview body={item.body} />
         </div>
+        {item.media && (
+          <div className="mt-3">
+            <ReplyMediaBlock media={item.media} title={item.title} />
+          </div>
+        )}
         <p className="mt-2 text-xs leading-relaxed text-[var(--dim)]">
           دي المعاينة بالتنسيق — العريض والمائل بصيغة واتساب، فهيظهروا منسقين لما الرد يتلصق هناك.
         </p>
         <div className="flex gap-2 pb-2 pt-3">
           <button
             type="button"
-            aria-label={copied ? `اتنسخ رد ${item.title}` : `نسخ رد ${item.title}`}
-            data-tip={copied ? "اتنسخ" : "نسخ الرد"}
+            aria-label={copied ? `${copyLabels.done} — ${item.title}` : fillNote ? `${COPY_FILL_NOTE} — ${item.title}` : `${copyLabels.idle} — ${item.title}`}
+            data-tip={copied ? "اتنسخ" : fillNote ? COPY_FILL_NOTE : "نسخ الرد"}
             aria-busy={copying}
             disabled={copying}
             onClick={async () => {
               if (copying) return;
               setCopying(true);
               try {
-                const ok = await onCopy();
-                if (!ok) return;
+                const res = await onCopy();
+                if (res === "failed") return;
+                if (res === "fill") {
+                  setFillNote(true);
+                  window.clearTimeout(fillTimer.current);
+                  fillTimer.current = window.setTimeout(() => setFillNote(false), 2000);
+                  return;
+                }
                 setCopied(true);
-                window.setTimeout(() => setCopied(false), 1600);
+                window.clearTimeout(copiedTimer.current);
+                copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
               } finally {
                 setCopying(false);
               }
@@ -10691,12 +10967,14 @@ function PreviewModal({
             ) : copied ? (
               <>
                 <span className="animate-copy-pop flex"><Icon d={I.check} size={18} /></span>
-                اتنسخ
+                {copyLabels.done}
               </>
+            ) : fillNote ? (
+              <>{COPY_FILL_NOTE}</>
             ) : (
               <>
                 <Icon d={I.copy} size={18} />
-                نسخ الرد
+                {copyLabels.idle}
               </>
             )}
           </button>
@@ -11554,6 +11832,237 @@ function AccountModal({
    copy/open actions, and the portal panel stops its own
    pointerdown so a layer behind it (e.g. the details panel's
    click-outside close) never fires with it. */
+/* ---------- reply media ----------
+   One image or video attached to a reply (Vercel Blob). Three
+   shared pieces, so every surface renders media the same way:
+   - MediaBadge: the tiny image/play marker beside a title
+     (compact card, Shortcuts rows, shortcut bar, history rows).
+   - ReplyMediaThumb: the 16:9 thumb on comfortable/grid cards;
+     tap opens the full preview.
+   - ReplyMediaBlock: the full block in the details panel, the
+     preview modal and the search preview — image (tap opens the
+     original in a new tab) or video player with controls + meta
+     (size, duration/dimensions) + download. Video only, details
+     panel: «نسخ رابط الفيديو» — a link, never the default copy.
+   A URL that 404s shows "media unavailable", never a broken-image
+   icon (onError on <img>/<video>). Lucide glyphs throughout —
+   the site's icon language, not emoji. */
+function MediaBadge({ media }: { media: Shortcut["media"] }) {
+  if (!media) return null;
+  return (
+    <span
+      aria-hidden="true"
+      title={media.kind === "video" ? "فيديو مرفق" : "صورة مرفقة"}
+      className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-alt)] px-1.5 py-0.5 text-[var(--dim)]"
+    >
+      <Icon d={media.kind === "video" ? I.play : I.image} size={12} />
+      {media.kind === "video" && media.durationMs ? (
+        <span className="text-[10px] font-bold">{formatMediaDuration(media.durationMs)}</span>
+      ) : null}
+    </span>
+  );
+}
+
+function ReplyMediaThumb({
+  media,
+  title,
+  onOpen,
+}: {
+  media: NonNullable<Shortcut["media"]>;
+  title: string;
+  onOpen: () => void;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
+        className="lux-btn flex aspect-video w-full items-center justify-center gap-2 rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-alt)] text-[13px] font-bold text-[var(--dim)]"
+      >
+        <Icon d={I.image} size={18} />
+        الوسائط مش متاحة دلوقتي
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen();
+      }}
+      aria-label={`معاينة وسائط رد ${title}`}
+      className="lux-btn relative block aspect-video w-full overflow-hidden rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-alt)]"
+    >
+      {media.kind === "image" ? (
+        <img
+          src={media.blobUrl}
+          alt=""
+          crossOrigin="anonymous"
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <video
+          src={media.blobUrl}
+          preload="metadata"
+          muted
+          playsInline
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      )}
+      {media.kind === "video" && (
+        <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white">
+            <Icon d={I.play} size={18} />
+          </span>
+        </span>
+      )}
+      {media.kind === "video" && media.durationMs ? (
+        <span className="absolute bottom-2 end-2 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-bold text-white">
+          {formatMediaDuration(media.durationMs)}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function ReplyMediaBlock({
+  media,
+  title,
+  showCopyLink = false,
+  compact = false,
+}: {
+  media: NonNullable<Shortcut["media"]>;
+  title: string;
+  /* Details panel only: a «نسخ رابط الفيديو» button — a link,
+     never the default copy. */
+  showCopyLink?: boolean;
+  /* Search preview: shorter media so the grown panel stays
+     comfortable. */
+  compact?: boolean;
+}) {
+  const { t } = useLang();
+  const [failed, setFailed] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [dlError, setDlError] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const linkTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(linkTimer.current), []);
+  const doDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    setDlError(false);
+    try {
+      const ok = await downloadMediaFile(
+        media.blobUrl,
+        mediaFileName(title, media.contentType),
+      );
+      if (!ok) setDlError(true);
+    } finally {
+      setDownloading(false);
+    }
+  };
+  const copyLink = async () => {
+    const ok = await copyText(media.blobUrl);
+    if (!ok) return;
+    setLinkCopied(true);
+    window.clearTimeout(linkTimer.current);
+    linkTimer.current = window.setTimeout(() => setLinkCopied(false), 2000);
+  };
+  if (failed) {
+    return (
+      <div className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-3 text-[13px] font-bold text-[var(--dim)]">
+        <Icon d={I.image} size={16} />
+        {t("الوسائط مش متاحة دلوقتي")}
+      </div>
+    );
+  }
+  const meta =
+    media.kind === "video"
+      ? [formatMediaDuration(media.durationMs), formatMediaSize(media.byteSize)]
+          .filter(Boolean)
+          .join(" · ")
+      : [
+          media.width && media.height ? `${media.width}×${media.height}` : "",
+          formatMediaSize(media.byteSize),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+  return (
+    <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)]">
+      {media.kind === "image" ? (
+        <a
+          href={media.blobUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={t("فتح الصورة الأصلية")}
+        >
+          <img
+            src={media.blobUrl}
+            alt=""
+            crossOrigin="anonymous"
+            onError={() => setFailed(true)}
+            className={`w-full bg-[var(--surface)] object-contain ${compact ? "max-h-64" : "max-h-80"}`}
+          />
+        </a>
+      ) : (
+        <video
+          src={media.blobUrl}
+          controls
+          preload="metadata"
+          playsInline
+          onError={() => setFailed(true)}
+          className={`w-full bg-black ${compact ? "max-h-64" : "max-h-80"}`}
+        />
+      )}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-[var(--dim)]">
+          <Icon d={media.kind === "video" ? I.play : I.image} size={13} />
+          {media.kind === "video" ? t("فيديو") : t("صورة")}
+          {meta ? <span className="truncate">· {meta}</span> : null}
+        </span>
+        <span className="ms-auto flex shrink-0 items-center gap-2">
+          {showCopyLink && media.kind === "video" && (
+            <button
+              type="button"
+              onClick={() => void copyLink()}
+              className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--dim)] hover:text-[var(--text)]"
+            >
+              {linkCopied ? <Icon d={I.check} size={13} /> : <Icon d={I.link} size={13} />}
+              {linkCopied ? t("اتنسخ الرابط") : t("نسخ رابط الفيديو")}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void doDownload()}
+            disabled={downloading}
+            className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
+          >
+            {downloading ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : (
+              <Icon d={I.download} size={13} />
+            )}
+            {downloading ? t("بينزّل…") : t("تنزيل")}
+          </button>
+        </span>
+        {dlError && (
+          <p className="w-full text-xs font-bold text-[var(--danger)]">
+            {t("التنزيل فشل — جرّب تاني")}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TriggerIcon({
   item,
   folder,
@@ -11563,8 +12072,8 @@ function TriggerIcon({
 }: {
   item: Shortcut;
   /* The reply's folder — a SET pill wears its colour (see
-     triggerPillFolder); without it, or for an Auto folder, the
-     pill keeps the fixed NEBULA --trig tokens. */
+     triggerPillFolder); without a folder the pill keeps the
+     fixed NEBULA --trig tokens. */
   folder?: { name: string; iconColor?: string | null } | null;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* The user's OTHER triggers (not this reply's own) — the
@@ -11851,7 +12360,7 @@ function ShortcutCard({
   selected?: boolean;
   active?: boolean;
   onSelect?: () => void;
-  onCopy: () => Promise<boolean>;
+  onCopy: () => Promise<CopyResult>;
   onPin: () => void;
   onFavorite: () => void;
   onEdit: () => void;
@@ -11895,11 +12404,22 @@ function ShortcutCard({
   const [expanded, setExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [copied, setCopied] = useState(false);
+  /* Neutral «كمّل البيانات…» state: the copy opened the fill-in
+     sheet instead (manual {variables}) — nothing copied yet, so
+     the button must say that, never «اتنسخ». */
+  const [fillNote, setFillNote] = useState(false);
   const [copying, setCopying] = useState(false);
   /* تموّج زر النسخ: دائرة تنطلق من نقطة المؤشر عند الضغط. */
   const [ripple, setRipple] = useState<{ x: number; y: number; size: number; id: number } | null>(null);
   const copiedTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  const fillTimer = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      window.clearTimeout(copiedTimer.current);
+      window.clearTimeout(fillTimer.current);
+    },
+    [],
+  );
   /* قائمة «⋯» على الموبايل: صف الأيقونات بيبقى مخفي وبيتفتح منها */
   const [menuOpen, setMenuOpen] = useState(false);
   const long = item.body.length > 220;
@@ -11920,15 +12440,27 @@ function ShortcutCard({
      (head / body / foot), not a decoration. */
   const cardFolder = folders?.find((f) => f.id === item.folderId) ?? null;
   const CatIcon = categoryMeta(item.category).icon;
+  /* Copy-button labels for this reply's media: a video reply's
+     button says «نسخ النص + تنزيل الفيديو» at rest and «اتنسخ
+     النص ✓ · الفيديو بينزل» on success — never a bare «اتنسخ»
+     that could read as "the video was copied". */
+  const copyLabels = copyButtonLabels(item.media);
+  const copyLabelsShort = copyButtonLabels(item.media, true);
   const doCopyClick = async () => {
     if (copying) return;
     setCopying(true);
     try {
-      const ok = await onCopy();
-      if (!ok) return;
+      const res = await onCopy();
+      if (res === "failed") return;
+      if (res === "fill") {
+        setFillNote(true);
+        window.clearTimeout(fillTimer.current);
+        fillTimer.current = window.setTimeout(() => setFillNote(false), 2000);
+        return;
+      }
       setCopied(true);
       window.clearTimeout(copiedTimer.current);
-      copiedTimer.current = window.setTimeout(() => setCopied(false), 1600);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
     } finally {
       setCopying(false);
     }
@@ -11951,14 +12483,18 @@ function ShortcutCard({
      hierarchy title → preview → meta → copy: tinted at rest, it
      fills with the accent gradient while its card is hovered or
      focused, ripples from the pointer on press, and morphs to
-     the check + «اتنسخ» for 1.6s on success (the glass toast
-     confirms it too). In the compact row it becomes the floating
-     pill below. */
+     the check + «اتنسخ» for 2.0s on success (the glass toast
+     confirms it too). A video reply's button reads «نسخ النص +
+     تنزيل الفيديو» at rest — the video downloads with the copy,
+     it is never claimed to be "copied". When the copy opens the
+     fill-in sheet instead, the button shows the neutral
+     «كمّل البيانات…» for 2.0s. In the compact row it becomes the
+     floating pill below. */
   const copyBtn = (
     <button
       type="button"
-      aria-label={copied ? (lang === "en" ? `Copied reply ${item.title}` : `اتنسخ رد ${item.title}`) : lang === "en" ? `Copy reply ${item.title}` : `نسخ رد ${item.title}`}
-      data-tip={copied ? t("اتنسخ — الصقه في أي شات") : t("نسخ الرد")}
+      aria-label={copied ? `${t(copyLabels.done)} — ${item.title}` : fillNote ? `${t(COPY_FILL_NOTE)} — ${item.title}` : `${t(copyLabels.idle)} — ${item.title}`}
+      data-tip={copied ? t("اتنسخ — الصقه في أي شات") : fillNote ? t(COPY_FILL_NOTE) : t(copyLabels.idle)}
       aria-live="polite"
       aria-busy={copying}
       disabled={copying}
@@ -11993,12 +12529,14 @@ function ShortcutCard({
           <span className="animate-copy-pop flex">
             <Icon d={I.check} size={17} />
           </span>
-          {t("اتنسخ")}
+          {t(copyLabels.done)}
         </>
+      ) : fillNote ? (
+        <>{t(COPY_FILL_NOTE)}</>
       ) : (
         <>
           <Icon d={I.copy} size={17} />
-          {t("نسخ الرد")}
+          {t(copyLabels.idle)}
         </>
       )}
     </button>
@@ -12014,8 +12552,8 @@ function ShortcutCard({
     <div className="flex shrink-0 items-center pe-2 ps-0.5 sm:pe-3 sm:ps-1">
       <button
         type="button"
-        aria-label={copied ? (lang === "en" ? `Copied reply ${item.title}` : `اتنسخ رد ${item.title}`) : lang === "en" ? `Copy reply ${item.title}` : `نسخ رد ${item.title}`}
-        data-tip={copied ? t("اتنسخ — الصقه في أي شات") : t("نسخ الرد")}
+        aria-label={copied ? `${t(copyLabelsShort.done)} — ${item.title}` : fillNote ? `${t(COPY_FILL_NOTE)} — ${item.title}` : `${t(copyLabelsShort.idle)} — ${item.title}`}
+        data-tip={copied ? t("اتنسخ — الصقه في أي شات") : fillNote ? t(COPY_FILL_NOTE) : t(copyLabelsShort.idle)}
         aria-live="polite"
         aria-busy={copying}
         disabled={copying}
@@ -12027,12 +12565,14 @@ function ShortcutCard({
             <span className="spinner" aria-hidden="true" />
             {t("بيتنسخ…")}
           </>
+        ) : fillNote ? (
+          <>{t(COPY_FILL_NOTE)}</>
         ) : (
           <>
             <span className={`flex ${copied ? "animate-copy-pop" : ""}`}>
               <Icon d={copied ? I.check : I.copy} size={17} />
             </span>
-            {copied ? t("اتنسخ") : t("نسخ")}
+            {copied ? t(copyLabelsShort.done) : t(copyLabelsShort.idle)}
           </>
         )}
       </button>
@@ -12105,6 +12645,7 @@ function ShortcutCard({
                     <Icon d={I.star} size={13} />
                   </span>
                 )}
+                <MediaBadge media={item.media} />
               </span>
               <span className="mt-0.5 block truncate text-[13px] text-[var(--dim)]">
                 <HighlightText
@@ -12281,6 +12822,14 @@ function ShortcutCard({
               </button>
             </div>
           </div>
+      {/* Attached image/video: a 16:9 thumb above the body — tap
+          opens the full preview. Compact rows get only the small
+          badge beside the title. */}
+      {item.media && (
+        <div className="mt-3">
+          <ReplyMediaThumb media={item.media} title={item.title} onOpen={onPreview} />
+        </div>
+      )}
       {/* Strict hierarchy: title → 3-line preview → one quiet meta
           line → the full-width copy bar at the bottom. In the grid
           the copy bar pins to the bottom (mt-auto) so every card in
@@ -13103,7 +13652,7 @@ function TriggerRow({
   s: Shortcut;
   /* The reply's folder — a SET pill wears its colour. */
   folder?: { name: string; iconColor?: string | null } | null;
-  onCopy: (s: Shortcut) => Promise<boolean>;
+  onCopy: (s: Shortcut) => Promise<CopyResult>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* The user's OTHER triggers — the client-side duplicate check
      inside the trigger pill. */
@@ -13114,19 +13663,37 @@ function TriggerRow({
 }) {
   const { lang, t } = useLang();
   const [copied, setCopied] = useState(false);
+  /* Neutral «كمّل البيانات…» state — see ShortcutCard. */
+  const [fillNote, setFillNote] = useState(false);
   const [copying, setCopying] = useState(false);
   /* Trigger display + editing live in the one shared TriggerIcon
      (the same animated pill as on every reply card) — the row
      keeps only its copy action. */
   const copiedTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  const fillTimer = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      window.clearTimeout(copiedTimer.current);
+      window.clearTimeout(fillTimer.current);
+    },
+    [],
+  );
+  /* Copy-button labels for this reply's media (video wording —
+     see ShortcutCard; short form — the row button is small). */
+  const copyLabels = copyButtonLabels(s.media, true);
 
   const doCopy = async () => {
     if (copying) return;
     setCopying(true);
     try {
-      const ok = await onCopy(s);
-      if (!ok) return;
+      const res = await onCopy(s);
+      if (res === "failed") return;
+      if (res === "fill") {
+        setFillNote(true);
+        window.clearTimeout(fillTimer.current);
+        fillTimer.current = window.setTimeout(() => setFillNote(false), 2000);
+        return;
+      }
       setCopied(true);
       window.clearTimeout(copiedTimer.current);
       copiedTimer.current = window.setTimeout(() => setCopied(false), 2000);
@@ -13144,7 +13711,10 @@ function TriggerRow({
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <TriggerIcon item={s} folder={folder} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold">{s.title}</span>
+          <span className="flex items-center gap-2">
+            <span className="block truncate text-[15px] font-bold">{s.title}</span>
+            <MediaBadge media={s.media} />
+          </span>
           {preview && (
             <span className="mt-0.5 block truncate text-[13px] text-[var(--dim)]">{preview}</span>
           )}
@@ -13158,8 +13728,8 @@ function TriggerRow({
         )}
         <button
           type="button"
-          aria-label={copied ? (lang === "en" ? `Copied reply ${s.title}` : `اتنسخ رد ${s.title}`) : lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
-          data-tip={copied ? t("اتنسخ — الصقه في أي شات") : t("نسخ الرد")}
+          aria-label={copied ? `${t(copyLabels.done)} — ${s.title}` : fillNote ? `${t(COPY_FILL_NOTE)} — ${s.title}` : `${t(copyLabels.idle)} — ${s.title}`}
+          data-tip={copied ? t("اتنسخ — الصقه في أي شات") : fillNote ? t(COPY_FILL_NOTE) : t(copyLabels.idle)}
           aria-live="polite"
           aria-busy={copying}
           disabled={copying}
@@ -13172,10 +13742,10 @@ function TriggerRow({
             <span className="animate-copy-pop flex">
               <Icon d={I.check} size={15} />
             </span>
-          ) : (
+          ) : fillNote ? null : (
             <Icon d={I.copy} size={15} />
           )}
-          {copying ? (lang === "en" ? "Copying…" : "بيتنسخ…") : copied ? t("اتنسخ") : t("نسخ")}
+          {copying ? (lang === "en" ? "Copying…" : "بيتنسخ…") : copied ? t(copyLabels.done) : fillNote ? t(COPY_FILL_NOTE) : t(copyLabels.idle)}
         </button>
       </span>
     </li>
@@ -13222,7 +13792,7 @@ function SearchTriggerPreview({
   shortcuts: Shortcut[];
   /* The folders — a matched pill wears its reply's folder colour. */
   folders?: FolderRowT[];
-  onCopy: (s: Shortcut) => Promise<boolean>;
+  onCopy: (s: Shortcut) => Promise<CopyResult>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* Clear the search (the panel's own dismiss button). */
   onDismiss: () => void;
@@ -13234,6 +13804,10 @@ function SearchTriggerPreview({
     triggerPillFolder(s ? (folders?.find((f) => f.id === s.folderId) ?? null) : null);
   const bestPill = pillFolderOf(best);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  /* Neutral «كمّل البيانات…» state — see ShortcutCard: the copy
+     opened the fill-in sheet instead, so this button shows the
+     neutral text instead of flipping to «اتنسخ». */
+  const [fillId, setFillId] = useState<number | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFilter, setAssignFilter] = useState("");
   const [assigningId, setAssigningId] = useState<number | null>(null);
@@ -13249,7 +13823,14 @@ function SearchTriggerPreview({
      the grid-rows shrink animation has something to collapse. */
   const [shown, setShown] = useState(false);
   const copiedTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  const fillTimer = useRef<number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      window.clearTimeout(copiedTimer.current);
+      window.clearTimeout(fillTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     if (open) {
       setShown(true);
@@ -13314,8 +13895,14 @@ function SearchTriggerPreview({
     if (copyingId !== null) return;
     setCopyingId(s.id);
     try {
-      const ok = await onCopy(s);
-      if (!ok) return;
+      const res = await onCopy(s);
+      if (res === "failed") return;
+      if (res === "fill") {
+        setFillId(s.id);
+        window.clearTimeout(fillTimer.current);
+        fillTimer.current = window.setTimeout(() => setFillId(null), 2000);
+        return;
+      }
       setCopiedId(s.id);
       window.clearTimeout(copiedTimer.current);
       copiedTimer.current = window.setTimeout(() => setCopiedId(null), 2000);
@@ -13356,18 +13943,21 @@ function SearchTriggerPreview({
 
   const copyBtn = (s: Shortcut, big: boolean) => {
     const copied = copiedId === s.id;
+    const filling = fillId === s.id;
     const copying = copyingId === s.id;
+    /* A video reply's button says «نسخ النص + تنزيل الفيديو» —
+       never a bare «اتنسخ» that could read as "the video was
+       copied". Small (extras) buttons take the short form. */
+    const labels = copyButtonLabels(s.media, !big);
     return (
       <button
         type="button"
         aria-label={
           copied
-            ? lang === "en"
-              ? `Copied reply ${s.title}`
-              : `اتنسخ رد ${s.title}`
-            : lang === "en"
-              ? `Copy reply ${s.title}`
-              : `نسخ رد ${s.title}`
+            ? `${t(labels.done)} — ${s.title}`
+            : filling
+              ? `${t(COPY_FILL_NOTE)} — ${s.title}`
+              : `${t(labels.idle)} — ${s.title}`
         }
         aria-live="polite"
         aria-busy={copying}
@@ -13387,7 +13977,7 @@ function SearchTriggerPreview({
           <span className="animate-copy-pop flex">
             <Icon d={I.check} size={big ? 16 : 14} />
           </span>
-        ) : (
+        ) : filling ? null : (
           <Icon d={I.copy} size={big ? 16 : 14} />
         )}
         {copying
@@ -13395,8 +13985,10 @@ function SearchTriggerPreview({
             ? "Copying…"
             : "بيتنسخ…"
           : copied
-            ? t("اتنسخ")
-            : t("نسخ الرد")}
+            ? t(labels.done)
+            : filling
+              ? t(COPY_FILL_NOTE)
+              : t(labels.idle)}
       </button>
     );
   };
@@ -13450,6 +14042,13 @@ function SearchTriggerPreview({
                 <p className="trig-stage trig-stage-2 mt-2 text-[16px] font-extrabold leading-snug">
                   {best.title}
                 </p>
+                {/* Attached image/video, between title and body —
+                    same stage as the body, so they reveal together. */}
+                {best.media && (
+                  <div className="trig-stage trig-stage-3 mt-2.5">
+                    <ReplyMediaBlock media={best.media} title={best.title} compact />
+                  </div>
+                )}
                 {/* The full reply, complete — this is why the box
                     grew. Long replies scroll inside the panel. */}
                 <p className="trig-stage trig-stage-3 mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text)]">
@@ -14041,7 +14640,7 @@ function ShortcutsView({
   shortcuts: Shortcut[];
   folders: FolderRowT[];
   query: string;
-  onCopy: (s: Shortcut) => Promise<boolean>;
+  onCopy: (s: Shortcut) => Promise<CopyResult>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* Tapping a chip types its trigger into the search box, so the
      search box grows into that reply's preview. */
@@ -14299,7 +14898,7 @@ function ShortcutBar({
   shortcuts: Shortcut[];
   /* The folders — a row's trigger pill wears its reply's folder colour. */
   folders?: FolderRowT[];
-  onCopy: (s: Shortcut) => Promise<boolean>;
+  onCopy: (s: Shortcut) => Promise<CopyResult>;
   /* Jump to the Shortcuts section's preview box (closes the bar). */
   onOpenPreview?: () => void;
 }) {
@@ -14430,7 +15029,10 @@ function ShortcutBar({
                     {s.trigger}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-bold">{s.title}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="block truncate text-[15px] font-bold">{s.title}</span>
+                      <MediaBadge media={s.media} />
+                    </span>
                     <span className="block truncate text-[13px] text-[var(--dim)]">
                       {s.body.replace(/\s+/g, " ").trim().slice(0, 80)}
                     </span>
@@ -14794,6 +15396,192 @@ function EditorModal({
     saveMut.mutate();
   };
 
+  /* ---------- reply media ----------
+     An image/video attached to THIS reply (existing replies only —
+     a new reply has no id yet, so attach needs it saved first).
+     The file goes straight from the browser to Vercel Blob
+     (upload() + the /api/media/upload token route); attachMedia
+     then records the reference. Media is NOT part of
+     buildPayload/autosave/draft — attach/remove are their own
+     mutations, so the editor's save/dirty logic never sees them. */
+  const [media, setMedia] = useState(item?.media ?? null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaProgress, setMediaProgress] = useState(0);
+  const [mediaRemoving, setMediaRemoving] = useState(false);
+  const [confirmRemoveMedia, setConfirmRemoveMedia] = useState(false);
+  /* True when the server said Blob storage is not connected yet
+     (503 «التخزين مش متظبط…») — attach stays disabled with that
+     exact hint until the store exists. */
+  const [mediaStorageDown, setMediaStorageDown] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  /* Downscale an image to at most 1600px on the longest edge
+     (same canvas pattern as the avatar flow, which uses 512px),
+     keeping its type (PNG stays PNG, everything else JPEG). */
+  const prepareImage = (file: File): Promise<{ file: File; width: number; height: number }> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        const width = Math.max(1, Math.round(img.naturalWidth * scale));
+        const height = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const cx = canvas.getContext("2d");
+        if (!cx) return reject(new Error("prepare failed"));
+        cx.drawImage(img, 0, 0, width, height);
+        const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+        canvas.toBlob(
+          (b) =>
+            b
+              ? resolve({ file: new File([b], "image", { type: mimeType }), width, height })
+              : reject(new Error("toBlob failed")),
+          mimeType,
+          0.88,
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("unreadable image"));
+      };
+      img.src = url;
+    });
+
+  /* Measure a video's duration + dimensions from its metadata
+     (no upload involved). */
+  const measureVideo = (file: File): Promise<{ durationMs: number; width: number; height: number }> =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve({
+          durationMs: Math.round(v.duration * 1000),
+          width: v.videoWidth,
+          height: v.videoHeight,
+        });
+      };
+      v.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("unreadable video"));
+      };
+      v.src = url;
+    });
+
+  const uploadMediaFile = async (file: File, kind: "image" | "video") => {
+    if (!item) return;
+    setMediaError(null);
+    setMediaStorageDown(false);
+    const allowed =
+      kind === "image"
+        ? ["image/jpeg", "image/png", "image/webp"]
+        : ["video/mp4", "video/webm"];
+    if (!allowed.includes(file.type)) {
+      setMediaError(
+        kind === "image"
+          ? "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"
+          : "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي",
+      );
+      return;
+    }
+    const cap = kind === "image" ? 8 * 1024 * 1024 : 50 * 1024 * 1024;
+    if (file.size > cap) {
+      setMediaError(
+        kind === "image"
+          ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
+          : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
+      );
+      return;
+    }
+    setMediaUploading(true);
+    setMediaProgress(0);
+    try {
+      let upFile = file;
+      let width: number | null = null;
+      let height: number | null = null;
+      let durationMs: number | null = null;
+      if (kind === "image") {
+        const prepared = await prepareImage(file);
+        upFile = prepared.file;
+        width = prepared.width;
+        height = prepared.height;
+      } else {
+        const meta = await measureVideo(file);
+        durationMs = meta.durationMs;
+        width = meta.width || null;
+        height = meta.height || null;
+        if (durationMs > 5 * 60 * 1000) {
+          setMediaError("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر");
+          return;
+        }
+      }
+      const ext =
+        upFile.type === "image/png"
+          ? "png"
+          : upFile.type === "image/webp"
+            ? "webp"
+            : upFile.type === "video/webm"
+              ? "webm"
+              : upFile.type === "video/mp4"
+                ? "mp4"
+                : "jpg";
+      const pathname = `media/${userId}/${item.id}/${crypto.randomUUID()}.${ext}`;
+      /* Probe first so the server's exact error surfaces (see
+         mintUploadToken), then the real client upload. */
+      await mintUploadToken(token, pathname, item.id, kind);
+      const blob = await upload(pathname, upFile, {
+        access: "public",
+        handleUploadUrl: "/api/media/upload",
+        clientPayload: JSON.stringify({ token, shortcutId: item.id, kind }),
+        onUploadProgress: ({ percentage }) => setMediaProgress(Math.round(percentage)),
+      });
+      const saved = await api.attachMedia({
+        token,
+        shortcutId: item.id,
+        kind,
+        blobUrl: blob.url,
+        blobPathname: blob.pathname,
+        contentType: upFile.type,
+        byteSize: upFile.size,
+        width,
+        height,
+        durationMs,
+      });
+      setMedia(saved.media);
+      queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "الرفع متمّش — حاول تاني";
+      if (msg.includes("التخزين مش متظبط")) setMediaStorageDown(true);
+      setMediaError(msg);
+    } finally {
+      setMediaUploading(false);
+      setMediaProgress(0);
+    }
+  };
+
+  /* Removal deletes the Blob object too (when no other reply
+     still references it) — hence the confirm step. */
+  const removeMediaFile = async () => {
+    if (!item || !media) return;
+    setMediaRemoving(true);
+    try {
+      await api.removeMedia({ token, shortcutId: item.id });
+      setMedia(null);
+      setConfirmRemoveMedia(false);
+      queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
+    } catch (e) {
+      setMediaError(e instanceof Error ? e.message : "المسح متمّش — حاول تاني");
+    } finally {
+      setMediaRemoving(false);
+    }
+  };
+
   const field =
     "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent)]";
 
@@ -14910,6 +15698,133 @@ function EditorModal({
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* الوسائط: صورة أو فيديو مرفقين بالرد — بيتنسخوا مع النص
+              (الصورة في نفس النسخة، والفيديو بينزل مع النسخ).
+              الإرفاق والمسح mutations مستقلة — مش جزء من حفظ
+              الرد ولا المسودة ولا الحفظ التلقائي. */}
+          <div className="mt-6">
+            {sectionHead(I.image, "الوسائط")}
+            <div className="mt-3 flex flex-col gap-3">
+              {!item ? (
+                <p className="text-[13px] leading-relaxed text-[var(--dim)]">
+                  احفظ الرد الأول، وبعدين تقدر تضيف صورة أو فيديو من هنا — الوسائط بتتربط بالرد بعد ما يتحفظ.
+                </p>
+              ) : mediaStorageDown ? (
+                <p role="alert" className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-3.5 py-3 text-[13px] font-bold leading-relaxed text-[var(--dim)]">
+                  التخزين مش متظبط على السيرفر — الصور والفيديو مش متاحين دلوقتي
+                </p>
+              ) : media ? (
+                <>
+                  <ReplyMediaBlock media={media} title={title || item.title} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={mediaUploading || mediaRemoving}
+                      onClick={() => imageInputRef.current?.click()}
+                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
+                    >
+                      <Icon d={I.image} size={15} />
+                      استبدال بصورة
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mediaUploading || mediaRemoving}
+                      onClick={() => videoInputRef.current?.click()}
+                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
+                    >
+                      <Icon d={I.play} size={15} />
+                      استبدال بفيديو
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mediaUploading || mediaRemoving}
+                      onClick={() => {
+                        if (confirmRemoveMedia) void removeMediaFile();
+                        else {
+                          setConfirmRemoveMedia(true);
+                          window.setTimeout(() => setConfirmRemoveMedia(false), 3000);
+                        }
+                      }}
+                      className={`lux-btn flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold disabled:opacity-60 ${confirmRemoveMedia ? "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--danger)]"}`}
+                    >
+                      <Icon d={I.trash} size={15} />
+                      {mediaRemoving ? "بيتمسح…" : confirmRemoveMedia ? "متأكد؟ الملف هيتمسح من التخزين" : "مسح الوسائط"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={mediaUploading}
+                      onClick={() => imageInputRef.current?.click()}
+                      className="lux-btn flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+                    >
+                      <Icon d={I.image} size={15} />
+                      أضف صورة
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mediaUploading}
+                      onClick={() => videoInputRef.current?.click()}
+                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
+                    >
+                      <Icon d={I.play} size={15} />
+                      أضف فيديو
+                    </button>
+                  </div>
+                  <p className="text-xs leading-relaxed text-[var(--dim)]">
+                    صورة JPG أو PNG أو WebP لحد 8 ميجا (بتتصغّر لـ 1600px قبل الرفع) — فيديو MP4 أو WebM لحد 50 ميجا و5 دقايق. الـ GIF والـ MOV مش مدعومين دلوقتي. الصورة بتتنسخ مع النص في نسخة واحدة، والفيديو بينزل على جهازك مع النسخ.
+                  </p>
+                </>
+              )}
+              {mediaUploading && (
+                <div className="flex items-center gap-2" aria-live="polite">
+                  <span className="spinner shrink-0" aria-hidden="true" />
+                  <span className="text-[13px] font-bold text-[var(--dim)]">
+                    بيرفع… {mediaProgress}%
+                  </span>
+                  <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-alt)]">
+                    <span
+                      className="block h-full rounded-full bg-[var(--accent)] transition-[width]"
+                      style={{ width: `${mediaProgress}%` }}
+                    />
+                  </span>
+                </div>
+              )}
+              {mediaError && (
+                <p role="alert" className="text-xs font-bold leading-relaxed text-[var(--danger)]">
+                  {mediaError}
+                </p>
+              )}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                aria-label="اختيار صورة"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void uploadMediaFile(f, "image");
+                }}
+              />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/mp4,video/webm"
+                className="hidden"
+                aria-label="اختيار فيديو"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void uploadMediaFile(f, "video");
+                }}
+              />
             </div>
           </div>
 

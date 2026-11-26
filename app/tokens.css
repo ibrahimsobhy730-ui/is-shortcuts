@@ -4892,11 +4892,11 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 @keyframes neb-trig-sheen {
   /* عبور مستمر بلا توقف: النسخة القديمة كانت تثبت عند 60%،
      فاللمعة تقضي 40% من كل دورة مختفية برّه الحبّة. (تقوية
-     2026-11-26: الرحلة أقصر (-130% ← 130%) فاللمعة تقضي معظم
+     2026-11-26: الرحلة أقصر (-110% ← 110%) فاللمعة تقضي معظم
      الدورة جوه الحبّة مش برّاها، والدورة 1.6ث بدل 2.4ث —
      لقطتين بفاصل ثانية لازم يختلفوا بوضوح.) */
-  0% { transform: translateX(-130%) skewX(-18deg); }
-  100% { transform: translateX(130%) skewX(-18deg); }
+  0% { transform: translateX(-110%) skewX(-18deg); }
+  100% { transform: translateX(110%) skewX(-18deg); }
 }
 @keyframes neb-trig-zap {
   0%, 100% { transform: scale(1); opacity: 1; }
@@ -5001,6 +5001,31 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   animation-delay: var(--trig-delay, 0s);
 }
 .trig-icon:hover .trig-sheen { animation-duration: 0.8s; }
+/* الغامق: اللمعة والتوهّج أقوى (شريط أبيض كامل وعريض
+   أكتر، وتوهّج 85% بدل 70%) عشان يبانوا على الخلفية
+   الغامقة — اللمعة أصلًا بيضا فالمفروض تبان أكتر في
+   الغامق، ولو ما بانتش في لقطة فالسبب غالبًا إن الحبّة
+   المصوَّرة ما كانش فيها لمعة أصلًا (شريحة البار مثلًا)
+   أو إن اللقطتين وقعوا برّه الشريط. ملحوظة دقة: قاعدة
+   التوهّج الغامق مستثناة منها حبّة المجلد
+   (:not(.trig-folder)) — لولا الاستثناء ده، القاعدة دي
+   (0,2,1) كانت هتتفوّق بوضعها المتأخر على
+   .trig-icon.trig-folder::before (0,2,1) وترجّع توهّج
+   حبّة المجلد للأزرق الثابت في الغامق، وده يكسر قاعدة
+   لون الحبّة = لون المجلد. حبّة المجلد ليها نسختها
+   الخاصة تحت (--fhue بـ 85%). */
+:root[data-theme="dark"] .trig-sheen {
+  background: linear-gradient(100deg, transparent 22%, rgb(255 255 255 / 1) 44%, rgb(255 255 255 / 1) 56%, transparent 78%);
+}
+:root[data-theme="dark"] .trig-icon:not(.trig-folder)::before {
+  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--trig) 85%, transparent), transparent 70%);
+}
+:root[data-theme="dark"] .trig-icon.trig-folder::before {
+  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--fhue) 85%, transparent), transparent 70%);
+}
+:root[data-theme="dark"] .trig-hero-pill::after {
+  background: linear-gradient(100deg, transparent 22%, rgb(255 255 255 / 0.95) 44%, rgb(255 255 255 / 0.95) 56%, transparent 78%);
+}
 /* نبضة البرق — في القاعدة نفسها زي التوهّج واللمعة. */
 .trig-zap {
   animation: neb-trig-zap 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
@@ -5188,7 +5213,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   background: linear-gradient(100deg, transparent 28%, rgb(255 255 255 / 0.8) 46%, rgb(255 255 255 / 0.8) 54%, transparent 72%);
   transform: translateX(-130%) skewX(-18deg);
   pointer-events: none;
-  animation: neb-trig-sheen 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation: neb-trig-sheen 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 .trig-hero-pill-sm {
   padding: 2px 8px;

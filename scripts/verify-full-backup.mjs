@@ -421,6 +421,7 @@ try {
     ["shortcuts_id_seq", maxId(finalData.shortcuts)],
     ["copy_history_id_seq", maxId(finalData.copyHistory)],
     ["smart_folders_id_seq", maxId(finalData.smartFolders)],
+    ["reply_media_id_seq", maxId(finalData.media ?? [])],
   ];
   check(
     "importer issued setval resets (recorded)",
@@ -439,7 +440,7 @@ try {
     JSON.stringify(countsBefore) === JSON.stringify(countsAfter),
     JSON.stringify(countsAfter),
   );
-  check("second import re-issues setvals", tgt.calls.setval.length === setvalBefore + 5);
+  check("second import re-issues setvals", tgt.calls.setval.length === setvalBefore + 6);
 
   // pg-mem has no sequences at all (no pg_class entries, no
   // nextval target): its serial counters ignore explicitly inserted

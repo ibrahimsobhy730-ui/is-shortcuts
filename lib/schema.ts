@@ -247,6 +247,37 @@ export const shortcuts = pgTable("shortcuts", {
     .$defaultFn(() => new Date()),
 });
 
+/* Reply media: one image or video attached to a reply. The bytes
+   live in Vercel Blob (public URLs, see app/api/media/upload);
+   this table holds only the reference + display metadata, never
+   the bytes. One media per reply (unique shortcut_id); deleting
+   the reply deletes its media row (ON DELETE CASCADE) — the Blob
+   object itself is deleted by the action handlers with a refcount
+   guard, since a duplicated reply shares the same Blob object. */
+export const replyMedia = pgTable("reply_media", {
+  id: serial("id").primaryKey(),
+  shortcutId: integer("shortcut_id")
+    .notNull()
+    .references(() => shortcuts.id, { onDelete: "cascade" }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  kind: text("kind").notNull(),
+  blobUrl: text("blob_url").notNull(),
+  blobPathname: text("blob_pathname").notNull(),
+  contentType: text("content_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+  durationMs: integer("duration_ms"),
+  createdAt: ts("created_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: ts("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 /* Profile-picture bytes. In the Muse artifact these lived in the
    platform blob store (ctx.blobs) under the key `avatars/<userId>`;
    here they live in Postgres so the free Neon tier needs no extra

@@ -51,7 +51,9 @@ live site downloads (`is-shortcuts-backup.json`) is:
 - accounts or password hashes (they never leave the server),
 - folder nesting, pins, descriptions, icons, folder sources,
 - shortcut usage counts, favorites, pins, trash state,
-- smart folders, copy history, sessions, avatars.
+- smart folders, copy history, sessions, avatars,
+- reply media (images / video) — those live in the full backup
+  only, as URLs, not as files.
 
 What DOES come back automatically: folder **names** — the ported
 `ensureFolders()` recreates top-level folders from the replies'
@@ -74,15 +76,19 @@ categories on first load, exactly like the original.
 
 `scripts/import-backup.ts --full full-export.json` accepts
 `{ users, folders, shortcuts, copyHistory, sessions, smartFolders,
-siteConfig, avatars: [{ userId, mimeType, dataBase64 }] }` with the
-original ids and password hashes as-is, and resets the id sequences
-afterwards. Sessions transfer too, so existing device tokens keep
-working. The file comes from the live site itself: the owner-only
-«تصدير نسخة كاملة» button (the `exportFullBackup` action) downloads
-`is-full-backup.json` with every table, including folder icon colours.
-The round trip is proven end-to-end by `scripts/verify-full-backup.mjs`
-(150/150 checks, pg-mem): export through the ported action → import
-with the real importer → field-level match on every row, login works
+siteConfig, avatars: [{ userId, mimeType, dataBase64 }],
+media: [{ shortcutId, kind, blobUrl, blobPathname, contentType,
+byteSize, width, height, durationMs }] }` with the original ids
+and password hashes as-is, and resets the id sequences
+afterwards. Media rows carry URLs only — the files themselves stay
+in Vercel Blob and are not embedded in the backup. Sessions transfer
+too, so existing device tokens keep working. The file comes from the
+live site itself: the owner-only «تصدير نسخة كاملة» button (the
+`exportFullBackup` action) downloads `is-full-backup.json` with
+every table, including folder icon colours. The round trip is
+proven end-to-end by `scripts/verify-full-backup.mjs` (150/150
+checks, pg-mem): export through the ported action → import with the
+real importer → field-level match on every row, login works
 afterwards, second import inserts nothing.
 
 ## Deploy (after the accounts exist)
@@ -95,7 +101,15 @@ afterwards, second import inserts nothing.
 4. **Vercel** — import the GitHub repo (framework: Next.js).
    Set the environment variable `DATABASE_URL` to the Neon string
    (Project → Settings → Environment Variables). No other env vars.
-5. Deploy. Open the site, register, import the backup (above).
+5. **Vercel Blob (reply media)** — Vercel dashboard → project
+   is-shortcuts → Storage → Create Database → Blob → create a store
+   → Connect to is-shortcuts. `BLOB_READ_WRITE_TOKEN` is created
+   automatically in the env vars; redeploy after connecting. Until
+   the store exists, attaching images/video shows
+   «التخزين مش متظبط على السيرفر» and the site otherwise works
+   normally. Media URLs are public-but-unguessable; the replies
+   themselves stay behind sign-in.
+6. Deploy. Open the site, register, import the backup (above).
 6. Optional: submit the public URL to Google Search Console —
    the SEO/Open Graph/schema tags are already in `app/layout.tsx`.
    Google indexes the public login page only; the 88 replies stay

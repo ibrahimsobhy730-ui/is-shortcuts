@@ -1,8 +1,23 @@
 import { defineAction, z, type ActionsModule, type Ctx } from "./ctx.ts";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as schema from "./schema.ts";
+import { del as blobDel } from "@vercel/blob";
 
 /* ================= shapes ================= */
+
+/* One image or video attached to a reply (see replyMedia in
+   lib/schema.ts). The bytes live in Vercel Blob; this is only the
+   reference + display metadata. null = the reply has no media. */
+const mediaShape = z.object({
+  kind: z.enum(["image", "video"]),
+  blobUrl: z.string(),
+  blobPathname: z.string(),
+  contentType: z.string(),
+  byteSize: z.number(),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  durationMs: z.number().nullable(),
+});
 
 const shortcutShape = z.object({
   id: z.number(),
@@ -15,6 +30,10 @@ const shortcutShape = z.object({
   extShortcut: z.string(),
   source: z.string(),
   folderId: z.number().nullable(),
+  /* Attached image/video, or null. Joined in listShortcuts /
+     listTrash; single-row actions return null (a fresh reply has
+     no media, and attach/remove go through their own actions). */
+  media: mediaShape.nullable(),
   sortOrder: z.number(),
   pinned: z.boolean(),
   favorite: z.boolean(),
@@ -304,8 +323,22 @@ const userShape = z.object({
 
 type ShortcutRow = typeof schema.shortcuts.$inferSelect;
 type UserRow = typeof schema.users.$inferSelect;
+type MediaRow = typeof schema.replyMedia.$inferSelect;
 
-function toShape(row: ShortcutRow): z.infer<typeof shortcutShape> {
+function toMediaShape(row: MediaRow): z.infer<typeof mediaShape> {
+  return {
+    kind: row.kind === "video" ? "video" : "image",
+    blobUrl: row.blobUrl,
+    blobPathname: row.blobPathname,
+    contentType: row.contentType,
+    byteSize: row.byteSize,
+    width: row.width ?? null,
+    height: row.height ?? null,
+    durationMs: row.durationMs ?? null,
+  };
+}
+
+function toShape(row: ShortcutRow, media?: MediaRow | null): z.infer<typeof shortcutShape> {
   return {
     id: row.id,
     title: row.title,
@@ -316,6 +349,7 @@ function toShape(row: ShortcutRow): z.infer<typeof shortcutShape> {
     extShortcut: row.extShortcut ?? "",
     source: row.source ?? "",
     folderId: row.folderId ?? null,
+    media: media ? toMediaShape(media) : null,
     sortOrder: row.sortOrder,
     pinned: row.pinned,
     favorite: row.favorite ?? false,
@@ -496,7 +530,10 @@ async function createSession(
   return token;
 }
 
-async function getSessionUser(ctx: Ctx, token: string): Promise<UserRow | null> {
+/* Exported for the media upload route (app/api/media/upload):
+   it resolves the same session token the actions use, so the
+   token-minting step enforces the same auth as every action. */
+export async function getSessionUser(ctx: Ctx, token: string): Promise<UserRow | null> {
   if (!token) return null;
   const db = ctx.db<typeof schema>();
   const rows = await db
@@ -533,8 +570,10 @@ async function requireUser(ctx: Ctx, token: string): Promise<UserRow> {
   return user;
 }
 
-/** Throws unless the shortcut exists and belongs to this user. */
-async function requireOwnedShortcut(
+/** Throws unless the shortcut exists and belongs to this user.
+    (Exported for the media upload route, same reason as
+    getSessionUser above.) */
+export async function requireOwnedShortcut(
   ctx: Ctx,
   userId: number,
   id: number,
@@ -600,6 +639,94 @@ async function assertTriggerAvailable(
   const clash = rows[0];
   if (clash && clash.id !== excludeId) {
     throw new Error("الاختصار ده مستخدم في رد تاني عندك — اختار اختصار مختلف");
+  }
+}
+
+/* ================= reply media (Vercel Blob) =================
+   One image or video per reply. The bytes live in Vercel Blob
+   (public URLs); the DB holds only the reference. Limits are
+   enforced BOTH client-side (for instant feedback) and here
+   (the truth — a client can always be bypassed):
+   - image: JPEG/PNG/WebP only, max 8 MB. GIF is excluded v1: it
+     would be flattened to PNG on the clipboard anyway.
+   - video: MP4/WebM only, max 50 MB, max 5 minutes. MOV is
+     excluded v1 (its container is not a web-native clipboard or
+     <video> type).
+   Pathnames are always `media/<userId>/<shortcutId>/<uuid>.<ext>` —
+   never the user's original filename — and the URL must be a
+   Vercel Blob public host, so attachMedia can never be used to
+   point a reply at an arbitrary third-party URL. */
+export const MEDIA_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const MEDIA_VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
+export const MEDIA_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+export const MEDIA_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+export const MEDIA_VIDEO_MAX_DURATION_MS = 5 * 60 * 1000;
+/* The pathname shape the client builds (uuid from
+   crypto.randomUUID, extension from the file). The upload route
+   re-checks the userId/shortcutId prefix against the session. */
+export const MEDIA_PATH_RE = /^media\/(\d+)\/(\d+)\/[0-9a-f-]+\.(jpe?g|png|webp|mp4|webm)$/i;
+
+export function mediaLimitsFor(kind: "image" | "video"): {
+  contentTypes: readonly string[];
+  maxBytes: number;
+} {
+  return kind === "image"
+    ? { contentTypes: MEDIA_IMAGE_TYPES, maxBytes: MEDIA_IMAGE_MAX_BYTES }
+    : { contentTypes: MEDIA_VIDEO_TYPES, maxBytes: MEDIA_VIDEO_MAX_BYTES };
+}
+
+/** Deletes one Blob object. A failure is logged but never fails
+    the caller's removal — an orphaned object is harmless (same
+    tolerance as removeAvatar), and the DB row is the source of
+    truth for what the site shows. Without a Blob store connected
+    (no BLOB_READ_WRITE_TOKEN) this throws BlobAccessError at once,
+    which is caught here too. */
+async function deleteBlobObject(pathname: string): Promise<void> {
+  try {
+    await blobDel(pathname);
+  } catch (e) {
+    console.error(
+      `reply media: blob del failed for ${pathname}:`,
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
+/** The Blob pathnames referenced by the given replies (queried
+    BEFORE the rows are deleted — afterwards the pathnames are
+    gone). Callers delete the rows, then pass these pathnames to
+    deleteBlobsIfUnreferenced below. */
+async function mediaPathnamesForShortcuts(
+  ctx: Ctx,
+  shortcutIds: number[],
+): Promise<string[]> {
+  if (shortcutIds.length === 0) return [];
+  const db = ctx.db<typeof schema>();
+  const rows = await db
+    .select({ blobPathname: schema.replyMedia.blobPathname })
+    .from(schema.replyMedia)
+    .where(inArray(schema.replyMedia.shortcutId, shortcutIds));
+  return [...new Set(rows.map((r) => r.blobPathname))];
+}
+
+/** Deletes each Blob object whose pathname is no longer referenced
+    by ANY reply_media row. A duplicated reply shares the same
+    Blob object (same pathname, new row), so the object must survive
+    while any copy still points at it — this check runs AFTER the
+    caller's row deletes, so the remaining rows are the truth. */
+async function deleteBlobsIfUnreferenced(
+  ctx: Ctx,
+  pathnames: string[],
+): Promise<void> {
+  if (pathnames.length === 0) return;
+  const db = ctx.db<typeof schema>();
+  for (const p of pathnames) {
+    const refs = await db
+      .select({ id: schema.replyMedia.id })
+      .from(schema.replyMedia)
+      .where(eq(schema.replyMedia.blobPathname, p))
+      .limit(1);
+    if (refs.length === 0) await deleteBlobObject(p);
   }
 }
 
@@ -683,6 +810,24 @@ async function hardDeleteFolderTree(
     ids.push(cur);
     for (const c of childrenOf.get(cur) ?? []) queue.push(c);
   }
+  /* Media pathnames first: the reply rows (and their media rows,
+     by cascade) vanish below, and the pathnames with them. The
+     Blob objects are dropped after the deletes, only when no
+     surviving reply still references them (a duplicate shares
+     the object). */
+  const doomed = await db
+    .select({ id: schema.shortcuts.id })
+    .from(schema.shortcuts)
+    .where(
+      and(
+        eq(schema.shortcuts.userId, userId),
+        inArray(schema.shortcuts.folderId, ids),
+      ),
+    );
+  const mediaPathnames = await mediaPathnamesForShortcuts(
+    ctx,
+    doomed.map((d) => d.id),
+  );
   let removed = 0;
   for (const fid of ids) {
     const gone = await db
@@ -702,6 +847,7 @@ async function hardDeleteFolderTree(
       .where(and(eq(schema.folders.id, fid), eq(schema.folders.userId, userId)));
     removed += 1;
   }
+  await deleteBlobsIfUnreferenced(ctx, mediaPathnames);
   return removed;
 }
 
@@ -1689,9 +1835,151 @@ export const Actions = {
     },
   }),
 
+  /* ================= reply media =================
+     The file itself is uploaded straight from the browser to
+     Vercel Blob (app/api/media/upload mints a short-lived token
+     after checking ownership); these actions only record or drop
+     the reference. attachMedia re-validates EVERYTHING server-side
+     — ownership, kind/content-type pair, size caps, pathname shape
+     and the Blob host — so a forged client call can never point a
+     reply at an arbitrary URL or another user's file. */
+
+  attachMedia: defineAction({
+    description:
+      "Attaches an already-uploaded image or video (Vercel Blob) to one of the signed-in user's own replies, replacing any media it already had. Re-validates kind, content type, size, pathname shape and Blob host server-side.",
+    request: z.object({
+      token: z.string(),
+      shortcutId: z.number().int().positive(),
+      kind: z.enum(["image", "video"]),
+      blobUrl: z.string().min(1).max(500),
+      blobPathname: z.string().min(1).max(300),
+      contentType: z.string().min(1).max(100),
+      byteSize: z.number().int().positive(),
+      width: z.number().int().positive().nullable().optional(),
+      height: z.number().int().positive().nullable().optional(),
+      durationMs: z.number().int().positive().nullable().optional(),
+    }),
+    response: z.object({ media: mediaShape }),
+    async handler(ctx, args) {
+      const db = ctx.db<typeof schema>();
+      const me = await requireUser(ctx, args.token);
+      await requireOwnedShortcut(ctx, me.id, args.shortcutId);
+      const limits = mediaLimitsFor(args.kind);
+      if (
+        !(limits.contentTypes as readonly string[]).includes(args.contentType)
+      ) {
+        throw new Error("نوع الملف ده مش مدعوم — الصور JPG/PNG/WebP والفيديو MP4/WebM بس");
+      }
+      if (args.byteSize > limits.maxBytes) {
+        throw new Error(
+          args.kind === "image"
+            ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
+            : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
+        );
+      }
+      if (
+        args.kind === "video" &&
+        args.durationMs !== undefined &&
+        args.durationMs !== null &&
+        args.durationMs > MEDIA_VIDEO_MAX_DURATION_MS
+      ) {
+        throw new Error("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر");
+      }
+      /* Pathname must be ours: media/<my id>/<this reply>/<uuid>.<ext>. */
+      const pm = MEDIA_PATH_RE.exec(args.blobPathname);
+      if (
+        !pm ||
+        Number(pm[1]) !== me.id ||
+        Number(pm[2]) !== args.shortcutId
+      ) {
+        throw new Error("مسار الملف مش صحيح");
+      }
+      /* URL must be a Vercel Blob public URL for exactly this pathname. */
+      let url: URL;
+      try {
+        url = new URL(args.blobUrl);
+      } catch {
+        throw new Error("رابط الملف مش صحيح");
+      }
+      if (
+        url.protocol !== "https:" ||
+        !url.hostname.endsWith(".public.blob.vercel-storage.com") ||
+        decodeURIComponent(url.pathname) !== `/${args.blobPathname}`
+      ) {
+        throw new Error("رابط الملف مش من مخزن الموقع");
+      }
+      const values = {
+        shortcutId: args.shortcutId,
+        userId: me.id,
+        kind: args.kind,
+        blobUrl: args.blobUrl,
+        blobPathname: args.blobPathname,
+        contentType: args.contentType,
+        byteSize: args.byteSize,
+        width: args.width ?? null,
+        height: args.height ?? null,
+        durationMs: args.durationMs ?? null,
+      };
+      const existing = await db
+        .select()
+        .from(schema.replyMedia)
+        .where(eq(schema.replyMedia.shortcutId, args.shortcutId))
+        .limit(1);
+      const old = existing[0] ?? null;
+      let saved: MediaRow[];
+      if (old) {
+        saved = await db
+          .update(schema.replyMedia)
+          .set({ ...values, updatedAt: new Date() })
+          .where(eq(schema.replyMedia.id, old.id))
+          .returning();
+      } else {
+        saved = await db.insert(schema.replyMedia).values(values).returning();
+      }
+      const row = saved[0];
+      if (!row) throw new Error("attachMedia: save returned no rows");
+      /* Replace order: the new row is committed first, so a failure
+         here can never leave the reply media-less; the old Blob
+         object is dropped only when nothing still references it. */
+      if (old && old.blobPathname !== args.blobPathname) {
+        await deleteBlobsIfUnreferenced(ctx, [old.blobPathname]);
+      }
+      ctx.invalidateQueries();
+      return { media: toMediaShape(row) };
+    },
+  }),
+
+  removeMedia: defineAction({
+    description:
+      "Removes the image/video attached to one of the signed-in user's own replies and deletes the Blob object when no other reply still references it.",
+    request: z.object({
+      token: z.string(),
+      shortcutId: z.number().int().positive(),
+    }),
+    response: okResponse,
+    handler: async (ctx, args): Promise<z.infer<typeof okResponse>> => {
+      const db = ctx.db<typeof schema>();
+      const me = await requireUser(ctx, args.token);
+      await requireOwnedShortcut(ctx, me.id, args.shortcutId);
+      const existing = await db
+        .select()
+        .from(schema.replyMedia)
+        .where(eq(schema.replyMedia.shortcutId, args.shortcutId))
+        .limit(1);
+      const old = existing[0] ?? null;
+      if (!old) throw new Error("الرد ده مفيهوش صورة أو فيديو");
+      await db
+        .delete(schema.replyMedia)
+        .where(eq(schema.replyMedia.id, old.id));
+      await deleteBlobsIfUnreferenced(ctx, [old.blobPathname]);
+      ctx.invalidateQueries();
+      return { ok: true };
+    },
+  }),
+
   exportFullBackup: defineAction({
     description:
-      "Builds the FULL backup for moving the whole site to a new host: every table (accounts with password hashes, folders with all settings, replies with all fields, favorites and trash state, smart folders, copy history, site config) serialized in exactly the full-export shape scripts/import-backup.ts --full imports, plus each profile picture's URL and type so the client can embed its bytes in the downloaded file. Owner account only (the first account) — the file carries every account's password hash, so it must be kept private. Sessions are never exported: a host move signs everyone out.",
+      "Builds the FULL backup for moving the whole site to a new host: every table (accounts with password hashes, folders with all settings, replies with all fields, favorites and trash state, smart folders, copy history, site config, reply media references) serialized in exactly the full-export shape scripts/import-backup.ts --full imports, plus each profile picture's URL and type so the client can embed its bytes in the downloaded file. Media rows carry URLs only — the bytes are NOT embedded (a single 50 MB video would make the backup un-downloadable). Owner account only (the first account) — the file carries every account's password hash, so it must be kept private. Sessions are never exported: a host move signs everyone out.",
     request: z.object({ token: z.string() }),
     response: z.object({
       filename: z.string(),
@@ -1718,7 +2006,7 @@ export const Actions = {
       }
       const iso = (d: Date | null | undefined): string | null =>
         d ? d.toISOString() : null;
-      const [userRows, folderRows, shortcutRows, historyRows, smartRows, configRows] =
+      const [userRows, folderRows, shortcutRows, historyRows, smartRows, configRows, mediaRows] =
         await Promise.all([
           db.select().from(schema.users),
           db.select().from(schema.folders),
@@ -1726,6 +2014,7 @@ export const Actions = {
           db.select().from(schema.copyHistory),
           db.select().from(schema.smartFolders),
           db.select().from(schema.siteConfig),
+          db.select().from(schema.replyMedia),
         ]);
       /* Profile pictures live in blob storage, which exposes URLs
          but no byte read to actions: the client fetches each URL
@@ -1824,6 +2113,25 @@ export const Actions = {
           updatedAt: iso(f.updatedAt),
         })),
         siteConfig: configRows.map((c) => ({ key: c.key, value: c.value })),
+        /* Reply media: URLs only, never bytes — a single 50 MB
+           video would make the backup un-downloadable. The importer
+           restores the rows; a URL that 404s at render time shows a
+           "media unavailable" placeholder, never a broken image. */
+        media: mediaRows.map((m) => ({
+          id: m.id,
+          shortcutId: m.shortcutId,
+          userId: m.userId,
+          kind: m.kind,
+          blobUrl: m.blobUrl,
+          blobPathname: m.blobPathname,
+          contentType: m.contentType,
+          byteSize: m.byteSize,
+          width: m.width,
+          height: m.height,
+          durationMs: m.durationMs,
+          createdAt: iso(m.createdAt),
+          updatedAt: iso(m.updatedAt),
+        })),
         /* Filled in by the client with dataBase64 before download. */
         avatars: [] as Array<{ userId: number; mimeType: string; dataBase64: string }>,
       };
@@ -1965,8 +2273,12 @@ export const Actions = {
       await ensureFolders(ctx, me.id);
       const trashed = await trashedFolderIds(ctx, me.id);
       const rows = await db
-        .select()
+        .select({ shortcut: schema.shortcuts, media: schema.replyMedia })
         .from(schema.shortcuts)
+        .leftJoin(
+          schema.replyMedia,
+          eq(schema.replyMedia.shortcutId, schema.shortcuts.id),
+        )
         .where(eq(schema.shortcuts.userId, me.id))
         .orderBy(
           desc(schema.shortcuts.pinned),
@@ -1975,7 +2287,9 @@ export const Actions = {
           asc(schema.shortcuts.id),
         );
       return {
-        shortcuts: rows.filter((r) => isVisibleShortcut(r, trashed)).map(toShape),
+        shortcuts: rows
+          .filter((r) => isVisibleShortcut(r.shortcut, trashed))
+          .map((r) => toShape(r.shortcut, r.media)),
       };
     },
   }),
@@ -2298,8 +2612,32 @@ export const Actions = {
         .returning();
       const row = result[0];
       if (!row) throw new Error("duplicateShortcut: insert returned no rows");
+      /* The copy shares the original's media: same Blob object
+         (same pathname + URL), new row. No re-upload — and the
+         refcount guard in the delete paths keeps the object alive
+         while either copy still points at it. */
+      const srcMedia = await db
+        .select()
+        .from(schema.replyMedia)
+        .where(eq(schema.replyMedia.shortcutId, src.id))
+        .limit(1);
+      const media = srcMedia[0] ?? null;
+      if (media) {
+        await db.insert(schema.replyMedia).values({
+          shortcutId: row.id,
+          userId: me.id,
+          kind: media.kind,
+          blobUrl: media.blobUrl,
+          blobPathname: media.blobPathname,
+          contentType: media.contentType,
+          byteSize: media.byteSize,
+          width: media.width ?? null,
+          height: media.height ?? null,
+          durationMs: media.durationMs ?? null,
+        });
+      }
       ctx.invalidateQueries();
-      return { shortcut: toShape(row) };
+      return { shortcut: toShape(row, media) };
     },
   }),
 
@@ -3038,8 +3376,12 @@ export const Actions = {
       const me = await requireUser(ctx, args.token);
       const trashedFolders = await trashedFolderIds(ctx, me.id);
       const sRows = await db
-        .select()
+        .select({ shortcut: schema.shortcuts, media: schema.replyMedia })
         .from(schema.shortcuts)
+        .leftJoin(
+          schema.replyMedia,
+          eq(schema.replyMedia.shortcutId, schema.shortcuts.id),
+        )
         .where(
           and(
             eq(schema.shortcuts.userId, me.id),
@@ -3064,11 +3406,11 @@ export const Actions = {
         shortcuts: sRows
           .filter(
             (r) =>
-              r.folderId === null ||
-              r.folderId === undefined ||
-              !trashedFolders.has(r.folderId),
+              r.shortcut.folderId === null ||
+              r.shortcut.folderId === undefined ||
+              !trashedFolders.has(r.shortcut.folderId),
           )
-          .map(toShape),
+          .map((r) => toShape(r.shortcut, r.media)),
         folders: fRows.map(toFolderShape),
       };
     },
@@ -3100,9 +3442,15 @@ export const Actions = {
       const me = await requireUser(ctx, args.token);
       const row = await requireOwnedShortcut(ctx, me.id, args.id);
       if (!row.deletedAt) throw new Error("الرد ده مش في سلة المهملات");
+      /* Blob first (pathnames are known while the rows exist),
+         then the row delete cascades the media row. The object
+         itself is dropped only when no surviving reply still
+         references it (a duplicate shares the object). */
+      const pathnames = await mediaPathnamesForShortcuts(ctx, [args.id]);
       await db
         .delete(schema.shortcuts)
         .where(eq(schema.shortcuts.id, args.id));
+      await deleteBlobsIfUnreferenced(ctx, pathnames);
       ctx.invalidateQueries();
       return { ok: true };
     },
@@ -3159,6 +3507,29 @@ export const Actions = {
       for (const f of trashedFolders) {
         removed += await hardDeleteFolderTree(ctx, me.id, f.id);
       }
+      /* Trashed replies NOT inside a trashed folder (those rode
+         with the folder tree above, whose media the tree already
+         cleaned up): collect their media pathnames first, then
+         delete the rows, then drop unreferenced Blob objects. */
+      const trashedIds = new Set(trashedFolders.map((f) => f.id));
+      const restRows = await db
+        .select({ id: schema.shortcuts.id, folderId: schema.shortcuts.folderId })
+        .from(schema.shortcuts)
+        .where(
+          and(
+            eq(schema.shortcuts.userId, me.id),
+            isNotNull(schema.shortcuts.deletedAt),
+          ),
+        );
+      const restIds = restRows
+        .filter(
+          (r) =>
+            r.folderId === null ||
+            r.folderId === undefined ||
+            !trashedIds.has(r.folderId),
+        )
+        .map((r) => r.id);
+      const pathnames = await mediaPathnamesForShortcuts(ctx, restIds);
       const rest = await db
         .delete(schema.shortcuts)
         .where(
@@ -3168,6 +3539,7 @@ export const Actions = {
           ),
         )
         .returning({ id: schema.shortcuts.id });
+      await deleteBlobsIfUnreferenced(ctx, pathnames);
       removed += rest.length;
       ctx.invalidateQueries();
       return { ok: true, removed };
@@ -3252,23 +3624,50 @@ export const Actions = {
           )
           .orderBy(asc(schema.shortcuts.sortOrder), asc(schema.shortcuts.id));
         for (const r of srcReplies) {
-          await db.insert(schema.shortcuts).values({
-            userId: me.id,
-            title: r.title,
-            body: r.body,
-            category: copy.name,
-            tags: r.tags ?? "",
-            /* Folder copies never inherit triggers (see
-               duplicateShortcut): each copied reply starts
-               trigger-less so no per-user collision can occur. */
-            trigger: "",
-            extShortcut: r.extShortcut ?? "",
-            source: r.source ?? "",
-            folderId: copy.id,
-            sortOrder: r.sortOrder,
-            pinned: r.pinned,
-            favorite: r.favorite ?? false,
-          });
+          const insertedReply = await db
+            .insert(schema.shortcuts)
+            .values({
+              userId: me.id,
+              title: r.title,
+              body: r.body,
+              category: copy.name,
+              tags: r.tags ?? "",
+              /* Folder copies never inherit triggers (see
+                 duplicateShortcut): each copied reply starts
+                 trigger-less so no per-user collision can occur. */
+              trigger: "",
+              extShortcut: r.extShortcut ?? "",
+              source: r.source ?? "",
+              folderId: copy.id,
+              sortOrder: r.sortOrder,
+              pinned: r.pinned,
+              favorite: r.favorite ?? false,
+            })
+            .returning();
+          const replyCopy = insertedReply[0];
+          if (!replyCopy) continue;
+          /* The copy shares the original's media (same Blob
+             object, new row) — see duplicateShortcut. */
+          const rMedia = await db
+            .select()
+            .from(schema.replyMedia)
+            .where(eq(schema.replyMedia.shortcutId, r.id))
+            .limit(1);
+          const m = rMedia[0];
+          if (m) {
+            await db.insert(schema.replyMedia).values({
+              shortcutId: replyCopy.id,
+              userId: me.id,
+              kind: m.kind,
+              blobUrl: m.blobUrl,
+              blobPathname: m.blobPathname,
+              contentType: m.contentType,
+              byteSize: m.byteSize,
+              width: m.width ?? null,
+              height: m.height ?? null,
+              durationMs: m.durationMs ?? null,
+            });
+          }
         }
         for (const child of childrenOf.get(item.src.id) ?? []) {
           queue.push({ src: child, parentId: copy.id, isRoot: false });

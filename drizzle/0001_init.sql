@@ -98,6 +98,33 @@ CREATE TABLE IF NOT EXISTS shortcuts (
 );
 CREATE INDEX IF NOT EXISTS shortcuts_user_id_idx ON shortcuts(user_id);
 CREATE INDEX IF NOT EXISTS shortcuts_folder_id_idx ON shortcuts(folder_id);
+-- Per-user trigger uniqueness, case-insensitive on the trimmed text
+-- (the server check in assertTriggerAvailable is the first line of
+-- defence; this index is the second). The WHERE keeps trigger-less
+-- replies out of the index entirely.
+CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '';
+
+-- Reply media: one image or video attached to a reply. The bytes
+-- live in Vercel Blob (public URLs); this table holds only the
+-- reference + display metadata. One media per reply.
+CREATE TABLE IF NOT EXISTS reply_media (
+  id SERIAL PRIMARY KEY,
+  shortcut_id INTEGER NOT NULL REFERENCES shortcuts(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL CHECK (kind IN ('image','video')),
+  blob_url TEXT NOT NULL,
+  blob_pathname TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  byte_size INTEGER NOT NULL CHECK (byte_size > 0),
+  width INTEGER,
+  height INTEGER,
+  duration_ms INTEGER,
+  created_at TIMESTAMP(3) NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP(3) NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS reply_media_shortcut_idx ON reply_media(shortcut_id);
+CREATE INDEX IF NOT EXISTS reply_media_user_idx ON reply_media(user_id);
+CREATE INDEX IF NOT EXISTS reply_media_pathname_idx ON reply_media(blob_pathname);
 
 -- Profile-picture bytes (replaces the Muse artifact's ctx.blobs store).
 -- Key is `avatars/<userId>`, same as before.
