@@ -9,8 +9,12 @@ import { blobReadWriteToken } from "./blob-token.ts";
 /* One image attached to a reply (see replyMedia in
    lib/schema.ts). IMAGES ONLY — video was cancelled by the owner
    2026-11-26. The bytes live in Vercel Blob; this is only the
-   reference + display metadata. null = the reply has no media. */
+   reference + display metadata. A reply holds up to 3 images
+   (2026-11-27), ordered by `position` (1–3); `id` identifies one
+   image for per-image removal. */
 const mediaShape = z.object({
+  id: z.number(),
+  position: z.number(),
   kind: z.literal("image"),
   blobUrl: z.string(),
   blobPathname: z.string(),
@@ -32,10 +36,11 @@ const shortcutShape = z.object({
   extShortcut: z.string(),
   source: z.string(),
   folderId: z.number().nullable(),
-  /* Attached image, or null. Joined in listShortcuts /
-     listTrash; single-row actions return null (a fresh reply has
-     no media, and attach/remove go through their own actions). */
-  media: mediaShape.nullable(),
+  /* Attached images, in position order ([] = none). Joined in
+     listShortcuts / listTrash; single-row actions return []
+     (a fresh reply has no media, and attach/remove go through
+     their own actions). */
+  media: z.array(mediaShape),
   sortOrder: z.number(),
   pinned: z.boolean(),
   favorite: z.boolean(),
@@ -329,6 +334,8 @@ type MediaRow = typeof schema.replyMedia.$inferSelect;
 
 function toMediaShape(row: MediaRow): z.infer<typeof mediaShape> {
   return {
+    id: row.id,
+    position: row.position ?? 1,
     kind: "image",
     blobUrl: row.blobUrl,
     blobPathname: row.blobPathname,
@@ -340,7 +347,11 @@ function toMediaShape(row: MediaRow): z.infer<typeof mediaShape> {
   };
 }
 
-function toShape(row: ShortcutRow, media?: MediaRow | null): z.infer<typeof shortcutShape> {
+function toShape(
+  row: ShortcutRow,
+  media?: MediaRow[] | MediaRow | null,
+): z.infer<typeof shortcutShape> {
+  const rows = !media ? [] : Array.isArray(media) ? media : [media];
   return {
     id: row.id,
     title: row.title,
@@ -351,7 +362,9 @@ function toShape(row: ShortcutRow, media?: MediaRow | null): z.infer<typeof shor
     extShortcut: row.extShortcut ?? "",
     source: row.source ?? "",
     folderId: row.folderId ?? null,
-    media: media ? toMediaShape(media) : null,
+    media: [...rows]
+      .sort((a, b) => (a.position ?? 1) - (b.position ?? 1))
+      .map(toMediaShape),
     sortOrder: row.sortOrder,
     pinned: row.pinned,
     favorite: row.favorite ?? false,
@@ -645,7 +658,8 @@ async function assertTriggerAvailable(
 }
 
 /* ================= reply media (Vercel Blob) =================
-   One image per reply. IMAGES ONLY — video was cancelled by the
+   Up to 3 images per reply (owner's call 2026-11-27), ordered by
+   `position`. IMAGES ONLY — video was cancelled by the
    owner 2026-11-26. The bytes live in Vercel Blob (public URLs);
    the DB holds only the reference. Limits are enforced BOTH
    client-side (for instant feedback) and here (the truth — a
@@ -658,6 +672,10 @@ async function assertTriggerAvailable(
    point a reply at an arbitrary third-party URL. */
 export const MEDIA_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const MEDIA_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+/* Max images per reply (owner's call 2026-11-27): one is not
+   enough, three is the cap — enforced here (the truth) and in
+   the editor (instant feedback). */
+export const MEDIA_MAX_PER_REPLY = 3;
 /* The pathname shape the client builds (uuid from
    crypto.randomUUID, extension from the file). The upload route
    re-checks the userId/shortcutId prefix against the session. */
@@ -1844,7 +1862,7 @@ export const Actions = {
 
   attachMedia: defineAction({
     description:
-      "Attaches an already-uploaded image (Vercel Blob) to one of the signed-in user's own replies, replacing any media it already had. Re-validates kind, content type, size, pathname shape and Blob host server-side.",
+      "Attaches an already-uploaded image (Vercel Blob) to one of the signed-in user's own replies, as its next image (position = count + 1, up to 3 images per reply). Re-validates kind, content type, size, pathname shape and Blob host server-side.",
     request: z.object({
       token: z.string(),
       shortcutId: z.number().int().positive(),
@@ -1893,9 +1911,24 @@ export const Actions = {
       ) {
         throw new Error("رابط الملف مش من مخزن الموقع");
       }
+      /* Up to 3 images per reply: the count is the truth here,
+         not the client's (a client can always be bypassed). The
+         new image takes the next position after the highest one
+         the reply already has. */
+      const existing = await db
+        .select()
+        .from(schema.replyMedia)
+        .where(eq(schema.replyMedia.shortcutId, args.shortcutId))
+        .orderBy(asc(schema.replyMedia.position));
+      if (existing.length >= MEDIA_MAX_PER_REPLY) {
+        throw new Error("الرد ده فيه 3 صور بالفعل — امسح واحدة الأول");
+      }
+      const position =
+        existing.reduce((m, r) => Math.max(m, r.position ?? 1), 0) + 1;
       const values = {
         shortcutId: args.shortcutId,
         userId: me.id,
+        position,
         kind: args.kind,
         blobUrl: args.blobUrl,
         blobPathname: args.blobPathname,
@@ -1905,30 +1938,12 @@ export const Actions = {
         height: args.height ?? null,
         durationMs: null, /* images carry no duration; the column stays for old rows */
       };
-      const existing = await db
-        .select()
-        .from(schema.replyMedia)
-        .where(eq(schema.replyMedia.shortcutId, args.shortcutId))
-        .limit(1);
-      const old = existing[0] ?? null;
-      let saved: MediaRow[];
-      if (old) {
-        saved = await db
-          .update(schema.replyMedia)
-          .set({ ...values, updatedAt: new Date() })
-          .where(eq(schema.replyMedia.id, old.id))
-          .returning();
-      } else {
-        saved = await db.insert(schema.replyMedia).values(values).returning();
-      }
+      const saved = await db
+        .insert(schema.replyMedia)
+        .values(values)
+        .returning();
       const row = saved[0];
       if (!row) throw new Error("attachMedia: save returned no rows");
-      /* Replace order: the new row is committed first, so a failure
-         here can never leave the reply media-less; the old Blob
-         object is dropped only when nothing still references it. */
-      if (old && old.blobPathname !== args.blobPathname) {
-        await deleteBlobsIfUnreferenced(ctx, [old.blobPathname]);
-      }
       ctx.invalidateKeys("shortcuts");
       return { media: toMediaShape(row) };
     },
@@ -1936,10 +1951,11 @@ export const Actions = {
 
   removeMedia: defineAction({
     description:
-      "Removes the image attached to one of the signed-in user's own replies and deletes the Blob object when no other reply still references it.",
+      "Removes ONE image (by its media row id) from one of the signed-in user's own replies and deletes the Blob object when no other reply still references it. The reply's other images keep their order.",
     request: z.object({
       token: z.string(),
       shortcutId: z.number().int().positive(),
+      mediaId: z.number().int().positive(),
     }),
     response: okResponse,
     handler: async (ctx, args): Promise<z.infer<typeof okResponse>> => {
@@ -1949,10 +1965,15 @@ export const Actions = {
       const existing = await db
         .select()
         .from(schema.replyMedia)
-        .where(eq(schema.replyMedia.shortcutId, args.shortcutId))
+        .where(
+          and(
+            eq(schema.replyMedia.id, args.mediaId),
+            eq(schema.replyMedia.shortcutId, args.shortcutId),
+          ),
+        )
         .limit(1);
       const old = existing[0] ?? null;
-      if (!old) throw new Error("الرد ده مفيهوش صورة");
+      if (!old) throw new Error("الصورة دي مش موجودة على الرد ده");
       await db
         .delete(schema.replyMedia)
         .where(eq(schema.replyMedia.id, old.id));
@@ -2106,6 +2127,7 @@ export const Actions = {
           id: m.id,
           shortcutId: m.shortcutId,
           userId: m.userId,
+          position: m.position ?? 1,
           kind: m.kind,
           blobUrl: m.blobUrl,
           blobPathname: m.blobPathname,
@@ -2257,13 +2279,13 @@ export const Actions = {
       const me = await requireUser(ctx, args.token);
       await ensureFolders(ctx, me.id);
       const trashed = await trashedFolderIds(ctx, me.id);
+      /* Media rides in a second query, grouped per reply: a
+         leftJoin would duplicate the shortcut row once per image
+         (a reply holds up to 3). Ordered by position, so the
+         client sees the images in the order they were attached. */
       const rows = await db
-        .select({ shortcut: schema.shortcuts, media: schema.replyMedia })
+        .select()
         .from(schema.shortcuts)
-        .leftJoin(
-          schema.replyMedia,
-          eq(schema.replyMedia.shortcutId, schema.shortcuts.id),
-        )
         .where(eq(schema.shortcuts.userId, me.id))
         .orderBy(
           desc(schema.shortcuts.pinned),
@@ -2271,10 +2293,24 @@ export const Actions = {
           desc(schema.shortcuts.usageCount),
           asc(schema.shortcuts.id),
         );
+      const mediaRows = await db
+        .select()
+        .from(schema.replyMedia)
+        .where(eq(schema.replyMedia.userId, me.id))
+        .orderBy(
+          asc(schema.replyMedia.shortcutId),
+          asc(schema.replyMedia.position),
+        );
+      const mediaByShortcut = new Map<number, MediaRow[]>();
+      for (const m of mediaRows) {
+        const arr = mediaByShortcut.get(m.shortcutId) ?? [];
+        arr.push(m);
+        mediaByShortcut.set(m.shortcutId, arr);
+      }
       return {
         shortcuts: rows
-          .filter((r) => isVisibleShortcut(r.shortcut, trashed))
-          .map((r) => toShape(r.shortcut, r.media)),
+          .filter((r) => isVisibleShortcut(r, trashed))
+          .map((r) => toShape(r, mediaByShortcut.get(r.id) ?? [])),
       };
     },
   }),
@@ -2596,32 +2632,42 @@ export const Actions = {
         .returning();
       const row = result[0];
       if (!row) throw new Error("duplicateShortcut: insert returned no rows");
-      /* The copy shares the original's media: same Blob object
-         (same pathname + URL), new row. No re-upload — and the
-         refcount guard in the delete paths keeps the object alive
-         while either copy still points at it. */
+      /* The copy shares the original's media: same Blob objects
+         (same pathnames + URLs), new rows, same positions. No
+         re-upload — and the refcount guard in the delete paths
+         keeps each object alive while either copy still points
+         at it. */
       const srcMedia = await db
         .select()
         .from(schema.replyMedia)
         .where(eq(schema.replyMedia.shortcutId, src.id))
-        .limit(1);
-      const media = srcMedia[0] ?? null;
-      if (media) {
-        await db.insert(schema.replyMedia).values({
-          shortcutId: row.id,
-          userId: me.id,
-          kind: media.kind,
-          blobUrl: media.blobUrl,
-          blobPathname: media.blobPathname,
-          contentType: media.contentType,
-          byteSize: media.byteSize,
-          width: media.width ?? null,
-          height: media.height ?? null,
-          durationMs: media.durationMs ?? null,
-        });
+        .orderBy(asc(schema.replyMedia.position));
+      /* The returned shape must carry the COPY's rows (new ids),
+         not the source's: handing back the source ids would make
+         a later removeMedia on the copy fail («الصورة دي مش
+         موجودة») — the ids belong to the original reply. */
+      const copiedMedia: MediaRow[] = [];
+      for (const media of srcMedia) {
+        const inserted = await db
+          .insert(schema.replyMedia)
+          .values({
+            shortcutId: row.id,
+            userId: me.id,
+            position: media.position ?? 1,
+            kind: media.kind,
+            blobUrl: media.blobUrl,
+            blobPathname: media.blobPathname,
+            contentType: media.contentType,
+            byteSize: media.byteSize,
+            width: media.width ?? null,
+            height: media.height ?? null,
+            durationMs: media.durationMs ?? null,
+          })
+          .returning();
+        if (inserted[0]) copiedMedia.push(inserted[0]);
       }
       ctx.invalidateKeys("shortcuts");
-      return { shortcut: toShape(row, media) };
+      return { shortcut: toShape(row, copiedMedia) };
     },
   }),
 
@@ -3360,12 +3406,8 @@ export const Actions = {
       const me = await requireUser(ctx, args.token);
       const trashedFolders = await trashedFolderIds(ctx, me.id);
       const sRows = await db
-        .select({ shortcut: schema.shortcuts, media: schema.replyMedia })
+        .select()
         .from(schema.shortcuts)
-        .leftJoin(
-          schema.replyMedia,
-          eq(schema.replyMedia.shortcutId, schema.shortcuts.id),
-        )
         .where(
           and(
             eq(schema.shortcuts.userId, me.id),
@@ -3373,6 +3415,20 @@ export const Actions = {
           ),
         )
         .orderBy(desc(schema.shortcuts.deletedAt), desc(schema.shortcuts.id));
+      const trashMedia = await db
+        .select()
+        .from(schema.replyMedia)
+        .where(eq(schema.replyMedia.userId, me.id))
+        .orderBy(
+          asc(schema.replyMedia.shortcutId),
+          asc(schema.replyMedia.position),
+        );
+      const trashMediaByShortcut = new Map<number, MediaRow[]>();
+      for (const m of trashMedia) {
+        const arr = trashMediaByShortcut.get(m.shortcutId) ?? [];
+        arr.push(m);
+        trashMediaByShortcut.set(m.shortcutId, arr);
+      }
       const fRows = await db
         .select()
         .from(schema.folders)
@@ -3390,11 +3446,11 @@ export const Actions = {
         shortcuts: sRows
           .filter(
             (r) =>
-              r.shortcut.folderId === null ||
-              r.shortcut.folderId === undefined ||
-              !trashedFolders.has(r.shortcut.folderId),
+              r.folderId === null ||
+              r.folderId === undefined ||
+              !trashedFolders.has(r.folderId),
           )
-          .map((r) => toShape(r.shortcut, r.media)),
+          .map((r) => toShape(r, trashMediaByShortcut.get(r.id) ?? [])),
         folders: fRows.map(toFolderShape),
       };
     },
@@ -3631,17 +3687,18 @@ export const Actions = {
           const replyCopy = insertedReply[0];
           if (!replyCopy) continue;
           /* The copy shares the original's media (same Blob
-             object, new row) — see duplicateShortcut. */
+             objects, new rows, same positions) — see
+             duplicateShortcut. */
           const rMedia = await db
             .select()
             .from(schema.replyMedia)
             .where(eq(schema.replyMedia.shortcutId, r.id))
-            .limit(1);
-          const m = rMedia[0];
-          if (m) {
+            .orderBy(asc(schema.replyMedia.position));
+          for (const m of rMedia) {
             await db.insert(schema.replyMedia).values({
               shortcutId: replyCopy.id,
               userId: me.id,
+              position: m.position ?? 1,
               kind: m.kind,
               blobUrl: m.blobUrl,
               blobPathname: m.blobPathname,

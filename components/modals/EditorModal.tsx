@@ -15,6 +15,7 @@ import { upload } from "@vercel/blob/client";
 import { api } from "../api";
 import { FIELDS } from "../fields.generated";
 import { classifyUploadError, uploadErrorMessage } from "../media-upload";
+import { MAX_IMAGES_PER_REPLY } from "../copy-media";
 import {
   checkBlobReachable,
   countedStream,
@@ -33,6 +34,7 @@ import {
   extractVariables,
   normalizeTriggerInput,
   suggestTriggers,
+  triggerCollisionHint,
   triggerError,
   useBodyScrollLock,
   useDialogFocus,
@@ -354,17 +356,20 @@ export function EditorModal({
   };
 
   /* ---------- reply media ----------
-     An image attached to THIS reply (existing replies only —
+     Up to 3 images attached to THIS reply (existing replies only —
      a new reply has no id yet, so attach needs it saved first).
      IMAGES ONLY — video upload was cancelled by the owner
-     2026-11-26. The image is copied WITH the reply text in one
+     2026-11-26. The images are copied WITH the reply text in one
      clipboard write (see copy-media.ts).
      The file goes straight from the browser to Vercel Blob
      (upload() + the /api/media/upload token route); attachMedia
      then records the reference. Media is NOT part of
      buildPayload/autosave/draft — attach/remove are their own
-     mutations, so the editor's save/dirty logic never sees them. */
-  const [media, setMedia] = useState(item?.media ?? null);
+     mutations, so the editor's save/dirty logic never sees them.
+     Images are ordered by position (1–3); removing one deletes
+     only that image's Blob when nothing else references it. */
+  type MediaItem = Shortcut["media"][number];
+  const [mediaList, setMediaList] = useState<MediaItem[]>(item?.media ?? []);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaProgress, setMediaProgress] = useState(0);
@@ -374,8 +379,10 @@ export function EditorModal({
      froze at 79% / 0% because the SDK suppresses the 100%
      callback until the response arrives). */
   const [mediaWaiting, setMediaWaiting] = useState(false);
-  const [mediaRemoving, setMediaRemoving] = useState(false);
-  const [confirmRemoveMedia, setConfirmRemoveMedia] = useState(false);
+  /* Per-image removing state + per-image two-tap confirm, so
+     removing one image never touches the others. */
+  const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
+  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
   /* True when the server said Blob storage is not connected yet
      (503 «التخزين مش متظبط…») — attach stays disabled with that
      exact hint until the store exists. */
@@ -421,6 +428,13 @@ export function EditorModal({
     if (!item) return;
     setMediaError(null);
     setMediaStorageDown(false);
+    /* The cap is enforced here (instant feedback) AND server-side
+       in attachMedia (the truth) — a 4th image is refused either
+       way. */
+    if (mediaList.length >= MAX_IMAGES_PER_REPLY) {
+      setMediaError("الرد ده فيه 3 صور بالفعل — امسح واحدة الأول");
+      return;
+    }
     /* Stage tracking (2026-11-26): every failure names the stage
        it died in — «المرحلة: الرفع المباشر» — so the next
        screenshot diagnoses the failure instead of showing one of
@@ -570,7 +584,7 @@ export function EditorModal({
         width,
         height,
       });
-      setMedia(saved.media);
+      setMediaList((prev) => [...prev, saved.media]);
       queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "الرفع متمّش — حاول تاني";
@@ -613,20 +627,25 @@ export function EditorModal({
     }
   };
 
-  /* Removal deletes the Blob object too (when no other reply
-     still references it) — hence the confirm step. */
-  const removeMediaFile = async () => {
-    if (!item || !media) return;
-    setMediaRemoving(true);
+  /* Removal deletes only THAT image's Blob (when no other reply
+     still references it) — hence the per-image confirm step. The
+     other images on this reply are untouched. */
+  const removeMediaFile = async (mediaId: number) => {
+    if (!item) return;
+    setRemovingIds((prev) => new Set(prev).add(mediaId));
     try {
-      await api.removeMedia({ token, shortcutId: item.id });
-      setMedia(null);
-      setConfirmRemoveMedia(false);
+      await api.removeMedia({ token, shortcutId: item.id, mediaId });
+      setMediaList((prev) => prev.filter((m) => m.id !== mediaId));
+      setConfirmRemoveId(null);
       queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
     } catch (e) {
       setMediaError(e instanceof Error ? e.message : "المسح متمّش — حاول تاني");
     } finally {
-      setMediaRemoving(false);
+      setRemovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(mediaId);
+        return next;
+      });
     }
   };
 
@@ -722,6 +741,15 @@ export function EditorModal({
                     {triggerError(trigger, takenTriggers)}
                   </span>
                 )}
+                {/* Prefix collision: a non-blocking warning, not an
+                    error — the typed text shares a prefix with an
+                    existing trigger, so it may confuse typing. */}
+                {!triggerError(trigger, takenTriggers) &&
+                  triggerCollisionHint(trigger, takenTriggers) && (
+                    <span className="mt-1 block text-xs font-semibold leading-relaxed text-[var(--warning)]">
+                      {triggerCollisionHint(trigger, takenTriggers)}
+                    </span>
+                  )}
                 {triggerSuggestions.length > 0 && (
                   <span className="mt-2 block">
                     <span className="mb-1 block text-[11.5px] font-bold text-[var(--faint)]">
@@ -781,51 +809,77 @@ export function EditorModal({
                 <p role="alert" className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-3.5 py-3 text-[13px] font-bold leading-relaxed text-[var(--dim)]">
                   التخزين مش متظبط على السيرفر — الصور مش متاحة دلوقتي
                 </p>
-              ) : media ? (
-                <>
-                  <ReplyMediaBlock media={media} title={title || item.title} />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={mediaUploading || mediaRemoving}
-                      onClick={() => imageInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
-                    >
-                      <Icon d={I.image} size={15} />
-                      استبدال بصورة
-                    </button>
-                    <button
-                      type="button"
-                      disabled={mediaUploading || mediaRemoving}
-                      onClick={() => {
-                        if (confirmRemoveMedia) void removeMediaFile();
-                        else {
-                          setConfirmRemoveMedia(true);
-                          window.setTimeout(() => setConfirmRemoveMedia(false), 3000);
-                        }
-                      }}
-                      className={`lux-btn flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-bold disabled:opacity-60 ${confirmRemoveMedia ? "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--danger)]"}`}
-                    >
-                      <Icon d={I.trash} size={15} />
-                      {mediaRemoving ? "بيتمسح…" : confirmRemoveMedia ? "متأكد؟ الملف هيتمسح من التخزين" : "مسح الوسائط"}
-                    </button>
-                  </div>
-                </>
               ) : (
                 <>
+                  {mediaList.length > 0 && (
+                    <>
+                      <ReplyMediaBlock media={mediaList} title={title || item.title} />
+                      {/* Thumbnails with per-image remove: each image
+                          is its own tile — removing one deletes only
+                          that file (when nothing else references it);
+                          the counter on each tile is its position. */}
+                      <div className="flex flex-wrap gap-2">
+                        {mediaList.map((m, i) => {
+                          const removing = removingIds.has(m.id);
+                          const confirming = confirmRemoveId === m.id;
+                          return (
+                            <div
+                              key={m.id}
+                              className="relative overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-alt)] shadow-[var(--shadow-1)]"
+                            >
+                              <img
+                                src={m.blobUrl}
+                                alt={`صورة ${i + 1} من ${mediaList.length}`}
+                                className="h-16 w-16 object-cover"
+                              />
+                              <span className="absolute bottom-1 start-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                {i + 1}/{mediaList.length}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={mediaUploading || removing}
+                                aria-label={confirming ? `تأكيد مسح صورة ${i + 1}` : `مسح صورة ${i + 1}`}
+                                data-tip={confirming ? "دوس تاني لتأكيد مسح الصورة دي بس" : "مسح الصورة دي بس — باقي الصور مش هتتلمس"}
+                                onClick={() => {
+                                  if (confirming) void removeMediaFile(m.id);
+                                  else {
+                                    setConfirmRemoveId(m.id);
+                                    window.setTimeout(
+                                      () => setConfirmRemoveId((cur) => (cur === m.id ? null : cur)),
+                                      3000,
+                                    );
+                                  }
+                                }}
+                                className={`absolute end-1 top-1 flex h-6 w-6 items-center justify-center rounded-full text-white shadow disabled:opacity-60 ${confirming ? "bg-[var(--danger)]" : "bg-black/55 hover:bg-[var(--danger)]"}`}
+                              >
+                                {removing ? (
+                                  <span className="spinner" aria-hidden="true" />
+                                ) : (
+                                  <Icon d={I.x} size={13} />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      disabled={mediaUploading}
+                      disabled={mediaUploading || mediaList.length >= MAX_IMAGES_PER_REPLY}
                       onClick={() => imageInputRef.current?.click()}
-                      className="lux-btn flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+                      className={`lux-btn flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:opacity-60 ${mediaList.length === 0 ? "bg-[var(--accent)] text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--text)]"}`}
                     >
                       <Icon d={I.image} size={15} />
-                      أضف صورة
+                      {mediaList.length === 0 ? "أضف صورة" : "أضف صورة تانية"}
                     </button>
+                    <span className="text-[12px] font-bold text-[var(--faint)]">
+                      {mediaList.length} من {MAX_IMAGES_PER_REPLY} صور
+                    </span>
                   </div>
                   <p className="text-xs leading-relaxed text-[var(--dim)]">
-                    صورة JPG أو PNG أو WebP لحد 8 ميجا (بتتصغّر لـ 1600px قبل الرفع). الـ GIF مش مدعوم دلوقتي. الصورة بتتنسخ مع النص في نسخة واحدة.
+                    لحد 3 صور في الرد الواحد — JPG أو PNG أو WebP لحد 8 ميجا للصورة (بتتصغّر لـ 1600px قبل الرفع). الـ GIF مش مدعوم دلوقتي. الصور بتتنسخ مع النص في نسخة واحدة.
                   </p>
                 </>
               )}

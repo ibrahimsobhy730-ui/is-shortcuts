@@ -316,20 +316,33 @@ try {
       /* Reply media (URLs only — the bytes stay in Vercel Blob).
          Rows whose shortcut was not restored (or was skipped) are
          left out: the FK would reject them, so only rows whose
-         shortcut exists in this database are inserted. */
+         shortcut exists in this database are inserted. Position
+         comes from the backup when present; legacy backups (one
+         image per reply, no position) get positions assigned in
+         file order per reply, 1–3. */
       let nMedia = 0;
+      const posByShortcut = new Map<number, number>();
       for (const m of media) {
         if (m.kind !== "image") continue; /* images only — video rows from old backups are skipped */
         if (typeof m.blobUrl !== "string" || typeof m.blobPathname !== "string") continue;
+        const sid = typeof m.shortcutId === "number" ? m.shortcutId : 0;
+        if (sid <= 0) continue;
         const shortcutExists = await client.query(
           "SELECT 1 FROM shortcuts WHERE id = $1",
-          [m.shortcutId],
+          [sid],
         );
         if (shortcutExists.rows.length === 0) continue;
+        const posRaw = m.position;
+        const pos =
+          typeof posRaw === "number" && posRaw >= 1 && posRaw <= 3
+            ? posRaw
+            : (posByShortcut.get(sid) ?? 0) + 1;
+        posByShortcut.set(sid, Math.max(posByShortcut.get(sid) ?? 0, pos));
+        if (pos > 3) continue; /* a backup row past the cap is skipped, never imported */
         nMedia += await ins(
-          `INSERT INTO reply_media (id, shortcut_id, user_id, kind, blob_url, blob_pathname, content_type, byte_size, width, height, duration_ms, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (id) DO NOTHING`,
-          [m.id, m.shortcutId, m.userId, m.kind, m.blobUrl, m.blobPathname, m.contentType ?? "", m.byteSize ?? 0, m.width ?? null, m.height ?? null, m.durationMs ?? null, m.createdAt ?? new Date(), m.updatedAt ?? new Date()],
+          `INSERT INTO reply_media (id, shortcut_id, user_id, position, kind, blob_url, blob_pathname, content_type, byte_size, width, height, duration_ms, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (id) DO NOTHING`,
+          [m.id, sid, m.userId, pos, m.kind, m.blobUrl, m.blobPathname, m.contentType ?? "", m.byteSize ?? 0, m.width ?? null, m.height ?? null, m.durationMs ?? null, m.createdAt ?? new Date(), m.updatedAt ?? new Date()],
         );
       }
       let nAvatars = 0;

@@ -6,7 +6,7 @@
    - Anything else: network first, cache as a fallback.
    Version the cache so a new deploy replaces the old shell. */
 
-const CACHE = "is-cache-v5"; /* v5 (2026-11-26): عودة Readex Pro للواجهة + أميري للآية فقط + إلغاء الفيديو — يضمن وصول البناء الجديد للمستخدمين بدل نسخة مخزنة قديمة */
+const CACHE = "is-cache-v6"; /* v6 (2026-11-27): التطوير الشامل — اختصارات على الرئيسية + صور متعددة (لحد 3) — يضمن وصول البناء الجديد للمستخدمين بدل نسخة مخزنة قديمة */
 const STATIC_PATTERNS = [/^\/_next\/static\//, /^\/icons\//, /^\/manifest\.webmanifest$/];
 
 self.addEventListener("install", (event) => {

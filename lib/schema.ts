@@ -264,6 +264,11 @@ export const replyMedia = pgTable("reply_media", {
   userId: integer("user_id")
     .notNull()
     .references(() => users.id),
+  /* Display order within the reply (1–3): a reply holds up to 3
+     images (owner's call 2026-11-27 — one is not enough). The
+     first image ever attached keeps position 1, so existing
+     single-image replies migrate untouched. */
+  position: integer("position").notNull().default(1),
   kind: text("kind").notNull(),
   blobUrl: text("blob_url").notNull(),
   blobPathname: text("blob_pathname").notNull(),

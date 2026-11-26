@@ -35,16 +35,21 @@ try {
        then create the lower() one. */
     DROP INDEX IF EXISTS shortcuts_user_trigger_idx;
     CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '';
-    /* Reply media (images + video attached to a reply, stored in
+    /* Reply media (images attached to a reply, stored in
        Vercel Blob — the table holds only the reference, never the
-       bytes). One media per reply (unique shortcut_id); deleting
-       the reply deletes its media row (the Blob object itself is
-       deleted by the action handlers, with a refcount guard, since
-       a duplicate shares the same Blob object). */
+       bytes). Up to 3 images per reply (position 1–3), ordered;
+       deleting the reply deletes its media rows (the Blob objects
+       themselves are deleted by the action handlers, with a
+       refcount guard, since a duplicate shares the same Blob
+       objects). Live databases created before position existed
+       get the column + the new index here; the old one-row-per-
+       reply unique index is dropped (it would reject a 2nd
+       image). Existing rows keep position 1 via the DEFAULT. */
     CREATE TABLE IF NOT EXISTS reply_media (
       id SERIAL PRIMARY KEY,
       shortcut_id INTEGER NOT NULL REFERENCES shortcuts(id) ON DELETE CASCADE,
       user_id INTEGER NOT NULL REFERENCES users(id),
+      position INTEGER NOT NULL DEFAULT 1,
       kind TEXT NOT NULL CHECK (kind IN ('image','video')),
       blob_url TEXT NOT NULL,
       blob_pathname TEXT NOT NULL,
@@ -56,7 +61,9 @@ try {
       created_at TIMESTAMP(3) NOT NULL DEFAULT now(),
       updated_at TIMESTAMP(3) NOT NULL DEFAULT now()
     );
-    CREATE UNIQUE INDEX IF NOT EXISTS reply_media_shortcut_idx ON reply_media(shortcut_id);
+    ALTER TABLE reply_media ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 1;
+    DROP INDEX IF EXISTS reply_media_shortcut_idx;
+    CREATE INDEX IF NOT EXISTS reply_media_shortcut_pos_idx ON reply_media(shortcut_id, position);
     CREATE INDEX IF NOT EXISTS reply_media_user_idx ON reply_media(user_id);
     CREATE INDEX IF NOT EXISTS reply_media_pathname_idx ON reply_media(blob_pathname);
   `);

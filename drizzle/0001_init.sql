@@ -104,13 +104,18 @@ CREATE INDEX IF NOT EXISTS shortcuts_folder_id_idx ON shortcuts(folder_id);
 -- replies out of the index entirely.
 CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '';
 
--- Reply media: one image or video attached to a reply. The bytes
--- live in Vercel Blob (public URLs); this table holds only the
--- reference + display metadata. One media per reply.
+-- Reply media: up to 3 images attached to a reply (owner's call
+-- 2026-11-27 — one image is not enough). The bytes live in Vercel
+-- Blob (public URLs); this table holds only the reference + display
+-- metadata. `position` orders the images inside the reply (1–3);
+-- a reply's first image keeps position 1, so existing rows migrate
+-- untouched. Video was cancelled by the owner 2026-11-26 and stays
+-- cancelled (the kind check keeps the column for old rows only).
 CREATE TABLE IF NOT EXISTS reply_media (
   id SERIAL PRIMARY KEY,
   shortcut_id INTEGER NOT NULL REFERENCES shortcuts(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id),
+  position INTEGER NOT NULL DEFAULT 1,
   kind TEXT NOT NULL CHECK (kind IN ('image','video')),
   blob_url TEXT NOT NULL,
   blob_pathname TEXT NOT NULL,
@@ -122,7 +127,7 @@ CREATE TABLE IF NOT EXISTS reply_media (
   created_at TIMESTAMP(3) NOT NULL DEFAULT now(),
   updated_at TIMESTAMP(3) NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS reply_media_shortcut_idx ON reply_media(shortcut_id);
+CREATE INDEX IF NOT EXISTS reply_media_shortcut_pos_idx ON reply_media(shortcut_id, position);
 CREATE INDEX IF NOT EXISTS reply_media_user_idx ON reply_media(user_id);
 CREATE INDEX IF NOT EXISTS reply_media_pathname_idx ON reply_media(blob_pathname);
 

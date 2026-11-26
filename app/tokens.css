@@ -50,8 +50,8 @@
 
   /* ---- Motion — منحنيات حرفية فقط (لا متغيرات داخل الحركات) ---- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.3, 1.3, 0.4, 1);
-  --ease-lux: cubic-bezier(0.3, 1.3, 0.4, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-lux: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-press: 120ms; --dur-1: 120ms;
   --dur: 180ms;       --dur-2: 180ms;
   --dur-3: 240ms;
@@ -129,8 +129,8 @@
   --warning-soft: oklch(0.95 0.05 88);
   --danger: oklch(0.54 0.2 25);
   --danger-soft: oklch(0.95 0.032 26);
-  --favorite: oklch(0.64 0.16 82);
-  --favorite-soft: oklch(0.95 0.05 88);
+  --favorite: oklch(0.62 0.17 252);
+  --favorite-soft: oklch(0.95 0.05 252);
   --navy: oklch(0.26 0.09 264);
   --navy-2: oklch(0.34 0.1 262);
   --scrim: oklch(0.16 0.05 264 / 0.5);
@@ -202,8 +202,8 @@
   --warning-soft: oklch(0.84 0.13 84 / 0.14);
   --danger: oklch(0.73 0.155 22);
   --danger-soft: oklch(0.73 0.155 22 / 0.14);
-  --favorite: oklch(0.85 0.145 86);
-  --favorite-soft: oklch(0.85 0.145 86 / 0.15);
+  --favorite: oklch(0.85 0.145 252);
+  --favorite-soft: oklch(0.85 0.145 252 / 0.15);
   --navy: oklch(0.14 0.03 264);
   --navy-2: oklch(0.20 0.04 262);
   --scrim: oklch(0.03 0.015 264 / 0.7);
@@ -272,8 +272,8 @@
     --warning-soft: oklch(0.84 0.13 84 / 0.14);
     --danger: oklch(0.73 0.155 22);
     --danger-soft: oklch(0.73 0.155 22 / 0.14);
-    --favorite: oklch(0.85 0.145 86);
-    --favorite-soft: oklch(0.85 0.145 86 / 0.15);
+    --favorite: oklch(0.85 0.145 252);
+    --favorite-soft: oklch(0.85 0.145 252 / 0.15);
     --navy: oklch(0.14 0.03 264);
     --navy-2: oklch(0.20 0.04 262);
     --scrim: oklch(0.03 0.015 264 / 0.7);
@@ -898,11 +898,11 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
 .sources-glyph {
   display: inline-flex;
   color: var(--accent);
-  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .sources-glyph .sources-glyph-star {
   transform-origin: center;
-  transition: transform 420ms cubic-bezier(0.3, 1.3, 0.4, 1);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .sources-glyph[data-open="true"] .sources-glyph-star { transform: rotate(45deg); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -921,7 +921,7 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
   from { opacity: 0; transform: translateY(7px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.tree-node-sources svg.shrink-0 { transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+.tree-node-sources svg.shrink-0 { transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 @media (hover: hover) {
   .tree-node-sources [data-tree-row]:hover svg.shrink-0 { transform: scale(1.18); }
 }
@@ -1002,6 +1002,14 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
 .hero-counter {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
   color: var(--dim);
   font-size: 14px;
   font-weight: 500;
@@ -1370,13 +1378,13 @@ button[class*="bg-[var(--accent-soft)]"] {
 [aria-pressed="true"] svg.lucide-pin { transform: rotate(-14deg); }
 @media (prefers-reduced-motion: no-preference) {
   [aria-pressed="true"] svg.lucide-star {
-    animation: neb-star-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: neb-star-pop 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   button:active svg.lucide-star, [role="button"]:active svg.lucide-star {
-    animation: neb-star-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: neb-star-pop 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   button:active svg.lucide-heart, [role="button"]:active svg.lucide-heart {
-    animation: neb-star-pop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: neb-star-pop 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 @keyframes neb-star-pop {
@@ -1395,7 +1403,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 }
 @media (prefers-reduced-motion: no-preference) {
   .copy-cta.copy-cta-done svg.lucide-check {
-    animation: neb-star-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: neb-star-pop 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 
@@ -1561,16 +1569,16 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   to { opacity: 1; transform: translateY(0); }
 }
 .folder-row { animation: neb-row-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.folder-bar-icon > svg { transition: transform 180ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+.folder-bar-icon > svg { transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
 @media (hover: hover) {
   .folder-bar:hover .folder-bar-icon > svg,
   .folder-row:hover .folder-bar-icon > svg { transform: scale(1.14) rotate(-3deg); }
   .folder-field-btn:hover .folder-bar-icon > svg { transform: scale(1.1); }
 }
 .folder-field-btn[aria-expanded="true"] .folder-bar-icon > svg {
-  animation: neb-icon-in 0.34s cubic-bezier(0.3, 1.3, 0.4, 1) both;
+  animation: neb-icon-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.move-icon-btn > svg { transition: transform 180ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+.move-icon-btn > svg { transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1); }
 @media (hover: hover) {
   .move-icon-btn:hover > svg { transform: scale(1.16); }
 }
@@ -1580,7 +1588,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
     color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.icon-tile[aria-checked="true"] > svg { animation: neb-icon-in 0.34s cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+.icon-tile[aria-checked="true"] > svg { animation: neb-icon-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .icon-tile:active { transform: scale(0.93); }
 @media (hover: hover) {
   .icon-tile:hover { transform: translateY(-1px); }
@@ -1614,7 +1622,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
      التخطيط كل فريم. الأطراف لسه مدوّرة — الـ radius 999px
      أكبر بكتير من نص الارتفاع حتى بعد الـ scale. */
   transform-origin: left center;
-  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .pill-btn {
   position: relative; z-index: 1; flex-shrink: 0; white-space: nowrap;
@@ -1645,7 +1653,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border);
   /* #6 — زي .pill-thumb: transform بس، مش left/width. */
   transform-origin: left center;
-  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .seg-btn {
   position: relative; z-index: 1; flex-shrink: 0; white-space: nowrap;
@@ -1774,7 +1782,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 @media (prefers-reduced-motion: no-preference) {
   .animate-page { animation: neb-page 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-rise { animation: neb-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .animate-pop { animation: neb-pop 320ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+  .animate-pop { animation: neb-pop 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-sheet { animation: neb-sheet 340ms cubic-bezier(0.22, 1, 0.36, 1) both; }
   .animate-menu { animation: neb-menu 200ms cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top center; }
   .animate-drawer { animation: neb-drawer 340ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -1925,7 +1933,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
     linear-gradient(150deg, var(--accent), var(--cyan)) border-box;
   color: var(--accent);
   box-shadow: var(--shadow-2);
-  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .auth-feature-item:hover .auth-feature-icon {
   transform: translateY(-3px) scale(1.05);
@@ -2069,7 +2077,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   border-radius: var(--r-full);
   background: var(--surface-elevated);
   box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border);
-  transition: inset-inline-start 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1);
+  transition: inset-inline-start 240ms cubic-bezier(0.22, 1, 0.36, 1), width 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .pv-chip[data-on="true"] {
@@ -2229,12 +2237,12 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   border-radius: 10px;
   background: color-mix(in srgb, var(--fhue, var(--dim)) 9%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fhue, var(--dim)) 13%, transparent);
-  transition: transform 280ms cubic-bezier(0.3, 1.3, 0.4, 1),
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
     background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
     color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.tree-icon > svg { transition: transform 300ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+.tree-icon > svg { transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1); }
 /* علامات المصادر الحقيقية تجلس على بلاطة فاتحة نظيفة —
    كأيقونات التطبيقات، وفي الليل تبقى فاتحة لتُقرأ */
 .tree-icon-brand {
@@ -2265,7 +2273,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 
 
 @media (prefers-reduced-motion: no-preference) {
-  .nav-item-active .tree-icon > svg { animation: neb-icon-in 420ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+  .nav-item-active .tree-icon > svg { animation: neb-icon-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 }
 /* العدّادات أقراص صغيرة مرتبة بدل أرقام سائبة */
 .modern-sidebar .tree-count, .drawer-nav .tree-count {
@@ -2313,18 +2321,18 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
    حركة الأيقونات في كل الموقع: زنبرك واحد نظيف
    ============================================================ */
 button svg.lucide, [role="button"] svg.lucide {
-  transition: transform 260ms cubic-bezier(0.3, 1.3, 0.4, 1);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .float-header button:hover svg.lucide,
   .float-header [role="button"]:hover svg.lucide { transform: translateY(-1px) scale(1.13); }
   .bottom-nav button:hover svg.lucide { transform: translateY(-2px) scale(1.08); }
   .lux-card:hover .copy-cta svg.lucide-copy,
-  .lux-card:focus-within .copy-cta svg.lucide-copy { animation: neb-icon-lift 480ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+  .lux-card:focus-within .copy-cta svg.lucide-copy { animation: neb-icon-lift 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 }
 @media (prefers-reduced-motion: no-preference) {
   button:active svg.lucide, [role="button"]:active svg.lucide { transform: scale(0.88); }
-  .bottom-nav button[aria-current="page"] svg.lucide { animation: neb-icon-in 450ms cubic-bezier(0.3, 1.3, 0.4, 1) both; }
+  .bottom-nav button[aria-current="page"] svg.lucide { animation: neb-icon-in 450ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 }
 @keyframes neb-icon-lift {
   0% { transform: translateY(0) scale(1); }
@@ -2736,6 +2744,18 @@ label:focus-within .auth-field-icon {
   font-size: 14.5px;
   line-height: 1.7;
   color: var(--dim);
+}
+/* The login promise, made the visual anchor: larger, bolder, and
+   in the site's accent→cyan gradient (the verse above it stays
+   Amiri; this line is interface text, so it stays Readex). */
+.auth-subtitle.auth-promise {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.6;
+  background: linear-gradient(120deg, var(--accent), var(--cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* ---- الشريط المقسّم الفاتح: ثمب أبيض منزلق، لا تدرّج ---- */
@@ -3420,7 +3440,7 @@ summary svg.lucide {
 /* ---- ٢) علامة «المصادر» المتطورة: مدار ونبض متتابع ---- */
 .sources-glyph .sources-glyph-orbit {
   transform-origin: center;
-  transition: transform 560ms cubic-bezier(0.3, 1.3, 0.4, 1);
+  transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .sources-glyph[data-open="true"] .sources-glyph-orbit { transform: rotate(90deg); }
 .sources-glyph-dot { opacity: 0.45; }
@@ -3636,6 +3656,23 @@ summary svg.lucide {
     0 22px 44px -20px color-mix(in srgb, var(--accent) 38%, transparent);
 }
 
+/* Error toasts wear the danger edge instead of the accent edge,
+   so a failure reads as a failure even at a glance. */
+.toast-card-error {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 var(--glass-line),
+    inset 3px 0 0 color-mix(in srgb, var(--danger) 75%, transparent),
+    0 22px 44px -20px color-mix(in srgb, var(--danger) 38%, transparent);
+}
+[dir="rtl"] .toast-card-error {
+  box-shadow:
+    var(--shadow-4),
+    inset 0 1px 0 var(--glass-line),
+    inset -3px 0 0 color-mix(in srgb, var(--danger) 75%, transparent),
+    0 22px 44px -20px color-mix(in srgb, var(--danger) 38%, transparent);
+}
+
 
 /* ---- الهيرو: حافة متدرجة حيّة تتنفس ببطء + توهّج أعمق ---- */
 .verse-hero {
@@ -3715,7 +3752,7 @@ summary svg.lucide {
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .pill-btn { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .pill-btn { transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1); }
   .pill-btn:hover { transform: translateY(-1px); }
   .pill-btn:active { transform: translateY(0) scale(0.97); }
 }
@@ -3889,7 +3926,7 @@ summary svg.lucide {
     0 10px 24px -10px color-mix(in srgb, var(--accent) 52%, transparent);
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .btn-lux { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), filter 200ms ease; }
+  .btn-lux { transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms cubic-bezier(0.22, 1, 0.36, 1), filter 200ms ease; }
   .btn-lux:hover {
     transform: translateY(-1px);
     filter: brightness(1.05) saturate(1.04);
@@ -4299,7 +4336,7 @@ mark {
    ============================================================ */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"] {
-    transition: transform 180ms cubic-bezier(0.3, 1.3, 0.4, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms ease;
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 180ms ease;
   }
   button[class*="bg-[var(--accent)]"][class*="hover:bg-[var(--accent-strong)]"]:hover {
     transform: translateY(-1px);
@@ -4389,7 +4426,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
     0 10px 20px -10px color-mix(in srgb, var(--fhue, var(--accent)) 55%, transparent);
 }
 .card-tile-sm { width: 34px; height: 34px; border-radius: 11px; }
-.card-tile > svg { transition: transform 200ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+.card-tile > svg { transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .lux-card:hover .card-tile > svg { transform: scale(1.13) rotate(-3deg); }
 }
@@ -4720,7 +4757,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 .bottom-nav [aria-current="page"] svg.lucide {
   transform: translateY(-1.5px) scale(1.08);
 }
-.bottom-nav button svg.lucide { transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+.bottom-nav button svg.lucide { transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 @media (max-width: 639px) {
   .lux-card { border-radius: 18px; }
   .folder-bar { border-radius: 19px; }
@@ -4942,7 +4979,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
      مرة واحدة على حدث. */
   .trig-panel { animation: neb-trig-panel 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
   /* نطّة الحفظ/المسح على الحبّة نفسها */
-  .trig-icon-saved { animation: neb-trig-pop 420ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+  .trig-icon-saved { animation: neb-trig-pop 420ms cubic-bezier(0.22, 1, 0.36, 1); }
   /* خانة الاختصار بتهتز لما يظهر خطأ */
   .trig-input-error { animation: neb-trig-shake 300ms cubic-bezier(0.22, 1, 0.36, 1); }
   /* الظهور المرحلي — كل طبقة بعد اللي قبلها */
@@ -4953,7 +4990,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   .trig-stage-4 { animation-delay: 180ms; }
   .trig-stage-5 { animation-delay: 240ms; }
   /* الشريحة النشطة بتمتلئ بنطّة */
-  .trig-chip-active { animation: neb-trig-chip-in 280ms cubic-bezier(0.3, 1.3, 0.4, 1); }
+  .trig-chip-active { animation: neb-trig-chip-in 280ms cubic-bezier(0.22, 1, 0.36, 1); }
   /* بوكس البحث بينبض لما شريحة تدوس عليه — حلقة ::before
      بتكبر وتتلاشى (transform + opacity)، مش box-shadow */
   .trig-search-pulsed { position: relative; }
@@ -5056,6 +5093,11 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 .search-trig-panel {
   position: relative;
   overflow: hidden;
+  /* The panel never grows past the viewport: the reply body and the
+     assign list scroll inside it (max-h-56 each) — this cap is the
+     outer guard so a very long reply + extras can never push the
+     panel off-screen. */
+  max-height: min(78vh, 700px);
   border-radius: var(--radius);
   border: 1px solid transparent;
   background:

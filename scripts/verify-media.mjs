@@ -6,10 +6,13 @@
    handlers exactly as /api/actions would call them:
    attach/remove with server-side re-validation (ownership, kind /
    content-type pair, size caps, pathname shape, Blob host),
-   listShortcuts / listTrash joins, duplicate shares the Blob
-   object (refcount guard), unique-shortcut + case-insensitive
-   trigger index, cascade on permanent delete, starter library
-   never copies media, full backup carries media URLs only.
+   UP TO 3 images per reply (2026-11-27 — attach 1/2/3, reject a
+   4th server-side, remove ONE image by mediaId, replace = remove
+   + attach), listShortcuts / listTrash joins return ordered
+   media arrays, duplicate shares the Blob objects (refcount
+   guard), unique-shortcut + case-insensitive trigger index,
+   cascade on permanent delete, starter library never copies
+   media, full backup carries media URLs only (with position).
    The real Blob del() is NOT exercised here: with no Blob token
    configured (neither PUBLIC_BLOB_READ_WRITE_TOKEN nor
    BLOB_READ_WRITE_TOKEN) it throws BlobAccessError at once, which
@@ -110,6 +113,8 @@ const callThrows = async (name, args) => {
 const mediaRows = async () => (await pool.query("SELECT * FROM reply_media")).rows;
 const mediaFor = async (sid) =>
   (await pool.query("SELECT * FROM reply_media WHERE shortcut_id = $1", [sid])).rows[0] ?? null;
+const mediaListFor = async (sid) =>
+  (await pool.query("SELECT * FROM reply_media WHERE shortcut_id = $1 ORDER BY position ASC", [sid])).rows;
 
 const BLOB_HOST = "store123.public.blob.vercel-storage.com";
 
@@ -180,20 +185,25 @@ try {
   const sid = created.shortcut.id;
   check("createShortcut تيست", !!sid, `id=${sid}`);
 
-  // ---- attach: happy path.
+  // ---- attach: happy path (image 1 of up to 3).
   const attached = await call("attachMedia", imgArgs(tokenA, sid, uidA));
   check(
     "attachMedia image",
     attached.media?.kind === "image" &&
+      attached.media.position === 1 &&
       attached.media.blobPathname === `media/${uidA}/${sid}/aaaaaaaa-1111-2222-3333-444444444444.jpg`,
     attached.media?.blobUrl ?? "",
   );
   const list1 = await call("listShortcuts", { token: tokenA });
   const mine = list1.shortcuts.find((s) => s.id === sid);
-  check("listShortcuts joins media", mine?.media?.kind === "image");
   check(
-    "listShortcuts leaves other replies media-less",
-    list1.shortcuts.filter((s) => s.id !== sid).every((s) => s.media === null),
+    "listShortcuts joins media as an ordered array",
+    Array.isArray(mine?.media) && mine.media.length === 1 && mine.media[0].kind === "image" && mine.media[0].position === 1,
+    JSON.stringify(mine?.media),
+  );
+  check(
+    "listShortcuts leaves other replies media-less (empty array)",
+    list1.shortcuts.filter((s) => s.id !== sid).every((s) => Array.isArray(s.media) && s.media.length === 0),
   );
 
   // ---- attach: server-side re-validation (every one must throw).
@@ -235,8 +245,9 @@ try {
   });
   check("attachMedia rejects kind video (images only)", !!errVideoKind, errVideoKind ?? "");
 
-  // ---- replace: a second image over the first (old row replaced, not doubled).
-  const replaced = await call("attachMedia", {
+  // ---- multi-image (2026-11-27): attach 2nd and 3rd (append,
+  // positions 2 and 3), then a 4th is refused server-side.
+  const second = await call("attachMedia", {
     token: tokenA,
     shortcutId: sid,
     kind: "image",
@@ -247,53 +258,145 @@ try {
     width: 1280,
     height: 720,
   });
-  check("attachMedia replaces image with image", replaced.media?.kind === "image");
-  check("replace keeps one media row", (await mediaRows()).length === 1);
+  check("attachMedia 2nd image takes position 2", second.media?.position === 2 && second.media?.kind === "image");
+  const third = await call("attachMedia", {
+    token: tokenA,
+    shortcutId: sid,
+    kind: "image",
+    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/cccccccc-1111-2222-3333-444444444444.webp`,
+    blobPathname: `media/${uidA}/${sid}/cccccccc-1111-2222-3333-444444444444.webp`,
+    contentType: "image/webp",
+    byteSize: 90000,
+    width: 1200,
+    height: 800,
+  });
+  check("attachMedia 3rd image takes position 3", third.media?.position === 3);
+  check("three media rows for one reply", (await mediaRows()).length === 3);
+  const errFourth = await callThrows("attachMedia", {
+    token: tokenA,
+    shortcutId: sid,
+    kind: "image",
+    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/dddddddd-1111-2222-3333-444444444444.jpg`,
+    blobPathname: `media/${uidA}/${sid}/dddddddd-1111-2222-3333-444444444444.jpg`,
+    contentType: "image/jpeg",
+    byteSize: 80000,
+    width: 1000,
+    height: 600,
+  });
+  check("attachMedia rejects a 4th image", !!errFourth && errFourth.includes("3 صور"), errFourth ?? "");
+  const list3 = await call("listShortcuts", { token: tokenA });
+  const mine3 = list3.shortcuts.find((s) => s.id === sid);
+  check(
+    "listShortcuts returns all 3 images ordered by position",
+    Array.isArray(mine3?.media) &&
+      mine3.media.length === 3 &&
+      mine3.media.map((m) => m.position).join(",") === "1,2,3",
+    JSON.stringify(mine3?.media?.map((m) => m.position)),
+  );
 
-  // ---- remove: ownership + happy path.
-  const errRemove = await callThrows("removeMedia", { token: tokenB, shortcutId: sid });
+  // ---- remove ONE image by mediaId: only that row goes; the
+  // other two keep their order. Then "replace" = remove + attach
+  // (the new image takes max position + 1).
+  const rowsBefore = await mediaListFor(sid);
+  const middleId = rowsBefore[1].id;
+  const errRemove = await callThrows("removeMedia", { token: tokenB, shortcutId: sid, mediaId: middleId });
   check("removeMedia rejects other user", !!errRemove, errRemove ?? "");
-  await call("removeMedia", { token: tokenA, shortcutId: sid });
-  check("removeMedia deletes the row", (await mediaFor(sid)) === null);
+  await call("removeMedia", { token: tokenA, shortcutId: sid, mediaId: middleId });
+  const rowsAfterRemove = await mediaListFor(sid);
+  check(
+    "removeMedia deletes only that image",
+    rowsAfterRemove.length === 2 && rowsAfterRemove.every((r) => r.id !== middleId),
+    `rows=${rowsAfterRemove.length}`,
+  );
+  check(
+    "removeMedia keeps the other images in order",
+    rowsAfterRemove.map((r) => r.position).join(",") === "1,3",
+    rowsAfterRemove.map((r) => r.position).join(","),
+  );
+  const replacement = await call("attachMedia", {
+    token: tokenA,
+    shortcutId: sid,
+    kind: "image",
+    blobUrl: `https://${BLOB_HOST}/media/${uidA}/${sid}/dddddddd-1111-2222-3333-444444444444.jpg`,
+    blobPathname: `media/${uidA}/${sid}/dddddddd-1111-2222-3333-444444444444.jpg`,
+    contentType: "image/jpeg",
+    byteSize: 80000,
+    width: 1000,
+    height: 600,
+  });
+  check(
+    "replace: new image after a removal takes max position + 1",
+    replacement.media?.position === 4 && (await mediaListFor(sid)).length === 3,
+    `position=${replacement.media?.position}`,
+  );
+  const errRemoveGone = await callThrows("removeMedia", { token: tokenA, shortcutId: sid, mediaId: middleId });
+  check("removeMedia on a missing image throws", !!errRemoveGone, errRemoveGone ?? "");
+  // Remove the replacement too, so the reply is back to 2 images
+  // for the duplicate test below.
+  await call("removeMedia", { token: tokenA, shortcutId: sid, mediaId: replacement.media.id });
+  check("reply back to 2 images after cleanup", (await mediaListFor(sid)).length === 2);
   const list2 = await call("listShortcuts", { token: tokenA });
-  check("listShortcuts media null after remove", list2.shortcuts.find((s) => s.id === sid)?.media === null);
-  const errRemoveEmpty = await callThrows("removeMedia", { token: tokenA, shortcutId: sid });
-  check("removeMedia on media-less reply throws", !!errRemoveEmpty, errRemoveEmpty ?? "");
+  check(
+    "listShortcuts media array after removes",
+    (list2.shortcuts.find((s) => s.id === sid)?.media ?? []).length === 2,
+  );
 
-  // ---- duplicate shares the Blob object; the refcount guard keeps
-  // it alive while either copy still points at it (DB-visible: the
-  // surviving row still references the pathname after the copy's
-  // media is removed).
-  await call("attachMedia", imgArgs(tokenA, sid, uidA));
+  // ---- duplicate shares the Blob objects; the refcount guard keeps
+  // them alive while either copy still points at them (DB-visible:
+  // the surviving rows still reference the pathnames after the
+  // copy's media is removed).
+  const rowsBeforeDup = await mediaListFor(sid);
   const dup = await call("duplicateShortcut", { token: tokenA, id: sid });
   const copyId = dup.shortcut.id;
-  check("duplicateShortcut copies media", dup.shortcut.media?.blobPathname === `media/${uidA}/${sid}/aaaaaaaa-1111-2222-3333-444444444444.jpg`, `copy id=${copyId}`);
-  check("duplicate shares the pathname (no re-upload)", (await mediaRows()).length === 2);
-  await call("removeMedia", { token: tokenA, shortcutId: copyId });
-  const stillThere = await mediaFor(sid);
-  check("refcount guard: original keeps media after copy removed", stillThere !== null);
+  check(
+    "duplicateShortcut copies ALL media rows with positions",
+    Array.isArray(dup.shortcut.media) &&
+      dup.shortcut.media.length === rowsBeforeDup.length &&
+      dup.shortcut.media.map((m) => m.position).join(",") === rowsBeforeDup.map((r) => r.position).join(","),
+    `copy id=${copyId} media=${dup.shortcut.media?.length}`,
+  );
+  check(
+    "duplicate shares the pathnames (no re-upload)",
+    Array.isArray(dup.shortcut.media) &&
+      dup.shortcut.media.every((m) => rowsBeforeDup.some((r) => r.blob_pathname === m.blobPathname)),
+  );
+  check(
+    "duplicate returns the COPY's media ids (not the source's)",
+    Array.isArray(dup.shortcut.media) &&
+      dup.shortcut.media.every((m) => !rowsBeforeDup.some((r) => r.id === m.id)),
+    `copy ids=${dup.shortcut.media?.map((m) => m.id).join(",")} source ids=${rowsBeforeDup.map((r) => r.id).join(",")}`,
+  );
+  const copyMediaId = dup.shortcut.media[0].id;
+  await call("removeMedia", { token: tokenA, shortcutId: copyId, mediaId: copyMediaId });
+  const stillThere = await mediaListFor(sid);
+  check(
+    "refcount guard: original keeps all media after copy's image removed",
+    stillThere.length === rowsBeforeDup.length,
+    `rows=${stillThere.length}`,
+  );
 
-  // ---- unique shortcut_id: a second media row for one reply cannot exist.
-  let uniqueErr = null;
-  try {
-    await pool.query(
-      "INSERT INTO reply_media (shortcut_id, user_id, kind, blob_url, blob_pathname, content_type, byte_size) VALUES ($1,$2,'image','https://x','media/1/2/z.jpg','image/jpeg',10)",
-      [sid, uidA],
-    );
-  } catch (e) {
-    uniqueErr = e instanceof Error ? e.message : String(e);
-  }
-  check("unique index on reply_media.shortcut_id", !!uniqueErr, uniqueErr ?? "");
+  // ---- the old one-row-per-reply uniqueness is gone: several
+  // rows per reply coexist (the (shortcut_id, position) index is
+  // a lookup index, not a uniqueness constraint).
+  const extra = await pool.query(
+    "INSERT INTO reply_media (shortcut_id, user_id, kind, blob_url, blob_pathname, content_type, byte_size, position) VALUES ($1,$2,'image','https://x','media/1/2/z.jpg','image/jpeg',10, 9) RETURNING id",
+    [sid, uidA],
+  );
+  check("a second media row for one reply can exist (multi-image)", extra.rows.length === 1, `rows=${extra.rows.length}`);
+  await pool.query("DELETE FROM reply_media WHERE id = $1", [extra.rows[0].id]);
 
-  // ---- trash shows media; permanent delete cascades the media row.
+  // ---- trash shows media; permanent delete cascades the media rows.
   await call("deleteShortcut", { token: tokenA, id: sid });
   const trash = await call("listTrash", { token: tokenA });
   check(
-    "listTrash joins media",
-    trash.shortcuts.find((s) => s.id === sid)?.media?.kind === "image",
+    "listTrash joins media as an ordered array",
+    (() => {
+      const m = trash.shortcuts.find((s) => s.id === sid)?.media;
+      return Array.isArray(m) && m.length === 2 && m.every((x) => x.kind === "image");
+    })(),
   );
   await call("deleteShortcutForever", { token: tokenA, id: sid });
-  check("permanent delete cascades media row", (await mediaFor(sid)) === null);
+  check("permanent delete cascades media rows", (await mediaListFor(sid)).length === 0);
 
   // ---- case-insensitive trigger uniqueness at the DB level:
   // the server check rejects "salam" after "Salam", and a raw
@@ -334,7 +437,7 @@ try {
   const listC = await call("listShortcuts", { token: regC.token });
   const seededCopy = listC.shortcuts.find((s) => s.title === "رد بالوسائط");
   check("starter seed copies the reply", !!seededCopy);
-  check("starter seed does NOT copy media", seededCopy?.media === null);
+  check("starter seed does NOT copy media", Array.isArray(seededCopy?.media) && seededCopy.media.length === 0);
 
   // ---- full backup carries media URLs only (no bytes).
   const full = await call("exportFullBackup", { token: tokenA });
@@ -348,6 +451,11 @@ try {
   check(
     "exportFullBackup media has URLs, no bytes",
     data.media.every((m) => typeof m.blobUrl === "string" && !("dataBase64" in m) && !("bytes" in m)),
+  );
+  check(
+    "exportFullBackup media rows carry position",
+    data.media.every((m) => typeof m.position === "number"),
+    `positions=${data.media.map((m) => m.position).join(",")}`,
   );
 
   // ---- emptyTrash cleans media rows of trashed replies.

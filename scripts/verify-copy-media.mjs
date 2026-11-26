@@ -16,8 +16,13 @@ import {
   COPY_FAILED_TEXT,
   copyOutcome,
   copySuccessToast,
+  copySuccessToastMulti,
+  multiImagePartialToast,
+  multiImageFallbackToast,
   imageFallbackToast,
   formatMediaSize,
+  mediaListOf,
+  MAX_IMAGES_PER_REPLY,
 } from "../components/copy-media.ts";
 
 let pass = 0;
@@ -98,6 +103,81 @@ try {
   );
   o = copyOutcome(pImg2, steps(false, false), "تيست");
   check("outcome image + text both failed = failed, no use", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.recordUse === false, JSON.stringify(o));
+
+  // ---- multi-image (2026-11-27): up to 3 images per reply.
+  const img = (n) => ({
+    id: n,
+    position: n,
+    kind: "image",
+    blobUrl: `https://s.public.blob.vercel-storage.com/media/1/87/${n}.jpg`,
+    blobPathname: `media/1/87/${n}.jpg`,
+    contentType: "image/jpeg",
+    byteSize: 100000 + n,
+    width: 1600,
+    height: 900,
+    durationMs: null,
+  });
+  check("MAX_IMAGES_PER_REPLY is 3", MAX_IMAGES_PER_REPLY === 3);
+  check("mediaListOf null/empty", mediaListOf(null).length === 0 && mediaListOf([]).length === 0);
+  check("mediaListOf legacy single", mediaListOf(img(1)).length === 1 && mediaListOf(img(1))[0].id === 1);
+  const shuffled = mediaListOf([img(3), img(1), img(2)]);
+  check(
+    "mediaListOf orders by position",
+    shuffled.map((m) => m.id).join(",") === "1,2,3",
+    shuffled.map((m) => m.id).join(","),
+  );
+  check("planCopy 0 images = text", planCopy([]).mode === "text");
+  check("planCopy 1 image = text-image", planCopy([img(1)]).mode === "text-image");
+  const p2 = planCopy([img(1), img(2)]);
+  check(
+    "planCopy 2 images = text-images with both urls",
+    p2.mode === "text-images" && p2.imageUrls.length === 2 && p2.imageUrls[0].endsWith("/1.jpg"),
+    JSON.stringify(p2),
+  );
+  const p3 = planCopy([img(1), img(2), img(3)]);
+  check(
+    "planCopy 3 images = text-images with all three urls",
+    p3.mode === "text-images" && p3.imageUrls.length === 3,
+    JSON.stringify(p3),
+  );
+  check(
+    "planCopy 3 images has no video mode",
+    !JSON.stringify(p3).includes("video"),
+  );
+  check(
+    "copySuccessToastMulti names title + count",
+    copySuccessToastMulti("تيست", 3).text === "اتنسخ «تيست» مع 3 صور — الصقهم في أي شات" && copySuccessToastMulti("تيست", 3).kind === "ok",
+    copySuccessToastMulti("تيست", 3).text,
+  );
+  check(
+    "multiImageFallbackToast names the count",
+    multiImageFallbackToast(3).text === "اتنسخ النص بس — 3 صور ما اتنسختش، نزّلها من التفاصيل" && multiImageFallbackToast(3).kind === "error",
+    multiImageFallbackToast(3).text,
+  );
+  check(
+    "multiImagePartialToast downloaded=true",
+    multiImagePartialToast(3, true).text === "اتنسخ النص وأول صورة بس — باقي الصور (2) اتنزلت كملفات",
+    multiImagePartialToast(3, true).text,
+  );
+  check(
+    "multiImagePartialToast downloaded=false",
+    multiImagePartialToast(3, false).text === "اتنسخ النص وأول صورة بس — باقي الصور (2) نزّلها من التفاصيل",
+    multiImagePartialToast(3, false).text,
+  );
+  // text-images truth table: one write attempted; honest fallback.
+  const msteps = (combinedOk, firstOk, textOk, restDownloaded) => ({ combinedOk, firstOk, textOk, restDownloaded });
+  o = copyOutcome(p3, msteps(true, false, false, false), "تيست");
+  check("multi combined ok = full success naming 3", o.button === "copied" && o.toast?.text === copySuccessToastMulti("تيست", 3).text && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(p3, msteps(false, true, true, true), "تيست");
+  check("multi firstOk + rest downloaded = partial, names downloads", o.button === "copied" && o.toast?.text === multiImagePartialToast(3, true).text && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(p3, msteps(false, true, true, false), "تيست");
+  check("multi firstOk + rest NOT downloaded = partial, points to details", o.button === "copied" && o.toast?.text === multiImagePartialToast(3, false).text && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(p3, msteps(false, false, true, false), "تيست");
+  check("multi textOk only = text-only + honest fallback naming 3", o.button === "copied" && o.toast?.text === multiImageFallbackToast(3).text && o.recordUse === true, JSON.stringify(o));
+  o = copyOutcome(p3, msteps(false, false, false, false), "تيست");
+  check("multi all failed = failed, no use, no fake success", o.button === "failed" && o.toast?.text === COPY_FAILED_TEXT && o.recordUse === false, JSON.stringify(o));
+  o = copyOutcome(p2, msteps(false, true, true, true), "تيست");
+  check("multi 2 images partial names the 1 remaining", o.button === "copied" && o.toast?.text === multiImagePartialToast(2, true).text, JSON.stringify(o));
 
   // ---- formatting.
   check("formatMediaSize bytes", formatMediaSize(500) === "1 كيلو", formatMediaSize(500));

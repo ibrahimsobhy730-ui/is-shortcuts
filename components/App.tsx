@@ -9,6 +9,7 @@ import {
   copyButtonLabels,
   copyOutcome,
   formatMediaSize,
+  mediaListOf,
   planCopy,
 } from "./copy-media";
 import {
@@ -1281,6 +1282,35 @@ export function triggerError(raw: string, taken: readonly string[] = []): string
   return null;
 }
 
+/** Non-blocking hint when the typed text would collide with an
+    existing trigger by prefix: either another trigger starts with
+    the typed text, or the typed text starts with another trigger.
+    Exact duplicates are already blocked by triggerError; this only
+    warns, so «عربي2» next to «عربي» stays allowed. The check reuses
+    triggerMatchScoreNorm (score 2 = prefix) on the normalized
+    forms, so Arabic letter variants fold the same way search does. */
+export function triggerCollisionHint(
+  raw: string,
+  taken: readonly string[] = [],
+): string | null {
+  const q = normalizeSearchText(raw);
+  if (!q) return null;
+  const clash = taken.find((x) => {
+    const o = normalizeSearchText(x);
+    if (!o || o === q) return false; /* exact duplicate — triggerError's job */
+    return (
+      triggerMatchScoreNorm(o, q) === 2 ||
+      triggerMatchScoreNorm(q, o) === 2
+    );
+  });
+  if (!clash) return null;
+  const otherStartsWithTyped =
+    triggerMatchScoreNorm(normalizeSearchText(clash), q) === 2;
+  return otherStartsWithTyped
+    ? `تنبيه: في اختصار «${clash.trim()}» بيبدأ بالنص ده — ممكن يتلخبط معاه وقت الكتابة.`
+    : `تنبيه: النص ده بيبدأ باختصار «${clash.trim()}» الموجود — ممكن يتلخبط معاه وقت الكتابة.`;
+}
+
 /** Recency order for triggers — «آخر اختصارات استخدمتها»: the
     replies used most RECENTLY first (lastUsedAt, stamped by every
     real copy), then the never-used ones below in their existing
@@ -1997,6 +2027,27 @@ async function writeTextWithImage(text: string, png: Blob): Promise<boolean> {
   }
 }
 
+/* 2–3 images: ONE write() carrying one ClipboardItem per image
+   (each item: "text/plain" + one "image/png"). A ClipboardItem
+   holds one blob per MIME type, so several images need several
+   items in the same write — that is the one attempt. Whether the
+   paste target takes all of them is NOT proven live (no browser
+   here can prove it): the caller falls back honestly when this
+   write fails, and never claims more than it landed. */
+async function writeTextWithImages(text: string, pngs: Blob[]): Promise<boolean> {
+  try {
+    const textBlob = new Blob([text], { type: "text/plain" });
+    const items = pngs.map(
+      (png) =>
+        new ClipboardItem({ "text/plain": textBlob, "image/png": png }),
+    );
+    await navigator.clipboard.write(items);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* Downloads a media file in the same tap as the copy: fetch the
    Blob URL (cross-origin, so a bare <a download> would be
    ignored and the file would just open in a tab), turn it into a
@@ -2566,12 +2617,16 @@ type ToastState = { text: string; kind: ToastKind } | null;
 
 function Toast({ toast }: { toast: ToastState }) {
   if (!toast) return null;
+  /* Success and info keep the navy pill; an error wears a
+     danger-tinted pill (soft red ground, danger border and ink),
+     so a failure can never be mistaken for a success at a glance. */
+  const isError = toast.kind === "error";
   return (
     <div className="fixed inset-x-0 bottom-6 z-[var(--z-toast)] flex justify-center px-4">
       <div
         role="status"
         aria-live="polite"
-        className="toast-card animate-pop elev-pop flex max-w-full items-center gap-2 rounded-[var(--radius)] bg-[var(--navy)] px-4 py-2.5 text-sm font-semibold text-[var(--navy-ink)]"
+        className={`toast-card animate-pop elev-pop flex max-w-full items-center gap-2 rounded-[var(--radius)] px-4 py-2.5 text-sm font-semibold ${isError ? "toast-card-error border border-[color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--navy)] text-[var(--navy-ink)]"}`}
       >
         <span
           className={
@@ -3006,11 +3061,24 @@ function AuthPage({
         <h1 className="auth-title">
           {mode === "login" ? (lang === "en" ? "Welcome back" : "أهلاً بعودتك") : lang === "en" ? "Your private IS account" : "حسابك الخاص في IS"}
         </h1>
-        <p className="auth-subtitle">
+        <p className={`auth-subtitle ${mode === "login" ? "auth-promise" : ""}`}>
           {mode === "login"
             ? lang === "en" ? "Type a shortcut — get the reply instantly." : "اكتب اختصار — وخد الرد فورًا"
             : lang === "en" ? "Create your account and keep your shortcuts private to you." : "اعمل حسابك واحفظ اختصاراتك الخاصة بيك"}
         </p>
+        {/* One static, non-interactive sample pill under the promise
+            (login mode only): a visual hint of what a shortcut looks
+            like. Not a button, no navigation, no input. */}
+        {mode === "login" && (
+          <div className="mt-3 flex justify-center" aria-hidden="true">
+            <span className="trig-chip">
+              <ShortcutBolt />
+              <span dir="auto">عربي</span>
+              <span className="text-[var(--faint)]">→</span>
+              <span className="font-semibold text-[var(--dim)]">أسعار…</span>
+            </span>
+          </div>
+        )}
       </div>
 
       <div
@@ -3441,17 +3509,20 @@ function Workspace({
   const [smartId, setSmartId] = useState<number | null>(null);
   const [smartEditor, setSmartEditor] = useState<{ open: boolean; item: SmartFolderT | null }>({ open: false, item: null });
   /* Advanced search filters — combinable on top of any view: tags
-     (any-of), favorites only, pinned only, and a last-edited window.
-     They live beside the view switcher and reset with «مسح الفلاتر». */
+     (any-of), pinned only, and a last-edited window. They live
+     beside the view switcher and reset with «مسح الفلاتر». */
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersBtnRef = useRef<HTMLButtonElement>(null);
+  const filtersPanelRef = useRef<HTMLDivElement>(null);
+  /* The filters sheet closes like every other popover: Escape +
+     any press outside the button or the sheet. */
+  usePopoverDismiss(filtersOpen, [filtersBtnRef, filtersPanelRef], () => setFiltersOpen(false));
   const [filterTags, setFilterTags] = useState<string[]>([]);
-  const [onlyFav, setOnlyFav] = useState(false);
   const [onlyPin, setOnlyPin] = useState(false);
   const [dateRange, setDateRange] = useState<"all" | "today" | "week" | "month">("all");
-  const filtersActive = filterTags.length > 0 || onlyFav || onlyPin || dateRange !== "all";
+  const filtersActive = filterTags.length > 0 || onlyPin || dateRange !== "all";
   const clearFilters = () => {
     setFilterTags([]);
-    setOnlyFav(false);
     setOnlyPin(false);
     setDateRange("all");
   };
@@ -3592,33 +3663,20 @@ function Workspace({
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const morePopRef = useRef<HTMLDivElement>(null);
   const [morePos, setMorePos] = useState<{ top: number; right: number } | null>(null);
-  useEscapeClose(() => setMoreOpen(false));
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (moreBtnRef.current?.contains(t) || morePopRef.current?.contains(t)) return;
-      setMoreOpen(false);
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [moreOpen]);
-  /* Sliding thumbs for the filter pills and the density segmented
-     control: measured from the live buttons (offsetLeft/Width), so
-     the accent thumb glides to whichever pill is active in either
-     direction, and hides when a «المزيد» view is the active one.
-     The measuring effect itself lives below, after `density` and
-     `shortcuts` are declared. #6 — the thumb is positioned by
-     transform (translateX + scaleX over the full track width),
-     never by left/width, so sliding it costs no layout. */
+  /* «المزيد» closes like every other popover: Escape + any press
+     outside the button or the portal panel. */
+  usePopoverDismiss(moreOpen, [moreBtnRef, morePopRef], () => setMoreOpen(false));
+  /* Sliding thumb for the filter pills: measured from the live
+     buttons (offsetLeft/Width), so the accent thumb glides to
+     whichever pill is active in either direction, and hides when
+     a «المزيد» view is the active one. The measuring effect itself
+     lives below, after `shortcuts` is declared. #6 — the thumb is
+     positioned by transform (translateX + scaleX over the full
+     track width), never by left/width, so sliding it costs no
+     layout. (Density used to have its own thumb here too; it
+     moved into the «المزيد» popover as plain buttons.) */
   const pillTrackRef = useRef<HTMLDivElement>(null);
   const [pillThumb, setPillThumb] = useState<{
-    x: number;
-    w: number;
-    trackW: number;
-  } | null>(null);
-  const densityTrackRef = useRef<HTMLDivElement>(null);
-  const [densityThumb, setDensityThumb] = useState<{
     x: number;
     w: number;
     trackW: number;
@@ -3981,12 +4039,45 @@ function Workspace({
   const searchPreviewOpen =
     searchQ !== "" && (searchTrigBest !== null || !searchAnyResult);
 
+  /* ---------- home: shortcuts on the first screen ----------
+     Round 3 buried the shortcuts work inside the «الاختصارات»
+     view, so home looked unchanged. The first screen now carries
+     it: the most-recently-used trigger chips (same recency order
+     as the shortcuts card), the «أكمل اختصاراتك» panel, and the
+     starter-library jump — hoisted here so home and the Shortcuts
+     view read the same memos. */
+  const homeTriggers = useMemo(
+    () => sortTriggersRecency(shortcuts.filter((s) => s.trigger)).slice(0, 5),
+    [shortcuts],
+  );
+  const takenTriggersByIdHome = useMemo(() => {
+    const m = new Map<number, string[]>();
+    for (const s of shortcuts) m.set(s.id, otherTriggers(shortcuts, s.id));
+    m.set(-1, otherTriggers(shortcuts, -1));
+    return m;
+  }, [shortcuts]);
+  const withoutTriggerHome = useMemo(
+    () => shortcuts.filter((s) => !s.trigger),
+    [shortcuts],
+  );
+  const withTriggerCountHome = useMemo(
+    () => shortcuts.filter((s) => s.trigger).length,
+    [shortcuts],
+  );
+  /* Starter library (owner only): same queryKey as the picker, so
+     this shares its cache and the owner alone ever sees the jump. */
+  const starterQueryHome = useQuery({
+    queryKey: ["starterLibrary", token],
+    queryFn: () => api.getStarterLibrary({ token }),
+  });
+
   /* Tap-outside dismisses the search preview: a press anywhere
      outside the search box (and its preview) clears the query, so
      the panel closes at once — the X is never required. A trigger
      row's press is the one exception: it FEEDS the box (its click
      sets the search right after), so dismissing on its pointerdown
-     would flicker the panel shut and open again. */
+     would flicker the panel shut and open again. Escape closes it
+     too (same rule as every other popover on the site). */
   useEffect(() => {
     if (!searchPreviewOpen) return;
     const onDown = (e: PointerEvent) => {
@@ -3994,8 +4085,15 @@ function Workspace({
       if (t.closest("[data-trig-chip]")) return;
       if (searchWrapRef.current && !searchWrapRef.current.contains(t)) setSearch("");
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSearch("");
+    };
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchPreviewOpen]);
 
@@ -4007,7 +4105,6 @@ function Workspace({
      refetch that leaves the thumbs where they were costs no
      extra render and no forced layout beyond the measure. */
   const pillThumbRef = useRef<typeof pillThumb>(null);
-  const densityThumbRef = useRef<typeof densityThumb>(null);
   useLayoutEffect(() => {
     const measure = () => {
       const track = pillTrackRef.current;
@@ -4031,29 +4128,11 @@ function Workspace({
         pillThumbRef.current = nextPill;
         setPillThumb(nextPill);
       }
-      const dTrack = densityTrackRef.current;
-      const dBtn = dTrack?.querySelector<HTMLElement>(`[data-density-seg="${density}"]`) ?? null;
-      const nextDensity =
-        dBtn && dTrack && dTrack.offsetWidth > 0
-          ? { x: dBtn.offsetLeft, w: dBtn.offsetWidth, trackW: dTrack.offsetWidth }
-          : null;
-      const prevDensity = densityThumbRef.current;
-      if (
-        (nextDensity === null) !== (prevDensity === null) ||
-        (nextDensity !== null &&
-          prevDensity !== null &&
-          (nextDensity.x !== prevDensity.x ||
-            nextDensity.w !== prevDensity.w ||
-            nextDensity.trackW !== prevDensity.trackW))
-      ) {
-        densityThumbRef.current = nextDensity;
-        setDensityThumb(nextDensity);
-      }
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [view, smartId, density, lang, shortcuts.length]);
+  }, [view, smartId, lang, shortcuts.length]);
 
   /* #2 — stable identity: copy/move handlers below are passed to
      memoized cards, so showToast must not be a fresh closure on
@@ -4404,9 +4483,58 @@ function Workspace({
           showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
         return out.button;
       }
-      /* text-image (the only other plan): convert first, then ONE
-         combined write. No text-only write happens before the image
-         is ready — an early paste can never lose the image. */
+      if (plan.mode === "text-images") {
+        /* 2–3 images: convert EVERY image first, then ONE write
+           carrying text + ALL images (one ClipboardItem per
+           image — see writeTextWithImages). No text-only write
+           happens before the images are ready. If that write
+           fails, the honest fallback is text + the FIRST image;
+           the remaining images are delivered as file downloads
+           in the same tap — never a fake «all copied». If even
+           that fails, plain text only, with the honest toast. */
+        const pngs = (
+          await Promise.all(plan.imageUrls.map((u) => convertImageToPng(u)))
+        ).filter((p): p is Blob => p !== null);
+        const combinedOk =
+          pngs.length === plan.imageUrls.length
+            ? await writeTextWithImages(text, pngs)
+            : false;
+        let firstOk = false;
+        let restDownloaded = false;
+        if (!combinedOk && pngs.length > 0) {
+          const first = pngs[0];
+          if (first) {
+            firstOk = await writeTextWithImage(text, first);
+            if (firstOk) {
+              const rest = mediaListOf(s.media).slice(1);
+              const results = await Promise.all(
+                rest.map((m) =>
+                  downloadMediaFile(
+                    m.blobUrl,
+                    imageFileName(s.title, m.contentType),
+                  ),
+                ),
+              );
+              restDownloaded =
+                results.length > 0 && results.every(Boolean);
+            }
+          }
+        }
+        const textOk =
+          combinedOk || firstOk ? false : await copyText(text);
+        const out = copyOutcome(
+          plan,
+          { combinedOk, firstOk, textOk, restDownloaded },
+          s.title,
+        );
+        if (out.recordUse) recordCopyUse(s);
+        if (out.toast)
+          showToast(out.toast.text, out.toast.kind === "error" ? "error" : undefined);
+        return out.button;
+      }
+      /* text-image: convert first, then ONE combined write. No
+         text-only write happens before the image is ready — an
+         early paste can never lose the image. */
       const png = await convertImageToPng(plan.imageUrl);
       const combinedOk = png ? await writeTextWithImage(text, png) : false;
       const textOk = combinedOk ? false : await copyText(text);
@@ -4475,7 +4603,6 @@ function Workspace({
       if (view === "used" && !s.lastUsedAt) return false;
       if (view === "unused" && s.lastUsedAt) return false;
       /* Advanced filters combine with every view and search. */
-      if (onlyFav && !s.favorite) return false;
       if (onlyPin && !s.pinned) return false;
       if (filterTags.length > 0) {
         const mine = parseTags(s.tags);
@@ -4559,7 +4686,7 @@ function Workspace({
       );
     }
     return list;
-  }, [shortcuts, searchQ, category, view, folderSort, filterTags, onlyFav, onlyPin, dateRange]);
+  }, [shortcuts, searchQ, category, view, folderSort, filterTags, onlyPin, dateRange]);
 
   // The registered name is shown at the top everywhere. Accounts whose
   // name is still blank fall back to their email, then their mobile
@@ -5945,10 +6072,6 @@ function Workspace({
           onClick: () => item.run?.(),
         });
       };
-      const goView = (v: ViewMode) => {
-        goHome();
-        setView(v);
-      };
       return (
         <div className="flex flex-col items-center gap-1">
           {railBtn("rail-expand", I.railOpen, t("توسيع"), {
@@ -5967,26 +6090,11 @@ function Workspace({
           {railCaption(t("عرض"))}
           {railPageBtn("p:home")}
           {railPageBtn("p:shortcuts")}
-          {railBtn("rail-fav", I.star, t("المفضلة"), {
-            active: section === "home" && view === "favorites",
-            tip: t("الردود المثبتة بس — اللي بترجع لها على طول"),
-            onClick: () => goView("favorites"),
-          })}
-          {railBtn("rail-used", I.history, t("مؤخراً"), {
-            active: section === "home" && view === "used",
-            tip: t("الردود اللي نسختها أو استخدمتها مؤخراً"),
-            onClick: () => goView("used"),
-          })}
-          {railBtn("rail-most", I.flame, t("الأكثر"), {
-            active: section === "home" && view === "most",
-            tip: t("رتّب حسب عدد مرات الاستخدام"),
-            onClick: () => goView("most"),
-          })}
-          {railBtn("rail-history", I.clipboard, t("السجل"), {
-            active: section === "home" && view === "history",
-            tip: t("سجل كل عمليات النسخ الناجحة بوقتها"),
-            onClick: () => goView("history"),
-          })}
+          {/* The four view buttons (favorites / used / most / history)
+              lived here too — removed: every view is one tap away
+              in the home filter bar (favorites + used as pills,
+              most + unused + history inside «المزيد»), so the rail
+              keeps only pages + folders, no duplicate controls. */}
           {railCaption(t("المجلدات"))}
           {railFolders.map((item) =>
             railBtn(item.key, item.icon, item.label, {
@@ -6807,7 +6915,7 @@ function Workspace({
           >
             <Logo size={40} />
           </button>
-          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-2xl flex-1 focus-within:max-w-[44rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
+          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-3xl flex-1 focus-within:max-w-[48rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
             <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
               <Icon d={I.search} size={19} />
             </span>
@@ -6822,8 +6930,17 @@ function Workspace({
               onFocus={() => {
                 if (section !== "home") setSection("home");
               }}
+              onKeyDown={(e) => {
+                /* Enter copies the best trigger match — the same
+                   one-tap copy the shortcut bar does on Enter, so
+                   the two search surfaces behave as one. */
+                if (e.key === "Enter" && searchTrigBest) {
+                  e.preventDefault();
+                  void handleCopy(searchTrigBest);
+                }
+              }}
               placeholder={t("اكتب اختصار أو كلمة من الرد…")}
-              className={`h-11 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[15px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[var(--border)] shadow-[0_6px_20px_-8px_rgba(13,42,82,0.18)]"}`}
+              className={`h-12 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-base outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[52px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[var(--border)] shadow-[0_6px_20px_-8px_rgba(13,42,82,0.18)]"}`}
             />
             {search && (
               <button
@@ -6862,24 +6979,33 @@ function Workspace({
               were removed and stay removed). */}
           <button
             type="button"
-            aria-label={t("شريط الاختصارات")}
-            data-tip={t("شريط الاختصارات — اكتب الاختصار وانسخ رده على طول")}
+            aria-label={t("اختصار سريع")}
+            data-tip={t("اختصار سريع — اكتب الاختصار وانسخ رده على طول")}
             data-tip-pos="below"
             onClick={() => setBarOpen(true)}
             className="lux-btn flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
           >
             <Icon d={I.shortcut} size={16} />
-            <span className="hidden md:inline">{t("شريط الاختصارات")}</span>
+            <span className="hidden md:inline">{t("اختصار سريع")}</span>
           </button>
           {/* Sync status: a single quiet dot — green while the
-              connection is live, amber while offline. */}
-          <span
-            role="img"
-            aria-label={offline ? (lang === "en" ? "Offline" : "غير متصل") : lang === "en" ? "Synced" : "متزامن"}
-            data-tip={offline ? (lang === "en" ? "Offline — changes wait for the connection" : "غير متصل — التغييرات بتستنى الاتصال") : lang === "en" ? "Synced — everything is saved" : "متزامن — كل حاجة محفوظة"}
-            data-tip-pos="below"
-            className={`h-2.5 w-2.5 shrink-0 rounded-full ${offline ? "animate-pulse bg-[var(--warning)]" : "bg-[var(--success)]"}`}
-          />
+              connection is live, amber while offline, with the
+              word «غير متصل» next to it when offline (the word
+              already existed as the dot's tooltip only). */}
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span
+              role="img"
+              aria-label={offline ? (lang === "en" ? "Offline" : "غير متصل") : lang === "en" ? "Synced" : "متزامن"}
+              data-tip={offline ? (lang === "en" ? "Offline — changes wait for the connection" : "غير متصل — التغييرات بتستنى الاتصال") : lang === "en" ? "Synced — everything is saved" : "متزامن — كل حاجة محفوظة"}
+              data-tip-pos="below"
+              className={`h-2.5 w-2.5 shrink-0 rounded-full ${offline ? "animate-pulse bg-[var(--warning)]" : "bg-[var(--success)]"}`}
+            />
+            {offline && (
+              <span className="text-[12px] font-bold text-[var(--warning)]">
+                {lang === "en" ? "Offline" : "غير متصل"}
+              </span>
+            )}
+          </span>
           {/* Appearance: theme mode + accent in ONE popover. */}
           <div className="relative shrink-0" ref={appearanceRef}>
             <button
@@ -7275,6 +7401,76 @@ function Workspace({
         </section>
         )}
 
+        {/* Home trigger strip: the most-recently-used triggers as
+            tappable chips — one tap feeds the search box, which
+            grows into that reply's preview. The starter-library
+            jump sits next to them so it stops being buried at the
+            bottom of the long Shortcuts view. */}
+        {homeTriggers.length > 0 && (
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1.5 text-[13px] font-extrabold text-[var(--faint)]">
+              <Icon d={I.shortcut} size={14} />
+              {t("اختصاراتك:")}
+            </span>
+            {homeTriggers.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                data-trig-chip
+                aria-label={lang === "en" ? `Show reply ${s.title} in search` : `عرض رد ${s.title} في البحث`}
+                onClick={() => pickTrigger(s.trigger ?? "")}
+                className="lux-btn trig-chip"
+              >
+                <Icon d={I.shortcut} size={13} />
+                <span dir="auto">{s.trigger}</span>
+              </button>
+            ))}
+            {starterQueryHome.data?.isOwner && (
+              <button
+                type="button"
+                onClick={() => {
+                  goShortcuts();
+                  window.setTimeout(
+                    () =>
+                      document
+                        .getElementById("starter-library")
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                    200,
+                  );
+                }}
+                className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-[13px] font-bold hover:border-[var(--border-strong)]"
+              >
+                <Icon d={Library} size={15} />
+                {t("مكتبة بداية")}
+                <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+                  {lang === "en"
+                    ? `${starterQueryHome.data.chosen.length} picked`
+                    : `مختار ${starterQueryHome.data.chosen.length}`}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* «أكمل اختصاراتك» on home: the same guided-completion
+            panel as the Shortcuts view (same component, second
+            mount point) — the coverage work is visible from the
+            first screen instead of buried. Hidden once every
+            reply has a trigger. */}
+        {withoutTriggerHome.length > 0 && (
+          <div className="mt-4">
+            <CompleteShortcutsPanel
+              withoutTrigger={withoutTriggerHome}
+              withCount={withTriggerCountHome}
+              total={shortcuts.length}
+              takenTriggersById={takenTriggersByIdHome}
+              onSaveTrigger={async (s, trigger) => {
+                await updateTriggerMut.mutateAsync({ s, trigger });
+              }}
+            />
+          </div>
+        )}
+
         {/* Toolbar: add buttons, folder chips, sort views */}
         <section className="pt-6">
           <div className="flex flex-wrap items-center gap-2">
@@ -7290,7 +7486,7 @@ function Workspace({
             {/* Bulk add lives in the sidebar («إضافة جماعية») — no
                 second button here. */}
           </div>
-          <div className="no-scrollbar -mx-4 -mb-9 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-11 sm:-mx-6 sm:px-6 lg:hidden">
+          <div className="no-scrollbar -mx-4 mb-1 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:hidden">
             {categories.map((c) => (
               <button
                 key={c}
@@ -7328,7 +7524,7 @@ function Workspace({
             scrolls sideways under faded edges. Every control drives
             the same view/filter state as before — only the
             arrangement changed. */}
-        <div className="header-blur modern-switcher sticky top-[68px] z-30 -mx-4 mt-5 px-4 py-2.5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+        <div className="header-blur modern-switcher sticky top-[68px] z-30 -mx-4 mt-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="filter-scroll overflow-x-auto">
             <div className="flex w-max items-center gap-1.5">
               <div ref={pillTrackRef} className="relative flex items-center gap-1">
@@ -7406,12 +7602,19 @@ function Workspace({
                 <span className={`flex transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`}>
                   <Icon d={I.chevron} size={15} />
                 </span>
+                {/* A «المزيد» view is active: the sliding thumb hides
+                    (it only tracks the four prime pills), so a static
+                    accent dot on the button itself says so. */}
+                {smartId === null && (view === "history" || view === "most" || view === "unused") && (
+                  <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
+                )}
               </button>
               <span className="mx-0.5 h-6 w-px shrink-0 bg-[var(--border)]" aria-hidden="true" />
               <button
+                ref={filtersBtnRef}
                 type="button"
                 aria-label={lang === "en" ? "Search filters" : "فلاتر البحث"}
-                data-tip={lang === "en" ? "Combine filters: tags, favorites, pinned, last-edited window" : "اجمع أكتر من فلتر: وسوم، مفضلة، مثبتة، وفترة آخر تعديل"}
+                data-tip={lang === "en" ? "Combine filters: tags, pinned, last-edited window" : "اجمع أكتر من فلتر: وسوم، مثبتة، وفترة آخر تعديل"}
                 aria-expanded={filtersOpen}
                 aria-pressed={filtersActive}
                 onClick={() => setFiltersOpen((v) => !v)}
@@ -7425,49 +7628,13 @@ function Workspace({
                 {lang === "en" ? "Filters" : "فلاتر"}
                 {filtersActive && (
                   <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--surface)] px-1 text-[12px] font-extrabold text-[var(--accent-strong)]">
-                    {filterTags.length + (onlyFav ? 1 : 0) + (onlyPin ? 1 : 0) + (dateRange !== "all" ? 1 : 0)}
+                    {filterTags.length + (onlyPin ? 1 : 0) + (dateRange !== "all" ? 1 : 0)}
                   </span>
                 )}
               </button>
-              <div
-                ref={densityTrackRef}
-                className="seg-track ms-1 flex shrink-0 items-center gap-0.5"
-                role="group"
-                aria-label={t("كثافة عرض الردود")}
-              >
-                {densityThumb && (
-                  <span
-                    aria-hidden="true"
-                    className="seg-thumb"
-                    style={{
-                      width: densityThumb.trackW,
-                      transform: `translateX(${densityThumb.x}px) scaleX(${densityThumb.w / densityThumb.trackW})`,
-                    }}
-                  />
-                )}
-                {(
-                  [
-                    { key: "compact", label: "مضغوط" },
-                    { key: "comfortable", label: "مريح" },
-                    { key: "grid", label: "شبكة" },
-                  ] as Array<{ key: ListDensity; label: string }>
-                ).map((d) => (
-                  <button
-                    key={d.key}
-                    type="button"
-                    data-density-seg={d.key}
-                    aria-label={lang === "en" ? `${t(d.label)} view` : `عرض ${d.label}`}
-                    data-tip={t(d.key === "compact" ? "قائمة مضغوطة — رد في كل سطر، الأسرع مع مئات الردود" : d.key === "comfortable" ? "بطاقات مريحة — معاينة أطول لكل رد" : "شبكة بطاقات — للتصفح البصري")}
-                    aria-pressed={density === d.key}
-                    onClick={() => setDensity(d.key)}
-                    className={`seg-btn lux-btn whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${
-                      density === d.key ? "text-[var(--text)]" : "text-[var(--dim)] hover:text-[var(--text)]"
-                    }`}
-                  >
-                    {t(d.label)}
-                  </button>
-                ))}
-              </div>
+              {/* Density lives in the «المزيد» popover now, not in
+                  the prime row — the core row is only views +
+                  filters. */}
             </div>
           </div>
           {moreOpen &&
@@ -7482,54 +7649,98 @@ function Workspace({
               >
                 {(
                   [
-                    { key: "history", label: "سجل النسخ", icon: I.clipboard, tip: "سجل كل عمليات النسخ الناجحة بوقتها" },
-                    { key: "most", label: "الأكثر استخداماً", icon: I.flame, tip: "رتّب حسب عدد مرات الاستخدام — الأعلى الأول" },
-                    { key: "unused", label: "لم تُستخدم", icon: I.hourglass, tip: "الردود اللي لسه ما اتنسختش ولا اتستخدمت ولا مرة" },
-                  ] as Array<{ key: ViewMode; label: string; icon: LucideIcon; tip: string }>
-                ).map((v) => {
-                  const on = view === v.key && smartId === null;
-                  return (
-                    <button
-                      key={v.key}
-                      type="button"
-                      role="menuitem"
-                      aria-label={lang === "en" ? `View: ${t(v.label)}` : `عرض ${v.label}`}
-                      data-tip={t(v.tip)}
-                      data-tip-align="start"
-                      aria-pressed={on}
-                      onClick={() => {
-                        setSmartId(null);
-                        setView(v.key);
-                        setMoreOpen(false);
-                      }}
-                      className={`lux-btn flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-sm font-semibold ${
-                        on
-                          ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                          : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-                      }`}
-                    >
-                      <Icon d={v.icon} size={16} />
-                      <span className="flex-1 text-start">{t(v.label)}</span>
-                      {on && <Icon d={I.check} size={15} />}
-                    </button>
-                  );
-                })}
+                    {
+                      group: "السجل",
+                      items: [
+                        { key: "history", label: "سجل النسخ", icon: I.clipboard, tip: "سجل كل عمليات النسخ الناجحة بوقتها" },
+                      ],
+                    },
+                    {
+                      group: "عروض",
+                      items: [
+                        { key: "most", label: "الأكثر استخداماً", icon: I.flame, tip: "رتّب حسب عدد مرات الاستخدام — الأعلى الأول" },
+                        { key: "unused", label: "لم تُستخدم", icon: I.hourglass, tip: "الردود اللي لسه ما اتنسختش ولا اتستخدمت ولا مرة" },
+                      ],
+                    },
+                  ] as Array<{
+                    group: string;
+                    items: Array<{ key: ViewMode; label: string; icon: LucideIcon; tip: string }>;
+                  }>
+                ).map((g) => (
+                  <div key={g.group}>
+                    <p className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold text-[var(--faint)]">
+                      {t(g.group)}
+                    </p>
+                    {g.items.map((v) => {
+                      const on = view === v.key && smartId === null;
+                      return (
+                        <button
+                          key={v.key}
+                          type="button"
+                          role="menuitem"
+                          aria-label={lang === "en" ? `View: ${t(v.label)}` : `عرض ${v.label}`}
+                          data-tip={t(v.tip)}
+                          data-tip-align="start"
+                          aria-pressed={on}
+                          onClick={() => {
+                            setSmartId(null);
+                            setView(v.key);
+                            setMoreOpen(false);
+                          }}
+                          className={`lux-btn flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-sm font-semibold ${
+                            on
+                              ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                              : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+                          }`}
+                        >
+                          <Icon d={v.icon} size={16} />
+                          <span className="flex-1 text-start">{t(v.label)}</span>
+                          {on && <Icon d={I.check} size={15} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+                {/* Density lives here now — the core row is only
+                    views + filters. Plain buttons, no sliding thumb
+                    (the popover mounts only while open). */}
+                <div className="mt-1 border-t border-[var(--border)] pt-1">
+                  <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-extrabold text-[var(--faint)]">
+                    {t("كثافة العرض")}
+                  </p>
+                  <div className="flex gap-1 px-1 pb-1" role="group" aria-label={t("كثافة عرض الردود")}>
+                    {(
+                      [
+                        { key: "compact", label: "مضغوط" },
+                        { key: "comfortable", label: "مريح" },
+                        { key: "grid", label: "شبكة" },
+                      ] as Array<{ key: ListDensity; label: string }>
+                    ).map((d) => (
+                      <button
+                        key={d.key}
+                        type="button"
+                        data-density-seg={d.key}
+                        aria-label={lang === "en" ? `${t(d.label)} view` : `عرض ${d.label}`}
+                        data-tip={t(d.key === "compact" ? "قائمة مضغوطة — رد في كل سطر، الأسرع مع مئات الردود" : d.key === "comfortable" ? "بطاقات مريحة — معاينة أطول لكل رد" : "شبكة بطاقات — للتصفح البصري")}
+                        aria-pressed={density === d.key}
+                        onClick={() => setDensity(d.key)}
+                        className={`lux-btn flex-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-bold ${
+                          density === d.key
+                            ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+                            : "text-[var(--dim)] hover:text-[var(--text)]"
+                        }`}
+                      >
+                        {t(d.label)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>,
               document.body,
             )}
           {(filtersOpen || filtersActive) && (
-            <div className="animate-rise mt-2 border-t border-[var(--border)] pt-2.5">
+            <div ref={filtersPanelRef} className="animate-rise mt-2 border-t border-[var(--border)] pt-2.5">
               <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  aria-label={lang === "en" ? "Favorites only" : "المفضلة فقط"}
-                  aria-pressed={onlyFav}
-                  onClick={() => setOnlyFav((v) => !v)}
-                  className={`lux-btn flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyFav ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]" : "bg-[var(--surface-alt)] text-[var(--dim)] hover:text-[var(--text)]"}`}
-                >
-                  <Icon d={I.star} size={14} />
-                  {lang === "en" ? "Favorites" : "المفضلة"}
-                </button>
                 <button
                   type="button"
                   aria-label={lang === "en" ? "Pinned only" : "المثبتة فقط"}
@@ -8011,6 +8222,7 @@ function Workspace({
                 await importCreateMut.mutateAsync(v);
               }}
               onPickTrigger={(trigger) => pickTrigger(trigger)}
+              onToast={(msg: string) => showToast(msg)}
             />
           ) : view === "trash" ? (
             <TrashView
@@ -8619,12 +8831,12 @@ function Workspace({
               </button>
               <button
                 type="button"
-                aria-label="استيراد اختصارات من ملف" data-tip="استيراد اختصارات من ملف نسخة احتياطية (JSON أو CSV)"
+                aria-label="استيراد نسخة احتياطية من ملف" data-tip="استيراد نسخة احتياطية من ملف (JSON أو CSV)"
                 onClick={() => fileRef.current?.click()}
                 className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
               >
                 <Icon d={I.upload} size={18} />
-                استيراد
+                استورد نسخة احتياطية
               </button>
               <input
                 ref={fileRef}
@@ -9017,6 +9229,8 @@ function Workspace({
             setFolderSourceMut.mutate({ id: folderSettingsId, source })
           }
           sourceBusy={setFolderSourceMut.isPending}
+          onDuplicate={() => duplicateFolderMut.mutate(folderSettingsId)}
+          onSort={(mode) => sortFolderContents(folderSettingsId, mode)}
         />
       )}
       {creatingIn !== null && (
@@ -10059,8 +10273,8 @@ function CopyHistoryView({
                 <MediaBadge
                   media={
                     e.shortcutId !== null
-                      ? (shortcuts.find((x) => x.id === e.shortcutId)?.media ?? null)
-                      : null
+                      ? (shortcuts.find((x) => x.id === e.shortcutId)?.media ?? [])
+                      : []
                   }
                 />
               </span>
@@ -10560,6 +10774,8 @@ function FolderSettingsModal({
   onDelete,
   onSourceChange,
   sourceBusy,
+  onDuplicate,
+  onSort,
 }: {
   folder: FolderRowT;
   replyCount: number;
@@ -10569,6 +10785,11 @@ function FolderSettingsModal({
   onDelete: () => void;
   onSourceChange: (source: string) => void;
   sourceBusy: boolean;
+  /* Visible equivalents of the right-click-only actions
+     (duplicate folder, sort its replies): right-click must not
+     be the only path to a folder action. */
+  onDuplicate?: () => void;
+  onSort?: (mode: "name" | "date") => void;
 }) {
   const [name, setName] = useState(folder.name);
   const [description, setDescription] = useState(folder.description ?? "");
@@ -10681,6 +10902,54 @@ function FolderSettingsModal({
               إلغاء
             </button>
           </div>
+          {(onDuplicate || onSort) && (
+            <div className="border-t border-[var(--border)] pt-3">
+              <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Folder tools" : "أدوات المجلد"}</span>
+              <div className="flex flex-wrap gap-2">
+                {onDuplicate && (
+                  <button
+                    type="button"
+                    aria-label={`تكرار مجلد ${folder.name}`}
+                    data-tip="نسخة تانية من المجلد بكل الردود اللي جواه"
+                    onClick={() => { onDuplicate(); onClose(); }}
+                    className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
+                  >
+                    <Icon d={I.dup} size={15} />
+                    {lang === "en" ? "Duplicate folder" : "تكرار المجلد"}
+                  </button>
+                )}
+                {onSort && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={`ترتيب ردود مجلد ${folder.name} أبجدياً`}
+                      data-tip="رتّب ردود المجلد ده أبجدياً حسب العنوان"
+                      onClick={() => { onSort("name"); onClose(); }}
+                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
+                    >
+                      <Icon d={I.arrowUp} size={15} />
+                      {lang === "en" ? "Sort A–Z" : "ترتيب أبجدي"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`ترتيب ردود مجلد ${folder.name} حسب التاريخ`}
+                      data-tip="رتّب ردود المجلد ده حسب آخر تعديل — الأحدث الأول"
+                      onClick={() => { onSort("date"); onClose(); }}
+                      className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
+                    >
+                      <Icon d={I.clock} size={15} />
+                      {lang === "en" ? "Sort by date" : "ترتيب حسب التاريخ"}
+                    </button>
+                  </>
+                )}
+              </div>
+              <span className="mt-1.5 block text-xs leading-relaxed text-[var(--dim)]">
+                {lang === "en"
+                  ? "These used to be reachable only by right-click — they are buttons here now."
+                  : "دول كانوا موجودين بس من الكليك اليمين — بقوا أزرار هنا دلوقتي."}
+              </span>
+            </div>
+          )}
           <div className="border-t border-[var(--border)] pt-3">
             <button
               type="button"
@@ -11239,15 +11508,28 @@ function AccountSection({
    A URL that 404s shows "media unavailable", never a broken-image
    icon (onError on <img>). Lucide glyphs throughout —
    the site's icon language, not emoji. */
+/* One image of a reply, for the media leaf components below. */
+export type MediaItem = NonNullable<Shortcut["media"]>[number];
+
 export function MediaBadge({ media }: { media: Shortcut["media"] }) {
-  if (!media) return null;
+  const images = mediaListOf(media);
+  if (images.length === 0) return null;
   return (
     <span
       aria-hidden="true"
-      title="صورة مرفقة"
+      title={
+        images.length === 1
+          ? "صورة مرفقة"
+          : `${images.length} صور مرفقة`
+      }
       className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--surface-alt)] px-1.5 py-0.5 text-[var(--dim)]"
     >
       <Icon d={I.image} size={12} />
+      {images.length > 1 && (
+        <span className="text-[10.5px] font-extrabold leading-none">
+          {images.length}
+        </span>
+      )}
     </span>
   );
 }
@@ -11257,12 +11539,14 @@ export function ReplyMediaThumb({
   title,
   onOpen,
 }: {
-  media: NonNullable<Shortcut["media"]>;
+  media: MediaItem[];
   title: string;
   onOpen: () => void;
 }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
+  const first = media[0];
+  const extra = media.length - 1;
+  if (!first || failed) {
     return (
       <button
         type="button"
@@ -11288,13 +11572,19 @@ export function ReplyMediaThumb({
       className="lux-btn relative block aspect-video w-full overflow-hidden rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-alt)]"
     >
       <img
-        src={media.blobUrl}
+        src={first.blobUrl}
         alt=""
         crossOrigin="anonymous"
         loading="lazy"
         onError={() => setFailed(true)}
         className="h-full w-full object-cover"
       />
+      {extra > 0 && (
+        <span className="absolute bottom-2 end-2 flex items-center gap-1 rounded-full bg-[var(--navy)] px-2 py-0.5 text-[11.5px] font-extrabold text-[var(--navy-ink)] shadow-[var(--shadow-2)]">
+          <Icon d={I.image} size={11} />
+          +{extra}
+        </span>
+      )}
     </button>
   );
 }
@@ -11304,31 +11594,32 @@ export function ReplyMediaBlock({
   title,
   compact = false,
 }: {
-  media: NonNullable<Shortcut["media"]>;
+  media: MediaItem[];
   title: string;
   /* Search preview: shorter media so the grown panel stays
      comfortable. */
   compact?: boolean;
 }) {
-  const { t } = useLang();
-  const [failed, setFailed] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [dlError, setDlError] = useState(false);
-  const doDownload = async () => {
-    if (downloading) return;
-    setDownloading(true);
-    setDlError(false);
+  const { lang, t } = useLang();
+  const [failedIds, setFailedIds] = useState<ReadonlySet<number>>(new Set());
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [dlErrorId, setDlErrorId] = useState<number | null>(null);
+  const doDownload = async (m: MediaItem) => {
+    if (downloadingId !== null) return;
+    setDownloadingId(m.id);
+    setDlErrorId(null);
     try {
       const ok = await downloadMediaFile(
-        media.blobUrl,
-        imageFileName(title, media.contentType),
+        m.blobUrl,
+        imageFileName(title, m.contentType),
       );
-      if (!ok) setDlError(true);
+      if (!ok) setDlErrorId(m.id);
     } finally {
-      setDownloading(false);
+      setDownloadingId(null);
     }
   };
-  if (failed) {
+  const visible = media.filter((m) => !failedIds.has(m.id));
+  if (visible.length === 0) {
     return (
       <div className="flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-3 text-[13px] font-bold text-[var(--dim)]">
         <Icon d={I.image} size={16} />
@@ -11336,55 +11627,72 @@ export function ReplyMediaBlock({
       </div>
     );
   }
-  const meta = [
-    media.width && media.height ? `${media.width}×${media.height}` : "",
-    formatMediaSize(media.byteSize),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)]">
+  const first = visible[0];
+  if (!first) return null;
+  const rest = visible.slice(1);
+  const metaOf = (m: MediaItem) =>
+    [
+      m.width && m.height ? `${m.width}×${m.height}` : "",
+      formatMediaSize(m.byteSize),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  const thumb = (m: MediaItem, i: number) => (
+    <div
+      key={m.id}
+      className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)]"
+    >
       <a
-        href={media.blobUrl}
+        href={m.blobUrl}
         target="_blank"
         rel="noreferrer"
         aria-label={t("فتح الصورة الأصلية")}
       >
         <img
-          src={media.blobUrl}
+          src={m.blobUrl}
           alt=""
           crossOrigin="anonymous"
-          onError={() => setFailed(true)}
+          onError={() => setFailedIds((prev) => new Set(prev).add(m.id))}
           className={`w-full bg-[var(--surface)] object-contain ${compact ? "max-h-64" : "max-h-80"}`}
         />
       </a>
       <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-[var(--dim)]">
           <Icon d={I.image} size={13} />
-          {t("صورة")}
-          {meta ? <span className="truncate">· {meta}</span> : null}
+          {visible.length > 1
+            ? lang === "en"
+              ? `Image ${i + 1} of ${visible.length}`
+              : `صورة ${i + 1} من ${visible.length}`
+            : t("صورة")}
+          {metaOf(m) ? <span className="truncate">· {metaOf(m)}</span> : null}
         </span>
         <span className="ms-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={() => void doDownload()}
-            disabled={downloading}
+            onClick={() => void doDownload(m)}
+            disabled={downloadingId !== null}
             className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-60"
           >
-            {downloading ? (
+            {downloadingId === m.id ? (
               <span className="spinner" aria-hidden="true" />
             ) : (
               <Icon d={I.download} size={13} />
             )}
-            {downloading ? t("بينزّل…") : t("تنزيل")}
+            {downloadingId === m.id ? t("بينزّل…") : t("تنزيل")}
           </button>
         </span>
-        {dlError && (
+        {dlErrorId === m.id && (
           <p className="w-full text-xs font-bold text-[var(--danger)]">
             {t("التنزيل فشل — جرّب تاني")}
           </p>
         )}
       </div>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-2">
+      {thumb(first, 0)}
+      {rest.map((m, i) => thumb(m, i + 1))}
     </div>
   );
 }
@@ -11522,11 +11830,10 @@ export const TriggerIcon = memo(function TriggerIcon({
           <span dir="auto" className="truncate font-bold">
             {item.trigger}
           </span>
-        ) : size === "compact" ? (
-          <span className="flex shrink-0">
-            <Icon d={I.plus} size={10} />
-          </span>
         ) : (
+          /* Empty pill, compact or full: the same label treatment —
+             bolt + «أضف اختصار» — so the pill reads the same at
+             every size instead of a bare «+» in compact rows. */
           <span className="font-bold">{lang === "en" ? "Add shortcut" : "أضف اختصار"}</span>
         )}
       </button>
@@ -11567,6 +11874,14 @@ export const TriggerIcon = memo(function TriggerIcon({
                 {value.length}/100
               </p>
             )}
+            {/* Prefix collision: a non-blocking warning, not an
+                error — the typed text shares a prefix with an
+                existing trigger, so it may confuse typing. */}
+            {!error && triggerCollisionHint(value, takenTriggers) && (
+              <p className="mt-1.5 text-[11.5px] font-semibold leading-relaxed text-[var(--warning)]">
+                {triggerCollisionHint(value, takenTriggers)}
+              </p>
+            )}
             <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--faint)]">
               {lang === "en"
                 ? "Any text works — Arabic, English, symbols — as long as it is not already another reply's trigger."
@@ -11583,11 +11898,11 @@ export const TriggerIcon = memo(function TriggerIcon({
                       key={sug}
                       type="button"
                       disabled={saving}
-                      onClick={() => {
-                        setValue(sug);
-                        setError(null);
-                        inputRef.current?.focus();
-                      }}
+                      /* One tap SAVES the suggestion at once — the
+                         same one-tap rule as the guided-completion
+                         panel and the search-preview assign. No
+                         separate save tap. */
+                      onClick={() => void save(sug)}
                       className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)] disabled:opacity-60"
                     >
                       <span dir="auto">{sug}</span>
@@ -11757,6 +12072,10 @@ export const ShortcutCard = memo(function ShortcutCard({
   );
   /* قائمة «⋯» على الموبايل: صف الأيقونات بيبقى مخفي وبيتفتح منها */
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLSpanElement>(null);
+  /* The «⋯» row closes like every other popover: Escape + any
+     press outside it. */
+  usePopoverDismiss(menuOpen, [menuRef], () => setMenuOpen(false));
   const long = item.body.length > 220;
   const shown = expanded || !long ? item.body : item.body.slice(0, 220) + "…";
 
@@ -12123,6 +12442,7 @@ export const ShortcutCard = memo(function ShortcutCard({
                 </button>
               </div>
             </div>
+            <span ref={menuRef} className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
               aria-label={lang === "en" ? `More actions for ${item.title}` : `إجراءات إضافية لرد ${item.title}`}
@@ -12153,11 +12473,12 @@ export const ShortcutCard = memo(function ShortcutCard({
                 <Icon d={I.dup} size={18} />
               </button>
             </div>
+            </span>
           </div>
       {/* Attached image: a 16:9 thumb above the body — tap
           opens the full preview. Compact rows get only the small
           badge beside the title. */}
-      {item.media && (
+      {item.media.length > 0 && (
         <div className="mt-3">
           <ReplyMediaThumb media={item.media} title={item.title} onOpen={() => onPreview(item)} />
         </div>
@@ -13024,7 +13345,7 @@ function TriggerRow({
           aria-busy={copying}
           disabled={copying}
           onClick={() => void doCopy()}
-          className={`lux-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold ${copied ? "copy-success bg-[var(--success-soft)] text-[var(--success)]" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"}`}
+          className={`lux-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold ${copied ? "copy-success bg-[var(--success-soft)] text-[var(--success)]" : "bg-[var(--accent)] text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"}`}
         >
           {copying ? (
             <span className="spinner" aria-hidden="true" />
@@ -13210,6 +13531,42 @@ function SearchTriggerPreview({
     }
   };
 
+  /* No trigger match, but the typed text names a reply: the best
+     text match among all replies, so its easiest triggers can be
+     offered as one-tap chips right here (same engine as the
+     editor and the guided-completion panel). */
+  const bestTextMatch = useMemo(() => {
+    if (best || !typed) return null;
+    const top =
+      [...shortcuts].sort(
+        (a, b) => searchScore(b, typed) - searchScore(a, typed),
+      )[0] ?? null;
+    return top && searchScore(top, typed) >= 0 ? top : null;
+  }, [best, shortcuts, typed]);
+  const textMatchSuggestions = useMemo(() => {
+    if (!bestTextMatch) return [];
+    const taken = shortcuts
+      .filter((s) => s.id !== bestTextMatch.id && s.trigger)
+      .map((s) => s.trigger as string);
+    return suggestTriggers(bestTextMatch, taken, typed);
+  }, [bestTextMatch, shortcuts, typed]);
+  const assignSuggestion = async (s: Shortcut, trig: string) => {
+    if (assigningId !== null) return;
+    setAssignError(null);
+    setAssigningId(s.id);
+    try {
+      await onSaveTrigger(s, trig);
+      setAssignOpen(false);
+      setAssignFilter("");
+    } catch (e) {
+      setAssignError(
+        e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني",
+      );
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
   const kindLabel =
     kindScore === 3
       ? lang === "en"
@@ -13324,7 +13681,7 @@ function SearchTriggerPreview({
                 </p>
                 {/* Attached image, between title and body —
                     same stage as the body, so they reveal together. */}
-                {best.media && (
+                {best.media.length > 0 && (
                   <div className="trig-stage trig-stage-3 mt-2.5">
                     <ReplyMediaBlock media={best.media} title={best.title} compact />
                   </div>
@@ -13438,6 +13795,29 @@ function SearchTriggerPreview({
                     {assignOpen ? t("قفل الاختيار") : t("ضيف الاختصار ده لرد")}
                   </button>
                 )}
+                {bestTextMatch && textMatchSuggestions.length > 0 && (
+                  <div className="trig-stage trig-stage-3 mt-3">
+                    <p className="mb-1.5 text-[12px] font-bold text-[var(--faint)]">
+                      {lang === "en"
+                        ? `«${bestTextMatch.title}» matches your text — give it a shortcut:`
+                        : `رد «${bestTextMatch.title}» بيطابق بحثك — ادّيله اختصار:`}
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                      {textMatchSuggestions.map((sug) => (
+                        <button
+                          key={sug}
+                          type="button"
+                          disabled={assigningId !== null}
+                          onClick={() => void assignSuggestion(bestTextMatch, sug)}
+                          className="lux-btn trig-chip"
+                        >
+                          <Icon d={I.shortcut} size={13} />
+                          <span dir="auto">{sug}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {assignOpen && (
                   <div className="trig-match trig-stage trig-stage-4 mt-3 text-start">
                     <input
@@ -13529,6 +13909,7 @@ function MyShortcutsCard({
   onAddFirst,
   onPickTrigger,
   query,
+  onToast,
 }: {
   items: Shortcut[];
   onAddFirst: () => void;
@@ -13539,6 +13920,9 @@ function MyShortcutsCard({
   /* The search query, so the row whose trigger is typed now can
      wear the active state. */
   query?: string;
+  /* The one copy toast (same contract as every copy surface:
+     the button flips for 2s AND the toast fires). */
+  onToast?: (msg: string) => void;
 }) {
   const { lang, t } = useLang();
   const [open, setOpen] = useState(true);
@@ -13557,6 +13941,7 @@ function MyShortcutsCard({
     setCopying(false);
     if (!ok) return; /* never show a false «اتنسخ» */
     setCopied(true);
+    onToast?.(t("اتنسخ الكارت كله — الصقه في أي مكان"));
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setCopied(false), 2000);
   };
@@ -13593,12 +13978,7 @@ function MyShortcutsCard({
           </span>
           <span
             aria-hidden="true"
-            className="shrink-0 text-[var(--dim)]"
-            style={{
-              display: "flex",
-              transform: open ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
-            }}
+            className={`flex shrink-0 text-[var(--dim)] transition-transform duration-300 ${open ? "rotate-180" : ""}`}
           >
             <Icon d={I.chevron} size={16} />
           </span>
@@ -13634,12 +14014,15 @@ function MyShortcutsCard({
       </div>
       {open &&
         (items.length === 0 ? (
-          <div className="border-t border-[var(--border)] px-4 py-6 text-center">
-            <p className="flex items-center justify-center gap-1.5 text-sm font-bold">
-              <Icon d={I.shortcut} size={15} />
+          <div className="pattern-star border-t border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center">
+            <div className="mb-3 flex justify-center text-[var(--faint)]">
+              <Icon d={I.shortcut} size={40} />
+            </div>
+            <p className="font-semibold">
               {t("لسه مفيش اختصارات في الكارت")}
             </p>
-            <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-[var(--dim)]">
+            <span aria-hidden="true" className="orn-divider"><i /></span>
+            <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
               {t("أول ما تضيف اختصار لأي رد، هيظهر هنا — والكارت كله هيتنسخ بضغطة واحدة.")}
             </p>
             <button
@@ -14216,6 +14599,13 @@ function ShareShortcutsRow({
           }}
         />
       </div>
+      {/* One line so a user with no file is not dead-ended: the
+          file comes from «صدّر اختصاراتي» in any account. */}
+      <p className="mt-2 text-[12px] font-semibold leading-relaxed text-[var(--faint)]">
+        {lang === "en"
+          ? "No file yet? The file comes from «Export my shortcuts» in any account."
+          : "لسه مفيش ملف؟ الملف بيجي من «صدّر اختصاراتي» من أي حساب."}
+      </p>
       {importError && (
         <p role="alert" className="mt-2 text-[13px] font-bold text-[var(--danger)]">
           {importError}
@@ -14318,6 +14708,7 @@ function ShortcutsView({
   onSaveTrigger,
   onCreateShortcut,
   onPickTrigger,
+  onToast,
 }: {
   token: string;
   shortcuts: Shortcut[];
@@ -14336,6 +14727,8 @@ function ShortcutsView({
   /* Tapping a card row types its trigger into the search box,
      so the search box grows into that reply's preview. */
   onPickTrigger: (trigger: string) => void;
+  /* The one copy toast, threaded down to the shortcuts card. */
+  onToast?: (msg: string) => void;
 }) {
   /* The starter-library picker lives at the bottom of this long
      view — the jump link below scrolls to it. Same queryKey as
@@ -14446,7 +14839,7 @@ function ShortcutsView({
     <div className="flex flex-col gap-6">
       {/* «كارت اختصاراتك» — every trigger → reply in one card,
           copyable as plain text in one tap. */}
-      <MyShortcutsCard items={allTriggers} onAddFirst={jumpToFirstFree} onPickTrigger={onPickTrigger} query={q} />
+      <MyShortcutsCard items={allTriggers} onAddFirst={jumpToFirstFree} onPickTrigger={onPickTrigger} query={q} onToast={onToast} />
       {/* «أكمل اختصاراتك» — guided completion, most-used first,
           one tap per reply. */}
       <CompleteShortcutsPanel
@@ -14510,11 +14903,15 @@ function ShortcutsView({
       )}
       {withTrigger.length === 0 && withoutTrigger.length === 0 ? (
         <div className="pattern-star rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-10 text-center">
+          <div className="mb-3 flex justify-center text-[var(--faint)]">
+            <Icon d={I.shortcut} size={40} />
+          </div>
           <p className="font-semibold">
             {searching
               ? t("مفيش اختصار بيطابق بحثك")
               : t("لسه مفيش اختصارات — ابدأ من هنا")}
           </p>
+          <span aria-hidden="true" className="orn-divider"><i /></span>
           <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
             {searching
               ? t("جرّب كلمة تانية، أو امسح البحث عشان تشوف كل الاختصارات.")
@@ -14597,15 +14994,19 @@ function ShortcutBar({
   const { lang, t } = useLang();
   const [query, setQuery] = useState("");
   const [copyingId, setCopyingId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const copiedTimer = useRef<number | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   useEscapeClose(onClose);
   useDialogFocus(dialogRef, open);
   useBodyScrollLock(open);
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
   useEffect(() => {
     if (open) {
       setQuery("");
       setCopyingId(null);
+      setCopiedId(null);
       inputRef.current?.focus();
     }
   }, [open ]);
@@ -14621,20 +15022,42 @@ function ShortcutBar({
       .sort((a, b) => searchScore(b, q) - searchScore(a, q));
   }, [shortcuts, query]);
   const top = matches.slice(0, 8);
+  /* Suggestions for the top match (same engine as the editor):
+     one tap fills the bar query with the easiest trigger. */
+  const barSuggestions = useMemo(() => {
+    const t0 = top[0];
+    if (!t0) return [];
+    const taken = shortcuts
+      .filter((x) => x.id !== t0.id && x.trigger)
+      .map((x) => x.trigger as string);
+    return suggestTriggers(t0, taken, query);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcuts, query, top]);
   /* One header for the empty-query list («آخر اختصارات
      استخدمتها») — the never-used rows below it carry no split
      label of their own. */
   const hasRecent =
     query.trim() === "" && top.some((s) => s.lastUsedAt);
   if (!open) return null;
+  /* One copy contract, everywhere: the button flips to «اتنسخ»
+     for one beat AND the copy toast fires — the dialog stays
+     open for that beat so the flip is seen, then closes. A
+     failed copy leaves the bar open for a retry; a fill-in
+     sheet closes it at once so the sheet is visible. */
   const copyAndClose = async (s: Shortcut) => {
-    if (copyingId !== null) return;
+    if (copyingId !== null || copiedId !== null) return;
     setCopyingId(s.id);
     try {
-      await onCopy(s);
+      const res = await onCopy(s);
+      if (res === "copied") {
+        setCopiedId(s.id);
+        window.clearTimeout(copiedTimer.current);
+        copiedTimer.current = window.setTimeout(() => onClose(), 700);
+      } else if (res === "fill") {
+        onClose();
+      }
     } finally {
       setCopyingId(null);
-      onClose();
     }
   };
   return (
@@ -14677,12 +15100,43 @@ function ShortcutBar({
             <Icon d={I.x} size={17} />
           </button>
         </div>
+        {barSuggestions.length > 0 && (
+          <div className="border-b border-[var(--border)] px-4 py-2.5">
+            <p className="mb-1.5 text-[11.5px] font-bold text-[var(--faint)]">
+              {t("اقتراحات لأول نتيجة — دوس عليها عشان تبحث بيها:")}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {barSuggestions.map((sug) => (
+                <button
+                  key={sug}
+                  type="button"
+                  onClick={() => setQuery(sug)}
+                  className="lux-btn trig-chip"
+                >
+                  <Icon d={I.shortcut} size={13} />
+                  <span dir="auto">{sug}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {top.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-[var(--dim)]">
-            {query.trim()
-              ? t("مفيش اختصار بيطابق اللي كتبته")
-              : t("لسه مفيش اختصارات — ضيف اختصار لأي رد من صفحة «الاختصارات» أو من المحرر.")}
-          </p>
+          <div className="pattern-star mx-3 mb-3 mt-1 rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center">
+            <div className="mb-3 flex justify-center text-[var(--faint)]">
+              <Icon d={I.shortcut} size={40} />
+            </div>
+            <p className="font-semibold">
+              {query.trim()
+                ? t("مفيش اختصار بيطابق اللي كتبته")
+                : t("لسه مفيش اختصارات")}
+            </p>
+            <span aria-hidden="true" className="orn-divider"><i /></span>
+            <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
+              {query.trim()
+                ? t("جرّب كلمة تانية، أو امسح البحث عشان تشوف كل الاختصارات.")
+                : t("ضيف اختصار لأي رد من صفحة «الاختصارات» أو من المحرر.")}
+            </p>
+          </div>
         ) : (
           <ul className="max-h-[50vh] overflow-y-auto overscroll-contain p-1.5">
             {hasRecent && (
@@ -14706,7 +15160,7 @@ function ShortcutBar({
                 <button
                   type="button"
                   aria-label={lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
-                  disabled={copyingId !== null}
+                  disabled={copyingId !== null || copiedId !== null}
                   onClick={() => void copyAndClose(s)}
                   className="lux-btn flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-start hover:bg-[var(--surface-alt)] disabled:opacity-60"
                 >
@@ -14729,6 +15183,11 @@ function ShortcutBar({
                   )}
                   {copyingId === s.id ? (
                     <span className="spinner shrink-0" aria-hidden="true" />
+                  ) : copiedId === s.id ? (
+                    <span className="animate-copy-pop flex shrink-0 items-center gap-1 text-[13px] font-extrabold text-[var(--success)]">
+                      <Icon d={I.check} size={16} />
+                      {t("اتنسخ")}
+                    </span>
                   ) : (
                     <span className="shrink-0 text-[var(--faint)]">
                       <Icon d={I.copy} size={16} />

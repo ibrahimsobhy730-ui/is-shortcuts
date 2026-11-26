@@ -85,7 +85,7 @@ export function PreviewModal({
         <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
           <RichPreview body={item.body} />
         </div>
-        {item.media && (
+        {item.media.length > 0 && (
           <div className="mt-3">
             <ReplyMediaBlock media={item.media} title={item.title} />
           </div>

@@ -180,6 +180,13 @@ export const FIELDS = {
       "step": 1,
       "required": true,
       "min": 1
+    },
+    "mediaId": {
+      "name": "mediaId",
+      "type": "number",
+      "step": 1,
+      "required": true,
+      "min": 1
     }
   },
   "exportFullBackup": {

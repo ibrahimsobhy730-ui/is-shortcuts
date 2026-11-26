@@ -242,7 +242,7 @@ export function DetailsPanel({
       </div>
 
       {/* Attached image, full block: image + meta + download. */}
-      {item.media && (
+      {item.media.length > 0 && (
         <div className="mt-3">
           <ReplyMediaBlock media={item.media} title={item.title} />
         </div>

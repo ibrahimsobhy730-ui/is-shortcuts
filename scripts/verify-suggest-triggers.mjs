@@ -12,9 +12,14 @@ const code = [
   grab(/function normalizeSearchText[\s\S]*?\n\}/, "normalizeSearchText"),
   grab(/const TRIGGER_STOPWORDS[\s\S]*?\n\]\);/, "TRIGGER_STOPWORDS"),
   grab(/function suggestTriggers\([\s\S]*?\n\}/, "suggestTriggers"),
+  grab(/function triggerMatchScoreNorm\([\s\S]*?\n\}/, "triggerMatchScoreNorm"),
+  /* triggerCollisionHint is exported in App.tsx; the export
+     keyword is stripped so the CommonJS transpile below (which
+     runs in a bare new Function, no `exports` in scope) works. */
+  grab(/export function triggerCollisionHint\([\s\S]*?\n\}/, "triggerCollisionHint").replace(/^export /, ""),
 ].join("\n\n");
 const js = transpileModule(code, { compilerOptions: { target: ScriptTarget.ES2022, module: ModuleKind.CommonJS } }).outputText;
-const fn = new Function(`${js}\nreturn suggestTriggers;`)();
+const { suggestTriggers: fn, triggerCollisionHint } = new Function(`${js}\nreturn { suggestTriggers, triggerCollisionHint };`)();
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => {
@@ -73,5 +78,22 @@ check("11. no «اا» for «اختبار اقتراح»", (() => {
 // typing «ت» in «ترحيب الطلاب» narrows to «تط».
 const ok = { title: "ترحيب الطلاب", body: "ترحيب الطلاب", trigger: null };
 check("12. healthy initials kept («تط» while typing «ت»)", fn(ok, [], "ت").includes("تط"), JSON.stringify(fn(ok, [], "ت")));
+// Prefix-collision hint (item 8, 2026-11-27): non-blocking, never
+// an error — typed text sharing a prefix with an existing trigger.
+check("13. hint when another trigger starts with the typed text", (() => {
+  const h = triggerCollisionHint("عرب", ["عربي", "12"]);
+  return !!h && h.includes("عربي");
+})(), triggerCollisionHint("عرب", ["عربي", "12"]) ?? "");
+check("14. hint when the typed text starts with another trigger", (() => {
+  const h = triggerCollisionHint("عربي2", ["عربي", "12"]);
+  return !!h && h.includes("عربي");
+})(), triggerCollisionHint("عربي2", ["عربي", "12"]) ?? "");
+check("15. no hint for an unrelated text", triggerCollisionHint("أسعار", ["عربي", "12"]) === null);
+check("16. no hint for an exact duplicate (triggerError's job)", triggerCollisionHint("عربي", ["عربي", "12"]) === null);
+check("17. no hint for empty text", triggerCollisionHint("", ["عربي"]) === null);
+check("18. hint folds Arabic letter variants (أ vs ا)", (() => {
+  const h = triggerCollisionHint("أحمد", ["احمد2"]);
+  return !!h && h.includes("احمد2");
+})(), triggerCollisionHint("أحمد", ["احمد2"]) ?? "");
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
