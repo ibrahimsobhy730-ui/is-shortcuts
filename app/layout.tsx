@@ -1,8 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Readex_Pro } from "next/font/google";
 import "./globals.css";
 import "./theme.css";
 import "./tokens.css";
+
+/* #11 (light + smooth) — Readex Pro self-hosted: the same
+   typeface and the same 4 weights (400/500/600/700), fetched
+   once at build time and served from the site itself instead of
+   a render-blocking Google Fonts @import on every first visit.
+   display: swap keeps text visible while the font loads. */
+const readexPro = Readex_Pro({
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-readex",
+});
 
 /* App shell: Arabic RTL, the IS identity, and the search/social meta
    the artifact already carried (its index.html), plus the PWA
@@ -65,7 +78,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className={readexPro.variable}>
       <body>
         {/* Structured data, carried from the artifact's index.html:
             tells search engines plainly what this application is,

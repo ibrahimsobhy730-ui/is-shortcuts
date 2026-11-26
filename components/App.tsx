@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "./safe-area";
@@ -421,6 +421,58 @@ function useEscapeClose(onEscape: () => void) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+}
+
+/* Body scroll lock, refcounted: a scrim modal, sheet or other full
+   overlay calls useBodyScrollLock(true) while it is mounted, and
+   the page behind it stays put — wheel, trackpad and touch alike
+   (overscroll-behavior alone cannot stop a modal's backdrop from
+   scrolling the page on touch). Nested overlays (a modal opening
+   another modal) each hold one count; the previous body overflow
+   is restored only when the last lock releases — the same
+   save/restore shape as the mobile drawer's own effect.
+   Ordering contract: the details-panel lock is called in
+   Workspace directly after the drawer effect, so when both
+   release in one commit the drawer's cleanup runs first and the
+   panel's restore (the empty previous value) lands last. The
+   panel lock itself is sheet-only (see useIsDesktop): on desktop
+   the panel is a docked side panel, not a modal, so it never
+   locks the page — its own overscroll containment is enough. */
+let bodyScrollLockCount = 0;
+let bodyScrollLockPrev = "";
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+    if (bodyScrollLockCount === 0) {
+      bodyScrollLockPrev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
+    bodyScrollLockCount += 1;
+    return () => {
+      bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
+      if (bodyScrollLockCount === 0) {
+        document.body.style.overflow = bodyScrollLockPrev;
+      }
+    };
+  }, [locked]);
+}
+
+/* Desktop breakpoint, live: the details panel is a docked side
+   panel at lg and up (a bottom sheet below it), so the panel's
+   body lock applies in sheet mode only. */
+function useIsDesktop() {
+  const [desktop, setDesktop] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 1024px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
 }
 
 /* Click-outside dismissal for the header/filter popovers: a press
@@ -1346,21 +1398,41 @@ type SearchableReply = {
 };
 
 /** -1 when the reply does not match at all; otherwise a score where
-    title matches beat everything, per the product's ranking rules. */
+    title matches beat everything, per the product's ranking rules.
+    Normalized fields are computed ONCE per reply object and cached
+    in a WeakMap (keyed by object identity — a refetch hands out
+    fresh objects, so a stale cache is impossible): without it every
+    keystroke re-normalized the full body ~1,300 times (filter +
+    twice per sort comparison + searchAnyResult). */
+const searchNormCache = new WeakMap<
+  SearchableReply,
+  { title: string; tags: string; folder: string; body: string; trig: string }
+>();
+function searchNorm(s: SearchableReply) {
+  let n = searchNormCache.get(s);
+  if (!n) {
+    n = {
+      title: normalizeSearchText(s.title),
+      tags: normalizeSearchText(s.tags),
+      folder: normalizeSearchText(s.category),
+      body: normalizeSearchText(s.body),
+      trig: normalizeSearchText(s.trigger ?? ""),
+    };
+    searchNormCache.set(s, n);
+  }
+  return n;
+}
+
 function searchScore(s: SearchableReply, rawQuery: string): number {
   const q = normalizeSearchText(rawQuery);
   if (!q) return 0;
-  const title = normalizeSearchText(s.title);
-  const tags = normalizeSearchText(s.tags);
-  const folder = normalizeSearchText(s.category);
-  const body = normalizeSearchText(s.body);
+  const { title, tags, folder, body, trig } = searchNorm(s);
   let score = -1;
   /* A trigger match outranks everything: the user typed the exact
      text that names this one reply. Triggers are free-form now —
      Arabic, symbols, any case — so both sides are normalized the
      same way (Arabic letter folding, case-insensitive) and the
      match is exact, then prefix, then contains. */
-  const trig = normalizeSearchText(s.trigger ?? "");
   if (trig) {
     if (q === trig) score = 120;
     else if (trig.startsWith(q)) score = Math.max(score, 95);
@@ -1398,12 +1470,13 @@ function searchScore(s: SearchableReply, rawQuery: string): number {
 
 /** Preview-box ranking for one trigger against an already
     normalized query: 3 exact, 2 prefix, 1 contains, 0 no match. */
-function triggerMatchScore(trigger: string, qNorm: string): number {
-  const trig = normalizeSearchText(trigger);
-  if (!trig || !qNorm) return 0;
-  if (trig === qNorm) return 3;
-  if (trig.startsWith(qNorm)) return 2;
-  if (trig.includes(qNorm)) return 1;
+/** Same ranking, reading the trigger from the #1 search cache
+    instead of re-normalizing it on every keystroke. */
+function triggerMatchScoreNorm(trigNorm: string, qNorm: string): number {
+  if (!trigNorm || !qNorm) return 0;
+  if (trigNorm === qNorm) return 3;
+  if (trigNorm.startsWith(qNorm)) return 2;
+  if (trigNorm.includes(qNorm)) return 1;
   return 0;
 }
 
@@ -1412,7 +1485,9 @@ function triggerMatchScore(trigger: string, qNorm: string): number {
     original characters wherever the raw query appears verbatim;
     when only the normalized form matches (ة/ه, إ/ا…), the text is
     rendered plain rather than highlighted in the wrong place. */
-function HighlightText({ text, query }: { text: string; query: string }) {
+/* #2 — memoized: pure function of two strings, re-rendered on
+   every keystroke otherwise. */
+const HighlightText = memo(function HighlightText({ text, query }: { text: string; query: string }) {
   const q = query.trim();
   if (!q) return <>{text}</>;
   const idx = text.toLowerCase().indexOf(q.toLowerCase());
@@ -1424,7 +1499,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
       {text.slice(idx + q.length)}
     </>
   );
-}
+});
 
 /** A short window of body text around the first match, so a search
     result previews the matching part instead of always the start. */
@@ -3264,6 +3339,9 @@ function Workspace({
     item: null,
   });
   const [guideOpen, setGuideOpen] = useState(false);
+  /* The Windows/AutoHotkey block starts collapsed behind one
+     line — the download stays one tap away in that line. */
+  const [winOpen, setWinOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [barOpen, setBarOpen] = useState(false);
@@ -3402,11 +3480,21 @@ function Workspace({
      the accent thumb glides to whichever pill is active in either
      direction, and hides when a «المزيد» view is the active one.
      The measuring effect itself lives below, after `density` and
-     `shortcuts` are declared. */
+     `shortcuts` are declared. #6 — the thumb is positioned by
+     transform (translateX + scaleX over the full track width),
+     never by left/width, so sliding it costs no layout. */
   const pillTrackRef = useRef<HTMLDivElement>(null);
-  const [pillThumb, setPillThumb] = useState<{ left: number; width: number } | null>(null);
+  const [pillThumb, setPillThumb] = useState<{
+    x: number;
+    w: number;
+    trackW: number;
+  } | null>(null);
   const densityTrackRef = useRef<HTMLDivElement>(null);
-  const [densityThumb, setDensityThumb] = useState<{ left: number; width: number } | null>(null);
+  const [densityThumb, setDensityThumb] = useState<{
+    x: number;
+    w: number;
+    trackW: number;
+  } | null>(null);
   /* مجلدات مطوية لثلاثة ردود في العرض المجمّع — «عرض المزيد»
      يفتح مجلدًا بعينه من غير ما يغيّر أي بيانات. */
   const [groupOpen, setGroupOpen] = useState<Set<string>>(new Set());
@@ -3439,7 +3527,6 @@ function Workspace({
       return "compact";
     }
   });
-  const [searchScope, setSearchScope] = useState<"all" | "folder">("all");
   const [folderSettingsId, setFolderSettingsId] = useState<number | null>(null);
   const [importPreview, setImportPreview] = useState<{
     fileName: string;
@@ -3488,7 +3575,7 @@ function Workspace({
     } catch {
       /* fall through to defaults */
     }
-    return { "g:library": true, "g:sources": true, "g:tools": true, "g:account": true };
+    return { "g:library": true, "g:sources": false, "g:tools": true, "g:account": true };
   });
   /* The folder a source assignment just moved: after the tree
      refetches, this folder's row flashes brass for a few seconds
@@ -3698,6 +3785,16 @@ function Workspace({
     [shortcutsQuery.data],
   );
 
+  /* #2/#3 — every reply's OTHER triggers, computed once per
+     library change and stable by id: the old `otherTriggers()`
+     built a fresh array on every render, which defeated the
+     suggestion memo in TriggerIcon and every memo below. */
+  const takenTriggersById = useMemo(() => {
+    const m = new Map<number, string[]>();
+    for (const s of shortcuts) m.set(s.id, otherTriggers(shortcuts, s.id));
+    return m;
+  }, [shortcuts]);
+
   /* ---------- search IS the preview box ----------
      Typing a trigger in the search box grows it into a full
      preview of the matched reply (see SearchTriggerPreview, under
@@ -3711,14 +3808,14 @@ function Workspace({
     if (!q) return [];
     return shortcuts
       .filter((s) => s.trigger)
-      .map((s) => ({ s, score: triggerMatchScore(s.trigger ?? "", q) }))
+      .map((s) => ({ s, score: triggerMatchScoreNorm(searchNorm(s).trig, q) }))
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || b.s.usageCount - a.s.usageCount)
       .map((x) => x.s);
   }, [shortcuts, searchQ]);
   const searchTrigBest = searchTrigMatches[0] ?? null;
   const searchTrigKind = searchTrigBest
-    ? triggerMatchScore(searchTrigBest.trigger ?? "", normalizeSearchText(searchQ))
+    ? triggerMatchScoreNorm(searchNorm(searchTrigBest).trig, normalizeSearchText(searchQ))
     : 0;
   const searchAnyResult = useMemo(
     () =>
@@ -3732,7 +3829,7 @@ function Workspace({
   /* Tap-outside dismisses the search preview: a press anywhere
      outside the search box (and its preview) clears the query, so
      the panel closes at once — the X is never required. A trigger
-     chip's press is the one exception: it FEEDS the box (its click
+     row's press is the one exception: it FEEDS the box (its click
      sets the search right after), so dismissing on its pointerdown
      would flicker the panel shut and open again. */
   useEffect(() => {
@@ -3747,7 +3844,15 @@ function Workspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchPreviewOpen]);
 
-  /* قياس إبهامَي شريط الفلاتر المنزلقَين (انظر تعريف الحالتين فوق) */
+  /* قياس إبهامَي شريط الفلاتر المنزلقَين (انظر تعريف الحالتين فوق)
+     #12 — the effect still runs when shortcuts.length changes
+     (the pill labels carry live counts, so a count going 9→10
+     really does change a pill's width), but setState only fires
+     when the measured geometry actually changed, so a data
+     refetch that leaves the thumbs where they were costs no
+     extra render and no forced layout beyond the measure. */
+  const pillThumbRef = useRef<typeof pillThumb>(null);
+  const densityThumbRef = useRef<typeof densityThumb>(null);
   useLayoutEffect(() => {
     const measure = () => {
       const track = pillTrackRef.current;
@@ -3755,17 +3860,50 @@ function Workspace({
         track && smartId === null
           ? track.querySelector<HTMLElement>(`[data-view-pill="${view}"]`)
           : null;
-      setPillThumb(btn ? { left: btn.offsetLeft, width: btn.offsetWidth } : null);
+      const nextPill =
+        btn && track && track.offsetWidth > 0
+          ? { x: btn.offsetLeft, w: btn.offsetWidth, trackW: track.offsetWidth }
+          : null;
+      const prevPill = pillThumbRef.current;
+      if (
+        (nextPill === null) !== (prevPill === null) ||
+        (nextPill !== null &&
+          prevPill !== null &&
+          (nextPill.x !== prevPill.x ||
+            nextPill.w !== prevPill.w ||
+            nextPill.trackW !== prevPill.trackW))
+      ) {
+        pillThumbRef.current = nextPill;
+        setPillThumb(nextPill);
+      }
       const dTrack = densityTrackRef.current;
       const dBtn = dTrack?.querySelector<HTMLElement>(`[data-density-seg="${density}"]`) ?? null;
-      setDensityThumb(dBtn ? { left: dBtn.offsetLeft, width: dBtn.offsetWidth } : null);
+      const nextDensity =
+        dBtn && dTrack && dTrack.offsetWidth > 0
+          ? { x: dBtn.offsetLeft, w: dBtn.offsetWidth, trackW: dTrack.offsetWidth }
+          : null;
+      const prevDensity = densityThumbRef.current;
+      if (
+        (nextDensity === null) !== (prevDensity === null) ||
+        (nextDensity !== null &&
+          prevDensity !== null &&
+          (nextDensity.x !== prevDensity.x ||
+            nextDensity.w !== prevDensity.w ||
+            nextDensity.trackW !== prevDensity.trackW))
+      ) {
+        densityThumbRef.current = nextDensity;
+        setDensityThumb(nextDensity);
+      }
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [view, smartId, density, lang, shortcuts.length]);
 
-  const showToast = (msg: string, kind: ToastKind = "success") => {
+  /* #2 — stable identity: copy/move handlers below are passed to
+     memoized cards, so showToast must not be a fresh closure on
+     every render (it only ever touches a stable setter + ref). */
+  const showToast = useCallback((msg: string, kind: ToastKind = "success") => {
     setToast({ text: msg, kind });
     window.clearTimeout(toastTimer.current);
     /* A toast lives long enough to actually be read: the short
@@ -3774,7 +3912,7 @@ function Workspace({
        mid-sentence. */
     const ms = Math.min(6500, Math.max(2200, msg.length * 55));
     toastTimer.current = window.setTimeout(() => setToast(null), ms);
-  };
+  }, []);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["shortcuts", token] });
@@ -4026,12 +4164,15 @@ function Workspace({
      the TEXT actually landed: a failed copy records nothing, and
      a video download or an image conversion is never a separate
      use. */
-  const recordCopyUse = (s: Shortcut) => {
-    if (!recordingRef.current.has(s.id)) {
-      recordingRef.current.add(s.id);
-      recordUse.mutate(s.id);
-    }
-  };
+  const recordCopyUse = useCallback(
+    (s: Shortcut) => {
+      if (!recordingRef.current.has(s.id)) {
+        recordingRef.current.add(s.id);
+        recordUse.mutate(s.id);
+      }
+    },
+    [recordUse.mutate],
+  );
 
   /* The one copy path every surface funnels through. Media-aware
      (see planCopy in ./copy-media): text-only copies exactly as
@@ -4044,62 +4185,81 @@ function Workspace({
      image fails → text-only fallback + honest toast, use recorded
      once. Text ok + download fails → toast + retry from details,
      use recorded once. */
-  const copyFilled = async (s: Shortcut, text: string): Promise<CopyResult> => {
-    const plan = planCopy(s.media, s.title);
-    if (plan.mode === "text") {
+  const copyFilled = useCallback(
+    async (s: Shortcut, text: string): Promise<CopyResult> => {
+      const plan = planCopy(s.media, s.title);
+      if (plan.mode === "text") {
+        const ok = await copyText(text);
+        if (!ok) {
+          showToast("النسخ متعذر هنا", "error");
+          return "failed";
+        }
+        recordCopyUse(s);
+        showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
+        return "copied";
+      }
+      /* #8 — the button flips the instant the TEXT lands. The
+         slow half (image fetch + PNG conversion, or the video
+         download of up to 50 MB) runs in the background: the
+         clipboard is first written with the text alone, then the
+         image write upgrades it to text+image in place (same
+         text, so an early paste still pastes the right words).
+         The toast — success or the honest fallback — is what
+         reports the slow half, never the button. Text-write
+         fails → the whole action still fails, no flip, no
+         background work, exactly as before. */
+      if (plan.mode === "text-image") {
+        const ok = await copyText(text);
+        if (!ok) {
+          showToast("النسخ متعذر هنا", "error");
+          return "failed";
+        }
+        recordCopyUse(s);
+        void copyTextWithImage(text, plan.imageUrl).then((res) => {
+          if (res === "ok") {
+            showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
+          } else {
+            showToast(imageFallbackToast().text, "error");
+          }
+        });
+        return "copied";
+      }
       const ok = await copyText(text);
       if (!ok) {
         showToast("النسخ متعذر هنا", "error");
         return "failed";
       }
       recordCopyUse(s);
-      showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
+      void downloadMediaFile(plan.videoUrl, plan.fileName).then((downloaded) => {
+        const toast = videoCopyToast(s.title, downloaded);
+        showToast(toast.text, toast.kind === "error" ? "error" : undefined);
+      });
       return "copied";
-    }
-    if (plan.mode === "text-image") {
-      const res = await copyTextWithImage(text, plan.imageUrl);
-      if (res === "failed") {
-        showToast("النسخ متعذر هنا", "error");
-        return "failed";
-      }
-      recordCopyUse(s);
-      if (res === "ok") {
-        showToast(`اتنسخ «${s.title}» — الصقه في أي شات`);
-      } else {
-        showToast(imageFallbackToast().text, "error");
-      }
-      return "copied";
-    }
-    const ok = await copyText(text);
-    if (!ok) {
-      showToast("النسخ متعذر هنا", "error");
-      return "failed";
-    }
-    recordCopyUse(s);
-    const downloaded = await downloadMediaFile(plan.videoUrl, plan.fileName);
-    const toast = videoCopyToast(s.title, downloaded);
-    showToast(toast.text, toast.kind === "error" ? "error" : undefined);
-    return "copied";
-  };
+    },
+    [recordCopyUse, showToast],
+  );
 
   /* Returns "copied" only when text actually landed on the
      clipboard, so the card's «اتنسخ» state never claims a copy
      that did not happen. "fill" means the fill-in sheet opened
      instead (manual {variables}) — the copy happens later, from
      the sheet, via copyFilled. */
-  const handleCopy = async (s: Shortcut): Promise<CopyResult> => {
-    // Smart variables: anything the user must supply (الاسم، السنة
-    // الدراسية، …) opens the fill-in sheet with a live preview first.
-    // {التاريخ} و{الوقت} fill themselves, so they never block a copy.
-    const manual = extractVariables(s.body).filter(
-      (v) => v !== "{التاريخ}" && v !== "{الوقت}",
-    );
-    if (manual.length > 0) {
-      setFillVarsItem(s);
-      return "fill";
-    }
-    return copyFilled(s, fillDynamic(s.body));
-  };
+  const handleCopy = useCallback(
+    async (s: Shortcut): Promise<CopyResult> => {
+      // Smart variables: anything the user must supply (الاسم، السنة
+      // الدراسية، …) opens the fill-in sheet with a live preview first.
+      // {التاريخ} و{الوقت} fill themselves, so they never block a copy.
+      const manual = extractVariables(s.body).filter(
+        (v) => v !== "{التاريخ}" && v !== "{الوقت}",
+      );
+      if (manual.length > 0) {
+        setFillVarsItem(s);
+        return "fill";
+      }
+      return copyFilled(s, fillDynamic(s.body));
+    },
+    [copyFilled],
+  );
 
   const categories = useMemo(() => {
     const present = new Set(shortcuts.map((s) => s.category));
@@ -4142,10 +4302,10 @@ function Workspace({
         if (dateRange === "week" && Date.now() - upd > 7 * 86400000) return false;
         if (dateRange === "month" && Date.now() - upd > 30 * 86400000) return false;
       }
-      // A search runs over the whole library by default (the brief's
-      // rule); only the explicit «المجلد الحالي» scope keeps the
-      // folder filter while searching.
-      if (category !== "الكل" && s.category !== category && !(searching && searchScope === "all")) return false;
+      // A search is implicitly scoped: from a folder view it stays
+      // inside that folder; with no folder picked («الكل») it runs
+      // over the whole library. No scope row, no extra UI.
+      if (category !== "الكل" && s.category !== category) return false;
       if (!searching) return true;
       return searchScore(s, q) >= 0;
     });
@@ -4212,7 +4372,7 @@ function Workspace({
       );
     }
     return list;
-  }, [shortcuts, search, category, view, searchScope, folderSort, filterTags, onlyFav, onlyPin, dateRange]);
+  }, [shortcuts, search, category, view, folderSort, filterTags, onlyFav, onlyPin, dateRange]);
 
   // The registered name is shown at the top everywhere. Accounts whose
   // name is still blank fall back to their email, then their mobile
@@ -4300,8 +4460,13 @@ function Workspace({
     () => new Map(folders.map((f) => [f.id, f])),
     [folders],
   );
-  const folderNameOf = (id: number | null): string =>
-    id !== null ? (folderById.get(id)?.name ?? "عام") : "عام";
+  /* #2 — stable identity (see showToast): folderNameOf feeds the
+     memoized move/copy handlers. */
+  const folderNameOf = useCallback(
+    (id: number | null): string =>
+      id !== null ? (folderById.get(id)?.name ?? "عام") : "عام",
+    [folderById],
+  );
 
   /* The full path of a folder («أسعار / ثانوي / عام»), so any reply
      can say exactly where it lives — in its details, in search
@@ -4434,19 +4599,24 @@ function Workspace({
   };
 
   /* ----- placement snapshots: drag & drop, sort, undo/redo ----- */
-  const takeSnapshot = (): TreeSnapshot => ({
-    folders: folders.map((f) => ({
-      id: f.id,
-      parentId: f.parentId,
-      sortOrder: f.sortOrder,
-    })),
-    shortcuts: shortcuts.map((s) => ({
-      id: s.id,
-      folderId: s.folderId,
-      category: s.category,
-      sortOrder: s.sortOrder,
-    })),
-  });
+  /* #2 — stable identity: snapshots feed the memoized move
+     handlers, so they must only change when the data does. */
+  const takeSnapshot = useCallback(
+    (): TreeSnapshot => ({
+      folders: folders.map((f) => ({
+        id: f.id,
+        parentId: f.parentId,
+        sortOrder: f.sortOrder,
+      })),
+      shortcuts: shortcuts.map((s) => ({
+        id: s.id,
+        folderId: s.folderId,
+        category: s.category,
+        sortOrder: s.sortOrder,
+      })),
+    }),
+    [folders, shortcuts],
+  );
 
   const undoStack = useRef<TreeSnapshot[]>([]);
   const redoStack = useRef<TreeSnapshot[]>([]);
@@ -4466,13 +4636,16 @@ function Workspace({
     onError: () => showToast("النقل متمّش — حاول تاني", "error"),
   });
 
-  const applySnapshot = (snap: TreeSnapshot) => {
-    undoStack.current.push(takeSnapshot());
-    if (undoStack.current.length > 40) undoStack.current.shift();
-    redoStack.current = [];
-    setHistTick((t) => t + 1);
-    applyTreeMut.mutate(snap);
-  };
+  const applySnapshot = useCallback(
+    (snap: TreeSnapshot) => {
+      undoStack.current.push(takeSnapshot());
+      if (undoStack.current.length > 40) undoStack.current.shift();
+      redoStack.current = [];
+      setHistTick((t) => t + 1);
+      applyTreeMut.mutate(snap);
+    },
+    [applyTreeMut.mutate, takeSnapshot],
+  );
 
   const doUndo = () => {
     const prev = undoStack.current.pop();
@@ -4525,13 +4698,14 @@ function Workspace({
     showToast(t("اتنقل المجلد واتحفظ مكانه"));
   };
 
-  const moveShortcutsTo = (
-    ids: number[],
-    targetFolder: number | null,
-    beforeId: number | null,
-  ) => {
-    if (ids.length === 0) return;
-    const snap = takeSnapshot();
+  const moveShortcutsTo = useCallback(
+    (
+      ids: number[],
+      targetFolder: number | null,
+      beforeId: number | null,
+    ) => {
+      if (ids.length === 0) return;
+      const snap = takeSnapshot();
     const moving = ids
       .map((id) => snap.shortcuts.find((s) => s.id === id))
       .filter((s): s is TreeSnapshot["shortcuts"][number] => !!s);
@@ -4566,7 +4740,9 @@ function Workspace({
         ? lang === "en" ? `${moving.length} replies moved and saved` : `اتنقل ${moving.length} رد واتحفظ مكانهم`
         : lang === "en" ? "Reply moved and saved" : "اتنقل الرد واتحفظ مكانه",
     );
-  };
+    },
+    [applySnapshot, folderNameOf, lang, showToast, takeSnapshot],
+  );
 
   const sortFolderContents = (fid: number | null, mode: "name" | "date") => {
     const snap = takeSnapshot();
@@ -4926,7 +5102,6 @@ function Workspace({
             () => goSmart(sf),
           ),
         ),
-        pageNode("p:new-smart", lang === "en" ? "New smart folder" : "مجلد ذكي جديد", I.sparkles, lang === "en" ? "Create a smart folder — a live view over your replies by tags, folder, pinning or usage, without copying anything" : "إنشاء مجلد ذكي — عرض حي فوق ردودك بالوسوم أو المجلد أو التثبيت أو الاستخدام، من غير نسخ أي رد", false, null, () => setSmartEditor({ open: true, item: null })),
         ...(childFolders.get(null) ?? [])
           .filter((f) => !f.isSourceMain)
           .map((f) => folderNode(f, 1)),
@@ -5010,14 +5185,15 @@ function Workspace({
     const i = sibs.findIndex((f) => f.id === id);
     return i >= 0 && i + 1 < sibs.length ? (sibs[i + 1]?.id ?? null) : null;
   };
-  const siblingShortcutAfter = (
-    folder: number | null,
-    id: number,
-  ): number | null => {
-    const sibs = folderShortcuts.get(folder) ?? [];
-    const i = sibs.findIndex((s) => s.id === id);
-    return i >= 0 && i + 1 < sibs.length ? (sibs[i + 1]?.id ?? null) : null;
-  };
+  /* #2 — stable identity for the card drag handlers. */
+  const siblingShortcutAfter = useCallback(
+    (folder: number | null, id: number): number | null => {
+      const sibs = folderShortcuts.get(folder) ?? [];
+      const i = sibs.findIndex((s) => s.id === id);
+      return i >= 0 && i + 1 < sibs.length ? (sibs[i + 1]?.id ?? null) : null;
+    },
+    [folderShortcuts],
+  );
 
   const executeDrop = (node: TNode, pos: "before" | "after" | "inside") => {
     const drag = dragRef.current;
@@ -5981,67 +6157,138 @@ function Workspace({
         ? "flex flex-col gap-2"
         : "flex flex-col gap-6";
 
-  const renderCard = (s: Shortcut, i = 0) => (
-    <ShortcutCard
-      key={s.id}
-      item={s}
-      density={density}
-      enterDelay={search.trim() ? undefined : Math.min(i, 8) * 35}
-      highlight={search.trim()}
-      selected={selectedIds.has(s.id)}
-      active={detailItem?.id === s.id}
-      onSelect={() => setDetailItem(s)}
-      onCopy={() => handleCopy(s)}
-      onPin={() => togglePin.mutate(s)}
-      onFavorite={() => toggleFavorite.mutate(s)}
-      onEdit={() => setEditor({ open: true, item: s })}
-      onDuplicate={() => duplicateMut.mutate(s.id)}
-      onDelete={() => deleteMut.mutate(s.id)}
-      onPreview={() => setPreviewItem(s)}
-      onMove={(folderId) => moveShortcutsTo([s.id], folderId, null)}
-      onSaveTrigger={async (s, trigger) => {
-        await updateTriggerMut.mutateAsync({ s, trigger });
-      }}
-      takenTriggers={otherTriggers(shortcuts, s.id)}
-      folders={folders}
-      folderCounts={folderReplyCounts}
-      dnd={{
-        dragging: cardDragId === s.id,
-        dropPos: cardDrop?.id === s.id ? cardDrop.pos : null,
-        onDragStart: () => {
-          cardDragRef.current = selectedIds.has(s.id) ? [...selectedIds] : [s.id];
-          setCardDragId(s.id);
-        },
-        onDragEnd: () => {
-          cardDragRef.current = null;
-          setCardDragId(null);
-          setCardDrop(null);
-          setCardDropFolder(null);
-        },
-        onDragOver: (e) => {
-          if (!cardDragRef.current || cardDragRef.current.includes(s.id)) return;
-          e.preventDefault();
-          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          const pos = (e.clientY - rect.top) / Math.max(1, rect.height) < 0.5 ? "before" : "after";
-          if (cardDrop?.id !== s.id || cardDrop.pos !== pos) setCardDrop({ id: s.id, pos });
-        },
-        onDrop: (e) => {
-          e.preventDefault();
-          const ids = cardDragRef.current ?? [];
-          if (ids.length > 0 && !ids.includes(s.id)) {
-            const beforeId =
-              cardDrop?.id === s.id && cardDrop.pos === "after"
-                ? siblingShortcutAfter(s.folderId ?? null, s.id)
-                : s.id;
-            moveShortcutsTo(ids, s.folderId ?? null, beforeId);
-            if (ids.length > 1) setSelectedIds(new Set());
-          }
-          cardDragRef.current = null;
-          setCardDragId(null);
-          setCardDrop(null);
-        },
-      }}
-    />
+  /* #2 — ONE stable handler per card action, taking the reply as
+     an argument, so the memoized ShortcutCard below actually
+     receives stable props: the old per-card inline arrows were
+     fresh closures on every render and defeated any memo
+     outright. These only change when the data or the drag state
+     changes — typing in search leaves them untouched, so a
+     toast, a copy or opening details no longer re-renders all
+     88 cards. Drag handlers are one stable object the same way;
+     only the two booleans (dragging / dropPos) ride per card. */
+  const cardOnSelect = useCallback((s: Shortcut) => setDetailItem(s), []);
+  const cardOnCopy = useCallback((s: Shortcut) => handleCopy(s), [handleCopy]);
+  const cardOnPin = useCallback((s: Shortcut) => togglePin.mutate(s), [togglePin.mutate]);
+  const cardOnFavorite = useCallback(
+    (s: Shortcut) => toggleFavorite.mutate(s),
+    [toggleFavorite.mutate],
+  );
+  const cardOnEdit = useCallback(
+    (s: Shortcut) => setEditor({ open: true, item: s }),
+    [],
+  );
+  const cardOnDuplicate = useCallback(
+    (s: Shortcut) => duplicateMut.mutate(s.id),
+    [duplicateMut.mutate],
+  );
+  const cardOnDelete = useCallback(
+    (s: Shortcut) => deleteMut.mutate(s.id),
+    [deleteMut.mutate],
+  );
+  const cardOnPreview = useCallback((s: Shortcut) => setPreviewItem(s), []);
+  const cardOnMove = useCallback(
+    (s: Shortcut, folderId: number | null) =>
+      moveShortcutsTo([s.id], folderId, null),
+    [moveShortcutsTo],
+  );
+  const cardOnSaveTrigger = useCallback(
+    async (s: Shortcut, trigger: string) => {
+      await updateTriggerMut.mutateAsync({ s, trigger });
+    },
+    [updateTriggerMut.mutateAsync],
+  );
+  const cardDnd = useMemo(
+    () => ({
+      onDragStart: (id: number) => {
+        cardDragRef.current = selectedIds.has(id) ? [...selectedIds] : [id];
+        setCardDragId(id);
+      },
+      onDragEnd: () => {
+        cardDragRef.current = null;
+        setCardDragId(null);
+        setCardDrop(null);
+        setCardDropFolder(null);
+      },
+      onDragOver: (id: number, e: React.DragEvent) => {
+        if (!cardDragRef.current || cardDragRef.current.includes(id)) return;
+        e.preventDefault();
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const pos =
+          (e.clientY - rect.top) / Math.max(1, rect.height) < 0.5
+            ? "before"
+            : "after";
+        if (cardDrop?.id !== id || cardDrop.pos !== pos)
+          setCardDrop({ id, pos });
+      },
+      onDrop: (id: number, e: React.DragEvent, folderId: number | null) => {
+        e.preventDefault();
+        const ids = cardDragRef.current ?? [];
+        if (ids.length > 0 && !ids.includes(id)) {
+          const beforeId =
+            cardDrop?.id === id && cardDrop.pos === "after"
+              ? siblingShortcutAfter(folderId, id)
+              : id;
+          moveShortcutsTo(ids, folderId, beforeId);
+          if (ids.length > 1) setSelectedIds(new Set());
+        }
+        cardDragRef.current = null;
+        setCardDragId(null);
+        setCardDrop(null);
+      },
+    }),
+    [cardDrop, moveShortcutsTo, selectedIds, siblingShortcutAfter],
+  );
+
+  const renderCard = useCallback(
+    (s: Shortcut, i = 0) => (
+      <ShortcutCard
+        key={s.id}
+        item={s}
+        density={density}
+        enterDelay={search.trim() ? undefined : Math.min(i, 8) * 35}
+        highlight={search.trim()}
+        selected={selectedIds.has(s.id)}
+        active={detailItem?.id === s.id}
+        onSelect={cardOnSelect}
+        onCopy={cardOnCopy}
+        onPin={cardOnPin}
+        onFavorite={cardOnFavorite}
+        onEdit={cardOnEdit}
+        onDuplicate={cardOnDuplicate}
+        onDelete={cardOnDelete}
+        onPreview={cardOnPreview}
+        onMove={cardOnMove}
+        onSaveTrigger={cardOnSaveTrigger}
+        takenTriggers={takenTriggersById.get(s.id) ?? []}
+        folders={folders}
+        folderCounts={folderReplyCounts}
+        dnd={cardDnd}
+        dragging={cardDragId === s.id}
+        dropPos={cardDrop?.id === s.id ? cardDrop.pos : null}
+      />
+    ),
+    [
+      cardDnd,
+      cardDragId,
+      cardDrop,
+      cardOnCopy,
+      cardOnDelete,
+      cardOnDuplicate,
+      cardOnEdit,
+      cardOnFavorite,
+      cardOnMove,
+      cardOnPin,
+      cardOnPreview,
+      cardOnSaveTrigger,
+      cardOnSelect,
+      density,
+      detailItem,
+      folderReplyCounts,
+      folders,
+      search,
+      selectedIds,
+      takenTriggersById,
+    ],
   );
 
   /* The folder the main content is currently showing (picked from
@@ -6109,31 +6356,6 @@ function Workspace({
       "application/json;charset=utf-8",
     );
     showToast(`اتصدّر مجلد «${folder.name}» — ${items.length} رد بصيغة JSON`);
-  };
-
-  const exportOneJson = (s: Shortcut) => {
-    downloadText(
-      `is-reply-${s.id}.json`,
-      JSON.stringify(
-        {
-          shortcuts: [
-            {
-              title: s.title,
-              body: s.body,
-              category: s.category,
-              tags: s.tags ?? "",
-              extShortcut: s.extShortcut ?? "",
-              trigger: s.trigger ?? "",
-              source: s.source ?? "",
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-      "application/json;charset=utf-8",
-    );
-    showToast(`اتصدّر رد «${s.title}» بصيغة JSON`);
   };
 
   /* Export just the multi-selected replies, in the same backup
@@ -6321,6 +6543,18 @@ function Workspace({
     ? (shortcuts.find((s) => s.id === detailItem.id) ?? null)
     : null;
 
+  /* The overlays rendered inline here (not their own component)
+     lock the page behind them while open — the same refcounted
+     lock the modal components use, so a modal opened from one of
+     them stacks instead of fighting it. Declared after the drawer
+     effect on purpose: see useBodyScrollLock. The details panel
+     locks only in sheet mode (below lg): on desktop it is a
+     docked side panel and the reply list must keep scrolling. */
+  const isDesktop = useIsDesktop();
+  useBodyScrollLock(resetUsageOpen);
+  useBodyScrollLock(ctxMenu !== null);
+  useBodyScrollLock(detailFresh !== null && !isDesktop);
+
   return (
     <>
       {offline && (
@@ -6366,7 +6600,7 @@ function Workspace({
           >
             <Logo size={40} />
           </button>
-          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-2xl flex-1 transition-[max-width] duration-300 focus-within:max-w-[44rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("دوّر باسم الرد أو أي كلمة منه")}>
+          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-2xl flex-1 focus-within:max-w-[44rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("دوّر باسم الرد أو أي كلمة منه")}>
             <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
               <Icon d={I.search} size={19} />
             </span>
@@ -6382,7 +6616,7 @@ function Workspace({
                 if (section !== "home") setSection("home");
               }}
               placeholder={t("دوّر باسم الرد أو كلمة منه…")}
-              className={`h-11 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[15px] outline-none transition-all placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[var(--border)] shadow-[0_6px_20px_-8px_rgba(13,42,82,0.18)]"}`}
+              className={`h-11 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[15px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[var(--border)] shadow-[0_6px_20px_-8px_rgba(13,42,82,0.18)]"}`}
             />
             {search && (
               <button
@@ -6847,15 +7081,8 @@ function Workspace({
               <Icon d={I.plus} size={18} />
               {t("جديد")}
             </button>
-            <button
-              type="button"
-              aria-label={t("إضافة جماعية بلصق مجموعة ردود")} data-tip={t("إضافة مجموعة ردود مرة واحدة باللصق")}
-              onClick={() => setBulkOpen(true)}
-              className="lux-btn flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--surface)] px-5 py-3 font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
-            >
-              <Icon d={I.upload} size={18} />
-              {t("جماعية")}
-            </button>
+            {/* Bulk add lives in the sidebar («إضافة جماعية») — no
+                second button here. */}
           </div>
           <div className="no-scrollbar -mx-4 -mb-9 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-11 sm:-mx-6 sm:px-6 lg:hidden">
             {categories.map((c) => (
@@ -6903,7 +7130,10 @@ function Workspace({
                   <span
                     aria-hidden="true"
                     className="pill-thumb"
-                    style={{ left: pillThumb.left, width: pillThumb.width }}
+                    style={{
+                      width: pillThumb.trackW,
+                      transform: `translateX(${pillThumb.x}px) scaleX(${pillThumb.w / pillThumb.trackW})`,
+                    }}
                   />
                 )}
                 {(
@@ -6952,7 +7182,7 @@ function Workspace({
                 aria-label={lang === "en" ? "More views" : "عروض إضافية"}
                 aria-expanded={moreOpen}
                 aria-haspopup="menu"
-                data-tip={lang === "en" ? "Copy history, most used, least used, never used" : "سجل النسخ، الأكثر استخداماً، الأقل استخداماً، لم تُستخدم"}
+                data-tip={lang === "en" ? "Copy history, most used, never used" : "سجل النسخ، الأكثر استخداماً، لم تُستخدم"}
                 onClick={(e) => {
                   if (!moreOpen) {
                     const r = e.currentTarget.getBoundingClientRect();
@@ -6961,7 +7191,7 @@ function Workspace({
                   setMoreOpen((v) => !v);
                 }}
                 className={`lux-btn flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold ${
-                  smartId === null && (view === "history" || view === "most" || view === "least" || view === "unused")
+                  smartId === null && (view === "history" || view === "most" || view === "unused")
                     ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
                     : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
                 }`}
@@ -7003,7 +7233,10 @@ function Workspace({
                   <span
                     aria-hidden="true"
                     className="seg-thumb"
-                    style={{ left: densityThumb.left, width: densityThumb.width }}
+                    style={{
+                      width: densityThumb.trackW,
+                      transform: `translateX(${densityThumb.x}px) scaleX(${densityThumb.w / densityThumb.trackW})`,
+                    }}
                   />
                 )}
                 {(
@@ -7045,7 +7278,6 @@ function Workspace({
                   [
                     { key: "history", label: "سجل النسخ", icon: I.clipboard, tip: "سجل كل عمليات النسخ الناجحة بوقتها" },
                     { key: "most", label: "الأكثر استخداماً", icon: I.flame, tip: "رتّب حسب عدد مرات الاستخدام — الأعلى الأول" },
-                    { key: "least", label: "الأقل استخداماً", icon: I.trendDown, tip: "رتّب حسب عدد مرات الاستخدام — الأقل الأول، عشان تشوف الردود المهملة" },
                     { key: "unused", label: "لم تُستخدم", icon: I.hourglass, tip: "الردود اللي لسه ما اتنسختش ولا اتستخدمت ولا مرة" },
                   ] as Array<{ key: ViewMode; label: string; icon: LucideIcon; tip: string }>
                 ).map((v) => {
@@ -7487,45 +7719,6 @@ function Workspace({
           </section>
         )}
 
-        {/* The density switch lives in the filter bar now (B2);
-            this row keeps only the search scope while searching. */}
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          {search.trim() && (
-            <>
-              <span className="text-[13px] font-semibold text-[var(--dim)]">{t("نطاق البحث:")}</span>
-              <button
-                type="button"
-                aria-label={t("البحث في المكتبة كلها")}
-                data-tip={t("البحث في كل الردود وكل المجلدات")}
-                aria-pressed={searchScope === "all"}
-                onClick={() => setSearchScope("all")}
-                className={`lux-btn rounded-full px-3 py-1.5 text-[13px] font-bold ${
-                  searchScope === "all"
-                    ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                    : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-                }`}
-              >
-                {lang === "en" ? "Whole library" : "المكتبة كلها"}
-              </button>
-              <button
-                type="button"
-                aria-label={t("البحث في المجلد الحالي بس")}
-                data-tip={category !== "الكل" ? (lang === "en" ? `Limit the search to folder «${category}»` : `حصر البحث في مجلد «${category}»`) : lang === "en" ? "Pick a folder first to limit the search to it" : "اختار مجلد الأول عشان تحصر البحث فيه"}
-                aria-pressed={searchScope === "folder"}
-                disabled={category === "الكل"}
-                onClick={() => setSearchScope("folder")}
-                className={`lux-btn rounded-full px-3 py-1.5 text-[13px] font-bold disabled:opacity-40 ${
-                  searchScope === "folder"
-                    ? "bg-[var(--accent-soft)] text-[var(--accent-strong)]"
-                    : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-                }`}
-              >
-                {lang === "en" ? "Current folder" : "المجلد الحالي"}{category !== "الكل" ? ` «${category}»` : ""}
-              </button>
-            </>
-          )}
-        </div>
-
         {/* Folder view: the replies get their own headed row with the
             folder's sort control — subfolders above, replies below,
             each under its own heading, never mixed. The sort choice
@@ -7796,8 +7989,8 @@ function Workspace({
                   <p className="font-semibold">{t("مفيش نتيجة مطابقة لبحثك")}</p>
                   <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
                     {search.trim()
-                      ? searchScope === "folder" && category !== "الكل"
-                        ? lang === "en" ? "Try widening the search scope to the whole library from the «Search scope» bar above the list, or change the search word." : `جرّب توسّع نطاق البحث للمكتبة كلها من شريط «نطاق البحث» فوق القائمة، أو غيّر كلمة البحث.`
+                      ? category !== "الكل"
+                        ? lang === "en" ? "Try searching from «All» to cover the whole library, or change the search word." : `جرّب تبحث من «الكل» عشان تشوف المكتبة كلها، أو غيّر كلمة البحث.`
                         : lang === "en" ? "Try a shorter word or part of a sentence from the reply — the search understands Arabic letter variations." : "جرّب كلمة أقصر أو جزء من جملة من الرد — البحث بيفهم اختلافات الحروف العربية."
                       : t("مفيش ردود في العرض ده لسه.")}
                   </p>
@@ -8067,9 +8260,32 @@ function Workspace({
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface)] text-[var(--accent)] shadow-[var(--shadow-card)]">
                 <Icon d={I.devices} size={18} />
               </span>
-              <h3 className="min-w-0 flex-1 text-[15px] font-bold leading-snug">التشغيل على ويندوز</h3>
+              <button
+                type="button"
+                aria-label={lang === "en" ? "Use shortcuts on Windows" : "استخدام الاختصارات على ويندوز"}
+                aria-expanded={winOpen}
+                data-tip={winOpen ? (lang === "en" ? "Collapse the Windows section" : "طي قسم ويندوز") : (lang === "en" ? "Expand the Windows section" : "فتح قسم ويندوز")}
+                onClick={() => setWinOpen((v) => !v)}
+                className="lux-btn flex min-w-0 flex-1 items-center gap-2 text-start"
+              >
+                <span className="min-w-0 flex-1 truncate text-[15px] font-bold leading-snug">{lang === "en" ? "Use shortcuts on Windows" : "استخدام الاختصارات على ويندوز"}</span>
+                <span className={winOpen ? "rotate-180 transition-transform" : "transition-transform"}>
+                  <Icon d={I.chevron} size={16} />
+                </span>
+              </button>
               <span dir="ltr" className="shrink-0 rounded-full bg-[var(--surface)] px-2.5 py-1 font-mono text-[11px] font-semibold text-[var(--dim)] shadow-[var(--shadow-card)]">AutoHotkey</span>
+              <button
+                type="button"
+                aria-label="تنزيل ملف AutoHotkey بكل الردود" data-tip="ملف بيخلي ردودك تتكتب في أي برنامج على ويندوز من قائمة سريعة"
+                onClick={() => downloadText("is-shortcuts.ahk", buildAhk(shortcuts), "text/plain;charset=utf-8")}
+                className="lux-btn flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] bg-[var(--accent)] px-3 py-2 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] hover:text-[var(--bg)]"
+              >
+                <Icon d={I.download} size={16} />
+                {lang === "en" ? "Download" : "تنزيل"}
+              </button>
             </div>
+            {winOpen && (
+              <>
             <p className="mt-3 text-sm leading-relaxed text-[var(--dim)]">
               نزّل ملف AutoHotkey وشغّله على ويندوز، وبعدها في أي برنامج (Chatwoot أو
               واتساب أو فيسبوك) دوس{" "}
@@ -8117,6 +8333,8 @@ function Workspace({
                 <li>عشان يشتغل مع كل مرة تفتح الجهاز: حط الملف في فولدر Startup (دوس Win + R واكتب shell:startup).</li>
                 <li>كل ما تعدّل رد هنا، نزّل الملف من جديد وشغّله بدل القديم.</li>
               </ol>
+            )}
+              </>
             )}
           </div>
 
@@ -8314,7 +8532,7 @@ function Workspace({
                 <Icon d={I.x} size={19} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
               {renderNavTree(false, () => setDrawerOpen(false))}
             </div>
           </div>
@@ -8336,10 +8554,6 @@ function Workspace({
           shortcuts={shortcuts}
           folders={folders}
           onCopy={(s) => handleCopy(s)}
-          onOpenPreview={() => {
-            setBarOpen(false);
-            goShortcuts();
-          }}
         />
       )}
       {editor.open && (
@@ -8349,7 +8563,7 @@ function Workspace({
           item={editor.item}
           folders={folders}
           folderCounts={folderReplyCounts}
-          takenTriggers={otherTriggers(shortcuts, editor.item?.id ?? -1)}
+          takenTriggers={takenTriggersById.get(editor.item?.id ?? -1) ?? []}
           initialFolderId={editor.presetFolderId}
           initialTitle={editor.presetTitle}
 
@@ -8428,19 +8642,13 @@ function Workspace({
           onClose={() => setDetailItem(null)}
           onCopy={() => handleCopy(detailFresh)}
           onEdit={() => setEditor({ open: true, item: detailFresh })}
-          onDuplicate={() => duplicateMut.mutate(detailFresh.id)}
-          onDelete={() => {
-            deleteMut.mutate(detailFresh.id);
-            setDetailItem(null);
-          }}
           onPin={() => togglePin.mutate(detailFresh)}
           onFavorite={() => toggleFavorite.mutate(detailFresh)}
           onMove={(folderId) => moveShortcutsTo([detailFresh.id], folderId, null)}
           onSaveTrigger={async (s, trigger) => {
             await updateTriggerMut.mutateAsync({ s, trigger });
           }}
-          takenTriggers={otherTriggers(shortcuts, detailFresh.id)}
-          onExport={() => exportOneJson(detailFresh)}
+          takenTriggers={takenTriggersById.get(detailFresh.id) ?? []}
         />
       )}
       {resetUsageOpen && (
@@ -8526,6 +8734,7 @@ function Workspace({
             setCreatingIn(null);
             setFolderCreateError(null);
           }}
+          onCreateSmart={() => setSmartEditor({ open: true, item: null })}
           onCreate={(v) =>
             createFolderMut.mutate({
               name: v.name,
@@ -8713,7 +8922,7 @@ function Workspace({
                 );
                 if (ctxMoveOpen) {
                   items.push(
-                    <div key="targets" className="max-h-56 overflow-y-auto rounded-[8px] bg-[var(--surface-alt)] p-1">
+                    <div key="targets" className="max-h-56 overflow-y-auto overscroll-contain rounded-[8px] bg-[var(--surface-alt)] p-1">
                       <FolderTreeRows
                         folders={folders}
                         counts={folderReplyCounts}
@@ -8791,14 +9000,11 @@ function DetailsPanel({
   onClose,
   onCopy,
   onEdit,
-  onDuplicate,
-  onDelete,
   onPin,
   onFavorite,
   onMove,
   onSaveTrigger,
   takenTriggers = [],
-  onExport,
 }: {
   item: Shortcut;
   folderPath: string;
@@ -8807,8 +9013,6 @@ function DetailsPanel({
   onClose: () => void;
   onCopy: () => Promise<CopyResult>;
   onEdit: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
   onPin: () => void;
   onFavorite: () => void;
   onMove: (folderId: number | null) => void;
@@ -8816,13 +9020,11 @@ function DetailsPanel({
   /* The user's OTHER triggers — the client-side duplicate check
      inside the trigger pill. */
   takenTriggers?: string[];
-  onExport: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   /* Neutral «كمّل البيانات…» state — see ShortcutCard. */
   const [fillNote, setFillNote] = useState(false);
   const [copying, setCopying] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   /* Resizable on desktop: the panel's width is the user's own
      (300–600px, kept on this device), changed by dragging the
      handle on the edge that faces the content. On mobile the panel
@@ -8889,7 +9091,7 @@ function DetailsPanel({
     <div
       ref={panelRef}
       style={{ "--dw": `${panelW}px` } as React.CSSProperties}
-      className="details-panel animate-sheet fixed inset-x-0 bottom-0 z-[var(--z-panel)] max-h-[86vh] overflow-y-auto rounded-t-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-pop)] lg:inset-x-auto lg:bottom-4 lg:top-[84px] lg:max-h-none lg:w-[var(--dw,372px)] lg:rounded-[var(--radius)] ltr:lg:right-4 rtl:lg:left-4"
+      className="details-panel animate-sheet fixed inset-x-0 bottom-0 z-[var(--z-panel)] max-h-[86vh] overflow-y-auto overscroll-contain rounded-t-[var(--radius)] border border-[var(--border)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-pop)] lg:inset-x-auto lg:bottom-4 lg:top-[84px] lg:max-h-none lg:w-[var(--dw,372px)] lg:rounded-[var(--radius)] ltr:lg:right-4 rtl:lg:left-4"
       role="complementary"
       aria-label={`تفاصيل رد ${item.title}`}
     >
@@ -8993,7 +9195,7 @@ function DetailsPanel({
         <p className="mb-1.5 text-[13px] font-bold text-[var(--dim)]">
           نص الرد كامل — تقدر تحدد أي جزء منه وتنسخه لوحده
         </p>
-        <p className="max-h-64 select-text overflow-y-auto whitespace-pre-wrap rounded-[var(--radius)] bg-[var(--surface-alt)] p-3.5 text-[14.5px] leading-[1.9]">
+        <p className="max-h-64 select-text overflow-y-auto overscroll-contain whitespace-pre-wrap rounded-[var(--radius)] bg-[var(--surface-alt)] p-3.5 text-[14.5px] leading-[1.9]">
           {item.body}
         </p>
       </div>
@@ -9084,34 +9286,8 @@ function DetailsPanel({
           <Icon d={I.star} size={16} />
           {item.favorite ? "في المفضلة" : "مفضلة"}
         </button>
-        <button type="button" aria-label={`تكرار ${item.title}`} data-tip="عمل نسخة من الرد" onClick={onDuplicate} className={actBtn}>
-          <Icon d={I.dup} size={16} />
-          تكرار
-        </button>
-        <button type="button" aria-label={`تصدير ${item.title} بصيغة JSON`} data-tip="تنزيل الرد ده لوحده في ملف JSON" onClick={onExport} className={actBtn}>
-          <Icon d={I.download} size={16} />
-          تصدير
-        </button>
-        <button
-          type="button"
-          aria-label={confirmingDelete ? `تأكيد حذف ${item.title}` : `حذف ${item.title}`}
-          data-tip={confirmingDelete ? "دوس تاني لتأكيد الحذف" : "حذف الرد"}
-          onClick={() => {
-            if (confirmingDelete) onDelete();
-            else {
-              setConfirmingDelete(true);
-              window.setTimeout(() => setConfirmingDelete(false), 3000);
-            }
-          }}
-          className={`lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-2 text-[13px] font-bold ${
-            confirmingDelete
-              ? "border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]"
-              : "border-[var(--border)] bg-[var(--surface)] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
-          }`}
-        >
-          <Icon d={I.trash} size={16} />
-          {confirmingDelete ? "متأكد؟ دوس تاني" : "حذف"}
-        </button>
+        {/* Duplicate, delete and export-one-JSON live on the card
+            (and in the bulk bar) — not here. */}
       </div>
 
       <div className="mt-4">
@@ -9186,6 +9362,7 @@ function SmartFolderModal({
   useEscapeClose(attemptClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -9260,7 +9437,7 @@ function SmartFolderModal({
             <Icon d={I.x} size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
           <p className="mt-3 text-sm leading-relaxed text-[var(--dim)]">
             {lang === "en"
               ? "A smart folder is a live view: it shows whichever replies match its rules right now. Nothing is copied or moved — delete it any time and your replies stay exactly where they are."
@@ -9980,7 +10157,7 @@ function FolderIconPicker({
           className="w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface)] py-2 pe-3 ps-9 text-sm text-[var(--text)] placeholder:text-[var(--faint)] focus:border-[var(--border-strong)] focus:outline-none"
         />
       </div>
-    <div className={`grid ${compact ? "max-h-40" : "max-h-64"} grid-cols-4 gap-1.5 overflow-y-auto pe-0.5 sm:grid-cols-7`} role="radiogroup" aria-label={lang === "en" ? "Folder icon" : "أيقونة المجلد"}>
+    <div className={`grid ${compact ? "max-h-40" : "max-h-64"} grid-cols-4 gap-1.5 overflow-y-auto overscroll-contain pe-0.5 sm:grid-cols-7`} role="radiogroup" aria-label={lang === "en" ? "Folder icon" : "أيقونة المجلد"}>
       {!q && (
       <button
         type="button"
@@ -10176,7 +10353,7 @@ function MoveRepliesPicker({
               {allPicked ? (lang === "en" ? "Unselect all" : "إلغاء الكل") : lang === "en" ? "Select all" : "تحديد الكل"}
             </button>
           </div>
-          <ul className="max-h-52 overflow-y-auto rounded-[var(--radius)] border border-[var(--border)]">
+          <ul className="max-h-52 overflow-y-auto overscroll-contain rounded-[var(--radius)] border border-[var(--border)]">
             {sourceItems.map((s) => {
               const on = selected.has(s.id);
               return (
@@ -10221,6 +10398,7 @@ function FolderCreateModal({
   lang,
   onClose,
   onCreate,
+  onCreateSmart,
 }: {
   parentName: string | null;
   folders: FolderRowT[];
@@ -10230,6 +10408,9 @@ function FolderCreateModal({
   lang: Lang;
   onClose: () => void;
   onCreate: (v: { name: string; icon: string | null; iconColor: string | null; description: string | null; moveIds: number[] }) => void;
+  /* Smart-folder creation lives here now (the sidebar entry is
+     gone): one quiet line under the form opens the smart editor. */
+  onCreateSmart: () => void;
 }) {
   const [name, setName] = useState("");
   const [icon, setIcon] = useState<string | null>(null);
@@ -10240,6 +10421,7 @@ function FolderCreateModal({
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
   const field =
     "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent)]";
   const togglePick = (id: number) =>
@@ -10286,7 +10468,7 @@ function FolderCreateModal({
         className="animate-sheet elev-pop flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[var(--radius)] glass-panel sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
-       <div className="overflow-y-auto p-5 pb-3">
+       <div className="overflow-y-auto overscroll-contain p-5 pb-3">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-xl font-semibold">
             <span style={folderColorStyle({ iconColor })} className={`folder-bar-icon folder-bar-icon-sm ${iconColor && FOLDER_COLOR_KEYS_CLIENT.has(iconColor) ? `fcol-${iconColor}` : ""}`}>
@@ -10381,6 +10563,19 @@ function FolderCreateModal({
               {shownError}
             </p>
           )}
+          <button
+            type="button"
+            aria-label={lang === "en" ? "Create a smart folder instead" : "إنشاء مجلد ذكي بدلاً من ذلك"}
+            data-tip={lang === "en" ? "A smart folder is a live view over your replies by tags, folder, pinning or usage — nothing is copied or moved" : "المجلد الذكي عرض حي فوق ردودك بالوسوم أو المجلد أو التثبيت أو الاستخدام — من غير نسخ أي رد"}
+            onClick={() => {
+              onClose();
+              onCreateSmart();
+            }}
+            className="lux-btn flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-[var(--border-strong)] px-3 py-2.5 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)]"
+          >
+            <Icon d={I.sparkles} size={15} />
+            {lang === "en" ? "Or create a smart folder instead" : "أو إنشاء مجلد ذكي بدلاً من ذلك"}
+          </button>
         </div>
        </div>
         {/* Sticky footer: creating (and moving) is always one tap
@@ -10438,6 +10633,7 @@ function MoveRepliesModal({
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
   const togglePick = (id: number) =>
     setPicked((p) => {
       const n = new Set(p);
@@ -10464,7 +10660,7 @@ function MoveRepliesModal({
       onClick={onClose}
     >
       <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
+        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -10551,6 +10747,7 @@ function FolderSettingsModal({
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
   const field =
     "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent)]";
   const submit = () => {
@@ -10571,7 +10768,7 @@ function FolderSettingsModal({
       onClick={onClose}
     >
       <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
+        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -10723,6 +10920,7 @@ function ImportPreviewModal({
   useEscapeClose(onCancel);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
   const seenInFile = new Set<string>();
   const dupes: string[] = [];
   let fresh = 0;
@@ -10742,7 +10940,7 @@ function ImportPreviewModal({
       onClick={onCancel}
     >
       <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
+        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -10886,6 +11084,7 @@ function PreviewModal({
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
   return (
     <div
       ref={dialogRef}
@@ -10896,7 +11095,7 @@ function PreviewModal({
       onClick={onClose}
     >
       <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
+        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-2">
@@ -11107,6 +11306,7 @@ function FillVariablesModal({
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
 
   const field =
     "w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent)]";
@@ -11121,7 +11321,7 @@ function FillVariablesModal({
       onClick={onClose}
     >
       <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
+        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -11575,6 +11775,7 @@ function AccountModal({
   useEscapeClose(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
 
   const logoutAllMut = useMutation({
     mutationFn: async () => await api.logoutAll({ token }),
@@ -11628,7 +11829,7 @@ function AccountModal({
       onClick={onClose}
     >
       <div
-        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
+        className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -12063,7 +12264,10 @@ function ReplyMediaBlock({
   );
 }
 
-function TriggerIcon({
+/* #2 — memoized: the pill is on every card; with the stable
+   takenTriggers map and the stable onSaveTrigger it now skips
+   re-rendering when its own reply did not change. */
+const TriggerIcon = memo(function TriggerIcon({
   item,
   folder,
   onSaveTrigger,
@@ -12113,10 +12317,31 @@ function TriggerIcon({
      (an easier replacement is always worth offering). One tap
      fills the field; nothing is ever auto-assigned. */
   const suggestions = useMemo(
-    () => suggestTriggers(item, takenTriggers, value),
+    () => (open ? suggestTriggers(item, takenTriggers, value) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [item.trigger, item.title, item.body, value, takenTriggers],
+    [item.trigger, item.title, item.body, value, takenTriggers, open],
   );
+
+  /* #4 — the pill runs three infinite animations (glow, sheen,
+     zap); 88 of them animating off-screen is the biggest
+     continuous GPU cost on the page. An IntersectionObserver
+     pauses the animations while the pill is off-screen (class
+     toggled straight on the DOM node — no React re-render) and
+     they resume the moment it scrolls into view; hover/focus
+     always re-runs them (see tokens.css .trig-paused). */
+  useEffect(() => {
+    const btn = anchorRef.current;
+    const root = rootRef.current;
+    if (!btn || !root || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) btn.classList.toggle("trig-paused", !e.isIntersecting);
+      },
+      { rootMargin: "80px" },
+    );
+    io.observe(root);
+    return () => io.disconnect();
+  }, []);
 
   const has = Boolean(item.trigger);
   /* A SET pill wears its reply's folder colour; the dimmed
@@ -12320,10 +12545,14 @@ function TriggerIcon({
       )}
     </span>
   );
-}
+});
 
 /* ---------- shortcut card ---------- */
-function ShortcutCard({
+/* #2 — memoized: with the stable item-argument handlers from
+   renderCard, a card only re-renders when its own props change
+   (its reply, its marked/active state, the highlight text, or
+   the drag state) — not on every Workspace render. */
+const ShortcutCard = memo(function ShortcutCard({
   item,
   density = "comfortable",
   enterDelay,
@@ -12344,6 +12573,8 @@ function ShortcutCard({
   folders,
   folderCounts,
   dnd,
+  dragging,
+  dropPos,
 }: {
   item: Shortcut;
   density?: ListDensity;
@@ -12359,29 +12590,35 @@ function ShortcutCard({
      which reply is marked and where the user is standing. */
   selected?: boolean;
   active?: boolean;
-  onSelect?: () => void;
-  onCopy: () => Promise<CopyResult>;
-  onPin: () => void;
-  onFavorite: () => void;
-  onEdit: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onPreview: () => void;
-  onMove?: (folderId: number | null) => void;
+  /* #2 — every action takes the reply as its argument, so the
+     parent can pass ONE stable callback per action instead of a
+     fresh per-card closure (the closures are made here, inside
+     the card, where they cost nothing). */
+  onSelect?: (s: Shortcut) => void;
+  onCopy: (s: Shortcut) => Promise<CopyResult>;
+  onPin: (s: Shortcut) => void;
+  onFavorite: (s: Shortcut) => void;
+  onEdit: (s: Shortcut) => void;
+  onDuplicate: (s: Shortcut) => void;
+  onDelete: (s: Shortcut) => void;
+  onPreview: (s: Shortcut) => void;
+  onMove?: (s: Shortcut, folderId: number | null) => void;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* The user's OTHER triggers (not this card's own) — the
      client-side duplicate check inside the trigger pill. */
   takenTriggers?: string[];
   folders?: FolderRowT[];
   folderCounts?: Map<number, number>;
+  /* #2 — one stable drag-handler object for the whole list, plus
+     this card's two drag booleans as plain props. */
   dnd?: {
-    dragging: boolean;
-    dropPos: "before" | "after" | null;
-    onDragStart: () => void;
+    onDragStart: (id: number) => void;
     onDragEnd: () => void;
-    onDragOver: (e: React.DragEvent) => void;
-    onDrop: (e: React.DragEvent) => void;
+    onDragOver: (id: number, e: React.DragEvent) => void;
+    onDrop: (id: number, e: React.DragEvent, folderId: number | null) => void;
   };
+  dragging?: boolean;
+  dropPos?: "before" | "after" | null;
 }) {
   const { lang, t } = useLang();
   const [dragArmedCard, setDragArmedCard] = useState(false);
@@ -12450,7 +12687,7 @@ function ShortcutCard({
     if (copying) return;
     setCopying(true);
     try {
-      const res = await onCopy();
+      const res = await onCopy(item);
       if (res === "failed") return;
       if (res === "fill") {
         setFillNote(true);
@@ -12584,7 +12821,7 @@ function ShortcutCard({
       data-selected={selected || undefined}
       data-active={active || undefined}
       aria-current={active ? "true" : undefined}
-      className={`group/card lux-card elev-card reply-card relative rounded-[var(--radius)] border bg-[var(--surface)] ${density === "grid" ? "h-full" : ""} ${selected || active ? "card-marked border-[var(--border-strong)]" : "border-[var(--border)]"} ${dnd?.dragging ? "card-dragging" : ""} ${enterDelay !== undefined ? "animate-rise" : ""}`}
+      className={`group/card lux-card elev-card reply-card relative rounded-[var(--radius)] border bg-[var(--surface)] ${density === "grid" ? "h-full" : ""} ${selected || active ? "card-marked border-[var(--border-strong)]" : "border-[var(--border)]"} ${dragging ? "card-dragging" : ""} ${enterDelay !== undefined ? "animate-rise" : ""}`}
       style={enterDelay !== undefined ? { animationDelay: `${enterDelay}ms` } : undefined}
       draggable={!!dnd && dragArmedCard}
       onDragStart={(e) => {
@@ -12603,17 +12840,17 @@ function ShortcutCard({
         } catch {
           /* the parent ref carries the payload */
         }
-        dnd.onDragStart();
+        dnd.onDragStart(item.id);
       }}
       onDragEnd={() => {
         setDragArmedCard(false);
         dnd?.onDragEnd();
       }}
-      onDragOver={dnd?.onDragOver}
-      onDrop={dnd?.onDrop}
+      onDragOver={(e) => dnd?.onDragOver(item.id, e)}
+      onDrop={(e) => dnd?.onDrop(item.id, e, item.folderId ?? null)}
     >
-      {dnd?.dropPos === "before" && <span aria-hidden="true" className="tree-drop-line" style={{ top: -7 }} />}
-      {dnd?.dropPos === "after" && <span aria-hidden="true" className="tree-drop-line" style={{ bottom: -7 }} />}
+      {dropPos === "before" && <span aria-hidden="true" className="tree-drop-line" style={{ top: -7 }} />}
+      {dropPos === "after" && <span aria-hidden="true" className="tree-drop-line" style={{ bottom: -7 }} />}
       {density === "compact" ? (
         <div className="flex items-stretch">
           {/* Content zone: grip, title + preview, then the two quiet
@@ -12628,7 +12865,7 @@ function ShortcutCard({
               type="button"
               aria-label={lang === "en" ? `Details of reply ${item.title}` : `تفاصيل رد ${item.title}`}
               data-tip={lang === "en" ? "Open reply details — full text, dates and all actions" : "فتح تفاصيل الرد — النص كامل والتواريخ وكل الإجراءات"}
-              onClick={onSelect}
+              onClick={() => onSelect?.(item)}
               className="lux-btn min-w-0 flex-1 rounded-[6px] px-1.5 py-1 text-start"
             >
               <span className="flex items-center gap-2">
@@ -12667,7 +12904,7 @@ function ShortcutCard({
               aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`}
               data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
               aria-pressed={item.pinned}
-              onClick={onPin}
+              onClick={() => onPin(item)}
               className={`lux-btn shrink-0 rounded-full p-2.5 ${item.pinned ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
             >
               <Icon d={I.pin} size={16} />
@@ -12677,7 +12914,7 @@ function ShortcutCard({
               aria-label={item.favorite ? (lang === "en" ? `Remove ${item.title} from favorites` : `إزالة ${item.title} من المفضلة`) : lang === "en" ? `Add ${item.title} to favorites` : `إضافة ${item.title} للمفضلة`}
               data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
               aria-pressed={item.favorite}
-              onClick={onFavorite}
+              onClick={() => onFavorite(item)}
               className={`lux-btn shrink-0 rounded-full p-2.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
             >
               <Icon d={I.star} size={16} />
@@ -12686,7 +12923,7 @@ function ShortcutCard({
               type="button"
               aria-label={lang === "en" ? `Edit ${item.title}` : `تعديل ${item.title}`}
               data-tip={t("تعديل")}
-              onClick={onEdit}
+              onClick={() => onEdit(item)}
               className="lux-btn shrink-0 rounded-full p-2.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
             >
               <Icon d={I.edit} size={16} />
@@ -12696,7 +12933,7 @@ function ShortcutCard({
                 folders={folders}
                 counts={folderCounts}
                 currentFolderId={item.folderId ?? null}
-                onMove={onMove}
+                onMove={(folderId) => onMove(item, folderId)}
                 subject={item.title}
                 triggerClassName="p-2.5 shrink-0"
                 iconPx={16}
@@ -12719,7 +12956,7 @@ function ShortcutCard({
                     type="button"
                     aria-label={lang === "en" ? `Details of reply ${item.title}` : `تفاصيل رد ${item.title}`}
                     data-tip={t("فتح تفاصيل الرد")}
-                    onClick={onSelect}
+                    onClick={() => onSelect?.(item)}
                     className="lux-btn rounded-[4px] text-start hover:text-[var(--accent-strong)]"
                   >
                     <HighlightText text={item.title} query={highlight} />
@@ -12739,6 +12976,36 @@ function ShortcutCard({
                 )}
               </div>
             </div>
+            {/* Pin / favorite / edit live here as inline icons —
+                always one tap away, never hidden behind the «⋯». */}
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`} data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
+                aria-pressed={item.pinned}
+                onClick={() => onPin(item)}
+                className={`lux-btn rounded-full p-1.5 ${item.pinned ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
+              >
+                <Icon d={I.pin} size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label={item.favorite ? (lang === "en" ? `Remove ${item.title} from favorites` : `إزالة ${item.title} من المفضلة`) : lang === "en" ? `Add ${item.title} to favorites` : `إضافة ${item.title} للمفضلة`} data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
+                aria-pressed={item.favorite}
+                onClick={() => onFavorite(item)}
+                className={`lux-btn rounded-full p-1.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
+              >
+                <Icon d={I.star} size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label={lang === "en" ? `Edit ${item.title}` : `تعديل ${item.title}`} data-tip={t("تعديل")}
+                onClick={() => onEdit(item)}
+                className={iconBtn}
+              >
+                <Icon d={I.edit} size={18} />
+              </button>
+            </div>
             <button
               type="button"
               aria-label={lang === "en" ? `More actions for ${item.title}` : `إجراءات إضافية لرد ${item.title}`}
@@ -12749,64 +13016,33 @@ function ShortcutCard({
             >
               <Icon d={MoreHorizontal} size={18} />
             </button>
+            {/* The «⋯» menu keeps only quick preview, duplicate and
+                delete — move still lives in the details panel (and
+                drag & drop), pin / favorite / edit are the inline
+                icons just above. */}
             <div className={`card-actions flex shrink-0 gap-0.5 ${menuOpen ? "card-actions-open" : ""}`}>
               <button
                 type="button"
                 aria-label={lang === "en" ? `Quick preview of ${item.title}` : `معاينة سريعة لرد ${item.title}`} data-tip={t("معاينة سريعة")}
-                onClick={onPreview}
+                onClick={() => onPreview(item)}
                 className={iconBtn}
               >
                 <Icon d={I.eye} size={18} />
               </button>
               <button
                 type="button"
-                aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`} data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
-                aria-pressed={item.pinned}
-                onClick={onPin}
-                className={`lux-btn rounded-full p-1.5 ${item.pinned ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
-              >
-                <Icon d={I.pin} size={18} />
-              </button>
-              <button
-                type="button"
-                aria-label={item.favorite ? (lang === "en" ? `Remove ${item.title} from favorites` : `إزالة ${item.title} من المفضلة`) : lang === "en" ? `Add ${item.title} to favorites` : `إضافة ${item.title} للمفضلة`} data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
-                aria-pressed={item.favorite}
-                onClick={onFavorite}
-                className={`lux-btn rounded-full p-1.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
-              >
-                <Icon d={I.star} size={18} />
-              </button>
-              <button
-                type="button"
-                aria-label={lang === "en" ? `Edit ${item.title}` : `تعديل ${item.title}`} data-tip={t("تعديل")}
-                onClick={onEdit}
-                className={iconBtn}
-              >
-                <Icon d={I.edit} size={18} />
-              </button>
-              <button
-                type="button"
                 aria-label={lang === "en" ? `Duplicate ${item.title}` : `تكرار ${item.title}`} data-tip={t("تكرار الرد")}
-                onClick={onDuplicate}
+                onClick={() => onDuplicate(item)}
                 className={iconBtn}
               >
                 <Icon d={I.dup} size={18} />
               </button>
-              {onMove && folders && (
-                <MoveToFolderButton
-                  folders={folders}
-                  counts={folderCounts}
-                  currentFolderId={item.folderId ?? null}
-                  onMove={onMove}
-                  subject={item.title}
-                />
-              )}
               <button
                 type="button"
                 aria-label={confirmingDelete ? (lang === "en" ? `Confirm deleting ${item.title}` : `تأكيد حذف ${item.title}`) : lang === "en" ? `Delete ${item.title}` : `حذف ${item.title}`} data-tip={confirmingDelete ? t("دوس تاني لتأكيد الحذف") : t("حذف")}
                 onClick={() => {
                   if (confirmingDelete) {
-                    onDelete();
+                    onDelete(item);
                   } else {
                     setConfirmingDelete(true);
                     window.setTimeout(() => setConfirmingDelete(false), 3000);
@@ -12827,7 +13063,7 @@ function ShortcutCard({
           badge beside the title. */}
       {item.media && (
         <div className="mt-3">
-          <ReplyMediaThumb media={item.media} title={item.title} onOpen={onPreview} />
+          <ReplyMediaThumb media={item.media} title={item.title} onOpen={() => onPreview(item)} />
         </div>
       )}
       {/* Strict hierarchy: title → 3-line preview → one quiet meta
@@ -12865,7 +13101,6 @@ function ShortcutCard({
               </span>
             ))}
             {tags.length > 2 && <span className="font-semibold text-[var(--faint)]">+{tags.length - 2}</span>}
-            {item.usageCount > 0 && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{lang === "en" ? `Used ${item.usageCount} times` : `اتستخدم ${item.usageCount} مرة`}</span>}
             {updatedLabel && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{relDateLabel(item.updatedAt, lang)}</span>}
             <TriggerIcon item={item} folder={cardFolder} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
           </div>
@@ -12876,7 +13111,7 @@ function ShortcutCard({
       )}
     </li>
   );
-}
+});
 
 /* ---------- rich text editor ----------
    A formatting layer over the plain-text body: toolbar buttons wrap the
@@ -13041,44 +13276,6 @@ function RichTextEditor({
    A light starting point inside the new-shortcut editor only — picking
    one fills the form with an editable draft; nothing is saved until the
    user presses حفظ. Deliberately not a separate templates section. */
-const STARTER_TEMPLATES: Array<{
-  label: string;
-  title: string;
-  category: string;
-  body: string;
-}> = [
-  {
-    label: "ترحيب بعميل جديد",
-    title: "ترحيب بعميل جديد",
-    category: "عام",
-    body: "أهلاً بيك يا {الاسم} 🤍\nسعيدين جداً بتواصلك معانا — قولّي أقدر أساعدك في إيه النهاردة؟",
-  },
-  {
-    label: "متابعة طلب",
-    title: "متابعة طلب",
-    category: "عام",
-    body: "أهلاً يا {الاسم}،\nحبيت أطمنك إن طلبك بيتم تجهيزه دلوقتي، وأول ما يتحرك هنبعتلك التفاصيل على طول 🤍",
-  },
-  {
-    label: "شكر بعد الشراء",
-    title: "شكر بعد الشراء",
-    category: "عام",
-    body: "شكراً لثقتك فينا يا {الاسم} 🤍\nلو احتجت أي حاجة بعد كده إحنا موجودين في أي وقت.",
-  },
-  {
-    label: "اعتذار عن التأخير",
-    title: "اعتذار عن التأخير في الرد",
-    category: "عام",
-    body: "أنا آسف على التأخير في الرد يا {الاسم} 🙏\nراجعت طلبك ودي التفاصيل: ",
-  },
-  {
-    label: "تأكيد موعد",
-    title: "تأكيد موعد",
-    category: "عام",
-    body: "أهلاً يا {الاسم}،\nبنأكد معادنا يوم {التاريخ} الساعة {الوقت} — لو في أي تغيير قولّي قبلها 🤍",
-  },
-];
-
 /* ---------- shared folder tree (every «move / place» surface) ----------
    One tree model and one row list behind every place a reply can
    be filed from — the editor's folder picker, the reply cards'
@@ -13323,7 +13520,7 @@ function FolderListPanel({
       <div
         role="listbox"
         aria-label="كل المجلدات"
-        className="max-h-64 overflow-y-auto py-1.5"
+        className="max-h-64 overflow-y-auto overscroll-contain py-1.5"
       >
         <FolderTreeRows
           folders={folders}
@@ -14051,18 +14248,11 @@ function SearchTriggerPreview({
                 )}
                 {/* The full reply, complete — this is why the box
                     grew. Long replies scroll inside the panel. */}
-                <p className="trig-stage trig-stage-3 mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text)]">
+                <p className="trig-stage trig-stage-3 mt-1.5 max-h-56 overflow-y-auto overscroll-contain whitespace-pre-wrap text-[14px] leading-relaxed text-[var(--text)]">
                   {best.body}
                 </p>
                 <div className="trig-stage trig-stage-4 mt-3 flex items-center gap-2">
                   {copyBtn(best, true)}
-                  {best.usageCount > 0 && (
-                    <span className="text-xs font-bold text-[var(--faint)]">
-                      {lang === "en"
-                        ? `Used ${best.usageCount} times`
-                        : `اتستخدم ${best.usageCount} مرة`}
-                    </span>
-                  )}
                 </div>
                 {extras.length > 0 && (
                   <div className="trig-stage trig-stage-5 mt-3 border-t border-[var(--border)] pt-2.5">
@@ -14183,7 +14373,7 @@ function SearchTriggerPreview({
                     <p className="mt-1.5 text-[11.5px] leading-relaxed text-[var(--faint)]">
                       {t("الردود من غير اختصار الأول — ولو اخترت رد عنده اختصار، هيتغيّر للنص ده.")}
                     </p>
-                    <ul className="mt-2 flex max-h-56 flex-col gap-1.5 overflow-y-auto pe-0.5">
+                    <ul className="mt-2 flex max-h-56 flex-col gap-1.5 overflow-y-auto overscroll-contain pe-0.5">
                       {candidates.map((s) => (
                         <li key={s.id}>
                           <button
@@ -14256,11 +14446,20 @@ function MyShortcutsCard({
   items,
   folders,
   onAddFirst,
+  onPickTrigger,
+  query,
 }: {
   items: Shortcut[];
   /* The folders — a chip wears its reply's folder colour. */
   folders?: FolderRowT[];
   onAddFirst: () => void;
+  /* Tapping a row types its trigger into the search box, so the
+     search box grows into that reply's preview (the old chips
+     strip did this; the rows do it now). */
+  onPickTrigger?: (trigger: string) => void;
+  /* The search query, so the row whose trigger is typed now can
+     wear the active state. */
+  query?: string;
 }) {
   const { lang, t } = useLang();
   const [open, setOpen] = useState(true);
@@ -14377,17 +14576,35 @@ function MyShortcutsCard({
             </button>
           </div>
         ) : (
-          <ul className="max-h-80 overflow-y-auto border-t border-[var(--border)] p-2">
+          <ul className="max-h-80 overflow-y-auto overscroll-contain border-t border-[var(--border)] p-2">
             {items.map((s, i) => {
               const pf = pillFolderOf(s);
+              /* The row whose trigger is typed in the search box
+                 right now: its pill wears the active state (the
+                 filled trig-chip-active style belongs on the pill,
+                 not the full-width row). data-trig-chip keeps the
+                 search preview's tap-outside dismissal from
+                 flickering the panel shut on this press. */
+              const active =
+                query !== undefined &&
+                query.trim() !== "" &&
+                normalizeSearchText(s.trigger ?? "") ===
+                  normalizeSearchText(query.trim());
               return (
               <li
                 key={s.id}
                 className="trig-stage"
                 style={{ animationDelay: `${Math.min(i, 12) * 35}ms` } as React.CSSProperties}
               >
-                <div className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-[var(--surface-alt)]">
-                  <span dir="auto" className={`trig-chip shrink-0 ${pf.className}`} style={pf.style}>
+                <button
+                  type="button"
+                  data-trig-chip
+                  aria-pressed={active}
+                  aria-label={lang === "en" ? `Show reply ${s.title} in search` : `عرض رد ${s.title} في البحث`}
+                  onClick={() => onPickTrigger?.(s.trigger ?? "")}
+                  className={`flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-start hover:bg-[var(--surface-alt)] ${active ? "bg-[var(--surface-alt)]" : ""}`}
+                >
+                  <span dir="auto" className={`trig-chip shrink-0 ${pf.className} ${active ? "trig-chip-active" : ""}`} style={pf.style}>
                     {s.trigger}
                   </span>
                   <span aria-hidden="true" className="shrink-0 text-[var(--faint)]">
@@ -14401,7 +14618,7 @@ function MyShortcutsCard({
                       {s.category}
                     </span>
                   </span>
-                </div>
+                </button>
               </li>
               );
             })}
@@ -14525,7 +14742,7 @@ function StarterLibraryPicker({
           placeholder={t("دوّر في ردودك…")}
           className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
         />
-        <div className="mt-3 max-h-80 overflow-y-auto pe-1">
+        <div className="mt-3 max-h-80 overflow-y-auto overscroll-contain pe-1">
           {groups.map((g) => (
             <div key={g.name} className="mb-3">
               <p className="mb-1.5 text-xs font-extrabold text-[var(--faint)]">
@@ -14642,13 +14859,21 @@ function ShortcutsView({
   query: string;
   onCopy: (s: Shortcut) => Promise<CopyResult>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
-  /* Tapping a chip types its trigger into the search box, so the
-     search box grows into that reply's preview. */
+  /* Tapping a card row types its trigger into the search box,
+     so the search box grows into that reply's preview. */
   onPickTrigger: (trigger: string) => void;
 }) {
   const { lang, t } = useLang();
   const q = query.trim();
   const searching = q.length > 0;
+  /* Stable per-id OTHER-triggers (same #2/#3 fix as Workspace):
+     a fresh array per row per render defeated TriggerIcon's
+     suggestion memo. */
+  const takenTriggersById = useMemo(() => {
+    const m = new Map<number, string[]>();
+    for (const s of shortcuts) m.set(s.id, otherTriggers(shortcuts, s.id));
+    return m;
+  }, [shortcuts]);
   /* The card lists ALL the user's triggers, most recently used
      first — independent of the search filter below. */
   const allTriggers = useMemo(
@@ -14737,54 +14962,7 @@ function ShortcutsView({
     <div className="flex flex-col gap-6">
       {/* «كارت اختصاراتك» — every trigger → reply in one card,
           copyable as plain text in one tap. */}
-      <MyShortcutsCard items={allTriggers} folders={folders} onAddFirst={jumpToFirstFree} />
-      {/* The user's triggers as one-tap chips — no separate box:
-          tapping a chip types it into the search box above, and
-          the search box grows into that reply's preview. */}
-      {shortcuts.some((s) => s.trigger) && (
-        <div>
-          <p className="mb-2 text-xs font-extrabold text-[var(--faint)]">
-            {t("اختصاراتك — دوس على أي واحد عشان تشوف رده في البحث:")}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {[...shortcuts]
-              .filter((s) => s.trigger)
-              .sort(
-                (a, b) =>
-                  b.usageCount - a.usageCount ||
-                  (a.trigger ?? "").localeCompare(b.trigger ?? "", "ar"),
-              )
-              .map((s) => {
-                const active =
-                  q !== "" &&
-                  normalizeSearchText(s.trigger ?? "") ===
-                    normalizeSearchText(q);
-                const pf = triggerPillFolder(folders.find((f) => f.id === s.folderId) ?? null);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-pressed={active}
-                    data-trig-chip
-                    onClick={() => onPickTrigger(s.trigger ?? "")}
-                    className={`trig-chip lux-btn ${pf.className} ${
-                      active ? "trig-chip-active" : ""
-                    }`}
-                    style={pf.style}
-                  >
-                    <Icon d={I.zap} size={12} />
-                    <span dir="auto">{s.trigger}</span>
-                    {s.usageCount > 0 && (
-                      <span className="trig-chip-count" aria-label={lang === "en" ? `Used ${s.usageCount} times` : `اتستخدم ${s.usageCount} مرة`}>
-                        {s.usageCount}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-          </div>
-        </div>
-      )}
+      <MyShortcutsCard items={allTriggers} folders={folders} onAddFirst={jumpToFirstFree} onPickTrigger={onPickTrigger} query={q} />
       {withTrigger.length === 0 && withoutTrigger.length > 0 && !searching ? (
         /* No triggers yet: one clear line saying what a shortcut
            is, plus one obvious first action — no lecture. */
@@ -14839,7 +15017,7 @@ function ShortcutsView({
               </h3>
               <ul className="flex flex-col gap-2">
                 {g.items.map((s) => (
-                  <TriggerRow key={s.id} s={s} folder={folders.find((f) => f.id === s.folderId) ?? null} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} />
+                  <TriggerRow key={s.id} s={s} folder={folders.find((f) => f.id === s.folderId) ?? null} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(s.id) ?? []} />
                 ))}
               </ul>
             </section>
@@ -14861,7 +15039,7 @@ function ShortcutsView({
               </p>
               <ul className="flex flex-col gap-2">
                 {withoutTrigger.map((s) => (
-                  <TriggerRow key={s.id} s={s} folder={folders.find((f) => f.id === s.folderId) ?? null} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} highlight={flashId === s.id} />
+                  <TriggerRow key={s.id} s={s} folder={folders.find((f) => f.id === s.folderId) ?? null} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(s.id) ?? []} highlight={flashId === s.id} />
                 ))}
               </ul>
             </section>
@@ -14882,16 +15060,15 @@ function ShortcutsView({
    removed and stay removed). One input live-filters the user's own
    triggers; Enter copies the top match's reply (records use) and
    closes; Esc closes; clicking a row copies it too. The footer
-   carries a «معاينة» entry that jumps to the Shortcuts section
-   (the trigger chips there type straight into the search box,
-   which grows into the reply's preview). */
+   is only the Enter/Esc hint now — the «معاينة» jump to the
+   Shortcuts section is gone (the card rows there type straight
+   into the search box, which grows into the reply's preview). */
 function ShortcutBar({
   open,
   onClose,
   shortcuts,
   folders,
   onCopy,
-  onOpenPreview,
 }: {
   open: boolean;
   onClose: () => void;
@@ -14899,8 +15076,6 @@ function ShortcutBar({
   /* The folders — a row's trigger pill wears its reply's folder colour. */
   folders?: FolderRowT[];
   onCopy: (s: Shortcut) => Promise<CopyResult>;
-  /* Jump to the Shortcuts section's preview box (closes the bar). */
-  onOpenPreview?: () => void;
 }) {
   const { lang, t } = useLang();
   const [query, setQuery] = useState("");
@@ -14909,6 +15084,7 @@ function ShortcutBar({
   const dialogRef = useRef<HTMLDivElement>(null);
   useEscapeClose(onClose);
   useDialogFocus(dialogRef, open);
+  useBodyScrollLock(open);
   useEffect(() => {
     if (open) {
       setQuery("");
@@ -14928,11 +15104,9 @@ function ShortcutBar({
       .sort((a, b) => searchScore(b, q) - searchScore(a, q));
   }, [shortcuts, query]);
   const top = matches.slice(0, 8);
-  /* Section split for the empty-query list: where the
-     recently-used rows end and the never-used ones begin. -1 when
-     one side is absent, so no label renders for it. */
-  const firstNeverIdx =
-    query.trim() === "" ? top.findIndex((s) => !s.lastUsedAt) : -1;
+  /* One header for the empty-query list («آخر اختصارات
+     استخدمتها») — the never-used rows below it carry no split
+     label of their own. */
   const hasRecent =
     query.trim() === "" && top.some((s) => s.lastUsedAt);
   if (!open) return null;
@@ -14993,7 +15167,7 @@ function ShortcutBar({
               : t("لسه مفيش اختصارات — ضيف اختصار لأي رد من صفحة «الاختصارات» أو من المحرر.")}
           </p>
         ) : (
-          <ul className="max-h-[50vh] overflow-y-auto p-1.5">
+          <ul className="max-h-[50vh] overflow-y-auto overscroll-contain p-1.5">
             {hasRecent && (
               <li aria-hidden="true" className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold text-[var(--faint)]">
                 {t("آخر اختصارات استخدمتها")}
@@ -15002,13 +15176,8 @@ function ShortcutBar({
             {top.map((s, i) => {
               const pf = triggerPillFolder(folders ? (folders.find((f) => f.id === s.folderId) ?? null) : null);
               return (
-              <Fragment key={s.id}>
-                {firstNeverIdx === i && (
-                  <li aria-hidden="true" className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold text-[var(--faint)]">
-                    {t("لسه ما اتستخدمتش")}
-                  </li>
-                )}
               <li
+                key={s.id}
                 /* Staged entrance on open only (empty query): while
                    the user types, results must land instantly. */
                 className={query.trim() === "" ? "trig-stage trig-stage-1" : undefined}
@@ -15051,25 +15220,14 @@ function ShortcutBar({
                   )}
                 </button>
               </li>
-              </Fragment>
               );
             })}
           </ul>
         )}
-        <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] px-4 py-2">
+        <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-2">
           <p className="text-xs font-semibold text-[var(--faint)]">
             {t("Enter بينسخ أول نتيجة · Esc بيقفل الشريط")}
           </p>
-          {onOpenPreview && (
-            <button
-              type="button"
-              onClick={onOpenPreview}
-              className="lux-btn flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-xs font-extrabold text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-[var(--accent-ink)]"
-            >
-              <Icon d={I.sparkles} size={13} />
-              {t("معاينة الاختصارات")}
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -15078,9 +15236,9 @@ function ShortcutBar({
 
 /* ---------- editor modal ----------
    Organized the way the site itself thinks about a reply: first
-   the reply (its name and its text), then its organization (the
-   folder it lives in — picked from the whole folder tree, never
-   typed — and the keywords search finds it by). The header and the
+   the reply (its name, its trigger, and its text), then its
+   organization (the folder it lives in — picked from the whole
+   folder tree, never typed — and the keywords search finds it by). The header and the
    save row stay fixed while the middle scrolls, so حفظ is always
    one glance away. */
 function EditorModal({
@@ -15251,6 +15409,7 @@ function EditorModal({
   useEscapeClose(attemptClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
 
   useEffect(() => {
     if (item) return;
@@ -15272,15 +15431,6 @@ function EditorModal({
     }, 400);
     return () => window.clearTimeout(t);
   }, [item, draftKey, title, body, folderId, tags, extShortcut, trigger, source]);
-
-  const applyTemplate = (idx: number) => {
-    const tpl = STARTER_TEMPLATES[idx];
-    if (!tpl) return;
-    setTitle(tpl.title);
-    setFolderId(folders.find((f) => f.name === tpl.category)?.id ?? null);
-    setBody(tpl.body);
-    setError(null);
-  };
 
   const buildPayload = () => {
     const selectedFolder =
@@ -15628,31 +15778,9 @@ function EditorModal({
             <Icon d={I.x} size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
-          {!item && (
-            <div className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-3.5 py-3">
-              <p className="flex items-center gap-2 text-xs font-bold text-[var(--dim)]">
-                <span className="editor-label-icon">
-                  <Icon d={I.sparkles} size={14} />
-                </span>
-                ابدأ من قالب جاهز — بيملأ النموذج، وتقدر تعدّل قبل الحفظ:
-              </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {STARTER_TEMPLATES.map((tpl, i) => (
-                  <button
-                    key={tpl.label}
-                    type="button"
-                    aria-label={`استخدام قالب ${tpl.label}`}
-                    data-tip="بيملأ النموذج بقالب تقدر تعدّله قبل الحفظ"
-                    onClick={() => applyTemplate(i)}
-                    className="lux-btn lux-row rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)]"
-                  >
-                    {tpl.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+          {/* A new reply starts blank — title, trigger, body. No
+              invented drafts. */}
           {!item && (draftSaved || draft) && (
             <p className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-[var(--dim)]" aria-live="polite">
               <Icon d={I.circleCheck} size={14} />
@@ -15676,6 +15804,46 @@ function EditorModal({
                   className={field}
                 />
               </label>
+              {/* The trigger sits directly under the title — the
+                  reply's name, then its shortcut, then its text. */}
+              <div className="block">
+                {labelWithIcon(I.zap, "الاختصار داخل الموقع (اختياري)")}
+                <input
+                  aria-label="الاختصار داخل الموقع"
+                  dir="auto"
+                  value={trigger}
+                  onChange={(e) => setTrigger(e.target.value)}
+                  placeholder="اكتب أي نص…"
+                  className={`${field} text-start`}
+                />
+                <span className="mt-1 block text-xs text-[var(--dim)]">
+                  النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
+                </span>
+                {triggerError(trigger, takenTriggers) && (
+                  <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
+                    {triggerError(trigger, takenTriggers)}
+                  </span>
+                )}
+                {triggerSuggestions.length > 0 && (
+                  <span className="mt-2 block">
+                    <span className="mb-1 block text-[11.5px] font-bold text-[var(--faint)]">
+                      اقتراحات جاهزة — دوس على أي واحدة:
+                    </span>
+                    <span className="flex flex-wrap gap-1.5">
+                      {triggerSuggestions.map((sug) => (
+                        <button
+                          key={sug}
+                          type="button"
+                          onClick={() => setTrigger(sug)}
+                          className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
+                        >
+                          <span dir="auto">{sug}</span>
+                        </button>
+                      ))}
+                    </span>
+                  </span>
+                )}
+              </div>
               <div data-tip="نص الرد الكامل — نسّقه من شريط الأدوات اللي فوق">
                 <span className="mb-1.5 flex items-center gap-2 text-sm font-bold">
                   <span className="editor-label-icon">
@@ -15881,64 +16049,22 @@ function EditorModal({
             </div>
           </div>
 
-          <div className="mt-6">
-            {sectionHead(I.keyboard, "الاختصار الخارجي")}
-            <div className="mt-3 flex flex-col gap-3">
-              <label className="block">
-                {labelWithIcon(I.keyboard, "اختصار الرد في البرامج اللي برة (اختياري)")}
-                <input
-                  {...FIELDS.createShortcut.extShortcut}
-                  aria-label="اختصار الرد في البرامج الخارجية"
-                  dir="ltr"
-                  value={extShortcut}
-                  onChange={(e) => setExtShortcut(e.target.value)}
-                  placeholder=";salam"
-                  className={`${field} text-left font-mono`}
-                />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  لو مسجّل الرد ده باختصار في برنامج برة الموقع، اكتبه هنا عشان تفتكره كل ما تفتح الرد — الخانة دي للتذكير بس، ومش بتأثر على النسخ من هنا.
-                </span>
-              </label>
-              <label className="block">
-                {labelWithIcon(I.zap, "الاختصار داخل الموقع (اختياري)")}
-                <input
-                  aria-label="الاختصار داخل الموقع"
-                  dir="auto"
-                  value={trigger}
-                  onChange={(e) => setTrigger(e.target.value)}
-                  placeholder="اكتب أي نص…"
-                  className={`${field} text-start`}
-                />
-              </label>
-              <span className="mt-1 block text-xs text-[var(--dim)]">
-                النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
-              </span>
-              {triggerError(trigger, takenTriggers) && (
-                <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
-                  {triggerError(trigger, takenTriggers)}
-                </span>
-              )}
-              {triggerSuggestions.length > 0 && (
-                <span className="mt-2 block">
-                  <span className="mb-1 block text-[11.5px] font-bold text-[var(--faint)]">
-                    اقتراحات جاهزة — دوس على أي واحدة:
-                  </span>
-                  <span className="flex flex-wrap gap-1.5">
-                    {triggerSuggestions.map((sug) => (
-                      <button
-                        key={sug}
-                        type="button"
-                        onClick={() => setTrigger(sug)}
-                        className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
-                      >
-                        <span dir="auto">{sug}</span>
-                      </button>
-                    ))}
-                  </span>
-                </span>
-              )}
-            </div>
-          </div>
+          {/* «ملاحظة: اختصار خارجي» — a reminder-only note, one
+              muted line at the bottom. The field and its data are
+              untouched (preserved in backup/export/import); only
+              its placement changed. */}
+          <label className="mt-6 flex items-center gap-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--dim)]">
+            <span className="shrink-0 font-bold">ملاحظة: اختصار خارجي</span>
+            <input
+              {...FIELDS.createShortcut.extShortcut}
+              aria-label="ملاحظة: اختصار خارجي"
+              dir="ltr"
+              value={extShortcut}
+              onChange={(e) => setExtShortcut(e.target.value)}
+              placeholder=";salam"
+              className="min-w-0 flex-1 rounded-[8px] border border-[var(--border)] bg-transparent px-2 py-1.5 font-mono text-xs text-[var(--dim)] outline-none focus:border-[var(--accent)]"
+            />
+          </label>
 
           {error && (
             <p role="alert" className="mt-4 rounded-[var(--radius)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--danger)]">
@@ -16108,10 +16234,11 @@ function BulkModal({
   useEscapeClose(attemptClose);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
+  useBodyScrollLock(true);
 
   return (
     <div className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center" role="dialog" aria-modal="true" aria-label="إضافة جماعية" onClick={attemptClose} ref={dialogRef}>
-      <div className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]" onClick={(e) => e.stopPropagation()}>
+      <div className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">إضافة جماعية</h2>
           <button type="button" aria-label="قفل الإضافة الجماعية" data-tip="قفل" data-tip-pos="below" onClick={attemptClose} className="lux-btn lux-row rounded-[var(--radius)] p-2 text-[var(--dim)] hover:text-[var(--text)]">
@@ -16124,7 +16251,7 @@ function BulkModal({
           <span dir="ltr" className="font-mono font-bold">---</span> لوحده. أو الصق JSON بنفس
           شكل ملف النسخة الاحتياطية — والردود الموجودة عندك قبل كده هتتخطى تلقائياً.
         </p>
-        <pre className="mt-2 overflow-x-auto rounded-[var(--radius)] bg-[var(--surface-alt)] p-3 font-mono text-xs leading-relaxed">
+        <pre className="mt-2 overflow-x-auto overscroll-contain rounded-[var(--radius)] bg-[var(--surface-alt)] p-3 font-mono text-xs leading-relaxed">
 {`ترحيب سريع
 أهلاً بيك 🤍
 ---

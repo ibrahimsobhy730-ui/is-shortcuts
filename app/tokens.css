@@ -492,7 +492,7 @@
    الأساس: الخط والإيقاع والتركيز
    ============================================================ */
 body {
-  font-family: "IBM Plex Sans Arabic", "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
   font-size: var(--fs-body);
   line-height: 1.7;
   font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
@@ -500,10 +500,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 h1, h2, h3, .font-display, .folder-bar-title {
-  font-family: "Readex Pro", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
   letter-spacing: 0;
 }
-.verse { font-family: "Amiri", serif; }
+.verse { font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif; }
 svg.lucide { stroke-width: 1.75; }
 :focus-visible {
   outline: 2px solid var(--focus);
@@ -553,11 +553,10 @@ select:not(:focus-visible) {
     box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.32);
   }
 }
-/* ستائر النوافذ: تعتيم بتمويه ناعم وتشبّع خفيف */
-div[class*="bg-[var(--scrim)]"] {
-  -webkit-backdrop-filter: blur(4px) saturate(1.1);
-  backdrop-filter: blur(4px) saturate(1.1);
-}
+/* #7 (light + smooth) — ستارة النوافذ بلا تمويه: الـ blur(4px)
+   كان شبه مش باين أصلًا تحت لون الستارة، وكل طبقة backdrop-filter
+   بتكلّف إعادة رسم للخلفية كلها. الهيدر/السايدبار/الألواح
+   الزجاجية زي ما هي (هي اللي بتعمل الشكل). */
 
 /* ============================================================
    أرضية التطبيق — السديم: أربع بقع ضوئية ملوّنة (ملكي،
@@ -627,6 +626,10 @@ div[class*="bg-[var(--scrim)]"] {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(20px) saturate(1.55);
   backdrop-filter: blur(20px) saturate(1.55);
+  /* #7 — الطبقتان الزجاجيتان الثابتتان (الهيدر هنا، والسايدبار
+     تحت) بياخدوا backing store خاص بهم، فالمتصفح ما يعيدش
+     حساب التمويه من أول وجديد مع كل تمرير. */
+  transform: translateZ(0);
 }
 .float-header {
   width: calc(100% - 24px);
@@ -676,6 +679,8 @@ div[class*="bg-[var(--scrim)]"] {
   backdrop-filter: blur(20px) saturate(1.5);
   box-shadow: var(--shadow-2);
   overflow: visible;
+  /* #7 — زي .header-blur فوق: backing store ثابت للتمويه. */
+  transform: translateZ(0);
   /* v81: NO width transition here. This permanent transition was
      half the sidebar bug — it stayed active while the owner
      dragged the edge (the conditional utility class on the
@@ -940,10 +945,18 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
 @media (hover: hover) {
   .tree-node-sources [data-tree-row]:hover svg.shrink-0 { transform: scale(1.18); }
 }
-.tree-flash { animation: neb-flash 1.6s cubic-bezier(0.22, 1, 0.36, 1) both; border-radius: 12px; }
-@keyframes neb-flash {
-  0%, 55% { background-color: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
-  100% { background-color: transparent; box-shadow: none; }
+/* #5 — الوميض بقى طبقة ::before شفافة بتتلاشى (opacity فقط)
+   بدل ما background-color وbox-shadow يترسموا من أول وجديد. */
+.tree-flash { position: relative; }
+.tree-flash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  pointer-events: none;
+  animation: neb-flash-fade 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* ============================================================
@@ -1024,8 +1037,8 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
   color: var(--faint);
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  /* #7 — بلا blur(10px): الزرار 34px فوق زجاج الهيرو أصلًا،
+     فالتمويه كان شبه مش باين وبيكلّف طبقة زيادة. */
   transition: background-color 180ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @media (hover: hover) {
@@ -1039,7 +1052,10 @@ body:has(.sidebar-resize-active) { cursor: col-resize; user-select: none; }
   backdrop-filter: blur(16px) saturate(1.45);
   box-shadow: var(--shadow-2);
 }
-.hero-glow, .hero-sheen, .hero-corner, .hero-ornament { display: none; }
+/* #10 — .hero-glow/.hero-sheen/.hero-corner/.hero-ornament
+   اتمسحوا: display:none قديم ومفيش أي عنصر في App.tsx أو
+   Preview.tsx بيستخدم الكلاسات دي (grep = صفر) — القاعدة
+   نفسها كانت المكان الوحيد اللي بيذكرهم. */
 .orn-divider {
   display: flex;
   align-items: center;
@@ -1579,13 +1595,19 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 .pill-thumb {
   position: absolute;
   top: 0;
+  left: 0;
   height: 100%;
   border-radius: var(--r-full);
   background: var(--grad);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.26),
     0 12px 24px -9px color-mix(in srgb, var(--accent) 55%, transparent);
-  transition: left 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* #6 — الحركة بـ transform بس (translateX + scaleX بعرض
+     التراك كاملًا، شوف App.tsx): left/width كانوا بيعيدوا
+     التخطيط كل فريم. الأطراف لسه مدوّرة — الـ radius 999px
+     أكبر بكتير من نص الارتفاع حتى بعد الـ scale. */
+  transform-origin: left center;
+  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .pill-btn {
   position: relative; z-index: 1; flex-shrink: 0; white-space: nowrap;
@@ -1610,10 +1632,13 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 .seg-thumb {
   position: absolute;
   top: 3px; bottom: 3px;
+  left: 0;
   border-radius: var(--r-full);
   background: var(--surface-elevated);
   box-shadow: var(--shadow-1), inset 0 0 0 1px var(--border);
-  transition: left 240ms cubic-bezier(0.3, 1.3, 0.4, 1), width 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* #6 — زي .pill-thumb: transform بس، مش left/width. */
+  transform-origin: left center;
+  transition: transform 240ms cubic-bezier(0.3, 1.3, 0.4, 1), opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .seg-btn {
   position: relative; z-index: 1; flex-shrink: 0; white-space: nowrap;
@@ -3568,8 +3593,8 @@ summary svg.lucide {
   bottom: 3.5vh;
   z-index: 0;
   text-align: center;
-  font-family: "Rubik", "IBM Plex Sans Arabic", sans-serif;
-  font-weight: 800;
+  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-weight: 700;
   font-size: clamp(42px, 8.5vw, 118px);
   line-height: 1.02;
   white-space: nowrap;
@@ -4935,23 +4960,21 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   60% { transform: scale(1.05); }
   100% { transform: scale(1); }
 }
-/* بوكس البحث بينبض بحلقة مرة واحدة لما شريحة تدوس عليه */
-@keyframes neb-trig-search-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
-  100% { box-shadow: 0 0 0 10px transparent; }
+/* #5 (light + smooth) — حلقة التوهّج بقت طبقة ::before بتكبر
+   وتتلاشى (transform + opacity) بدل ما box-shadow يترسم من
+   أول وجديد في كل فريم — نفس الشكل والتوقيت بالظبط. */
+@keyframes neb-ring-out {
+  from { opacity: 0.9; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.045); }
 }
-/* صف الاختصار بيتوهّج مرة واحدة لما زر «ضيف أول اختصار»
-   يوجّه العين ليه */
-@keyframes neb-trig-row-flash {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); border-color: color-mix(in srgb, var(--accent) 70%, transparent); }
-  45% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent); }
-  100% { box-shadow: 0 0 0 0 transparent; }
+/* #5 — الوميض بقى طبقة ::before شفافة بتتلاشى (opacity فقط)
+   بدل ما background-color وbox-shadow يترسموا من أول وجديد. */
+@keyframes neb-flash-fade {
+  0%, 55% { opacity: 1; }
+  100% { opacity: 0; }
 }
-/* توهّج نجاح لزر النسخ لما يقلب «اتنسخ» */
-@keyframes neb-copy-glow {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent); }
-  100% { box-shadow: 0 0 0 9px transparent; }
-}
+/* #5 — توهّج النسخ بقى حلقة ::before (neb-ring-out فوق) بدل
+   box-shadow. */
 .trig-icon {
   position: relative;
   overflow: hidden;
@@ -5044,6 +5067,20 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 .trig-icon-empty::before { display: none; }
 .trig-icon-empty .trig-sheen { display: none; }
 .trig-icon-empty .trig-zap { animation: none; }
+/* #4 (light + smooth) — حبّة برّه الشاشة بتوقف حركتها: الـ
+   IntersectionObserver في TriggerIcon بيضيف trig-paused على
+   الزرار، فالتوهّج واللمعة والبرق بيتوقفوا (animation-play-state)
+   بدل ما 88 حبّة يتحركوا طول الوقت تحت الشاشة. الـ hover/focus
+   بيشغّلهم تاني فورًا، والشكل وهو ظاهر زي ما هو بالظبط. */
+.trig-icon.trig-paused::before,
+.trig-icon.trig-paused .trig-sheen,
+.trig-icon.trig-paused .trig-zap { animation-play-state: paused; }
+.trig-icon.trig-paused:hover::before,
+.trig-icon.trig-paused:hover .trig-sheen,
+.trig-icon.trig-paused:hover .trig-zap,
+.trig-icon.trig-paused:focus-visible::before,
+.trig-icon.trig-paused:focus-visible .trig-sheen,
+.trig-icon.trig-paused:focus-visible .trig-zap { animation-play-state: running; }
 .trig-icon:hover {
   transform: translateY(-1px) scale(1.05);
   border-color: color-mix(in srgb, var(--trig) 70%, transparent);
@@ -5103,12 +5140,42 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   .trig-stage-5 { animation-delay: 240ms; }
   /* الشريحة النشطة بتمتلئ بنطّة */
   .trig-chip-active { animation: neb-trig-chip-in 280ms cubic-bezier(0.3, 1.3, 0.4, 1); }
-  /* بوكس البحث بينبض لما شريحة تدوس عليه */
-  .trig-search-pulsed { animation: neb-trig-search-pulse 650ms cubic-bezier(0.22, 1, 0.36, 1); border-radius: var(--radius); }
-  /* صف الاختصار بيتوهّج لما يتوجّه ليه */
-  .trig-row-flash { animation: neb-trig-row-flash 1.5s cubic-bezier(0.22, 1, 0.36, 1); }
-  /* زر النسخ بيتوهّج أخضر لما يقلب «اتنسخ» */
-  .copy-success { animation: neb-copy-glow 750ms cubic-bezier(0.22, 1, 0.36, 1); }
+  /* بوكس البحث بينبض لما شريحة تدوس عليه — حلقة ::before
+     بتكبر وتتلاشى (transform + opacity)، مش box-shadow */
+  .trig-search-pulsed { position: relative; }
+  .trig-search-pulsed::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    pointer-events: none;
+    animation: neb-ring-out 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* صف الاختصار بيتوهّج لما يتوجّه ليه — طبقة ::before
+     بتتلاشى (opacity)، مش background/box-shadow */
+  .trig-row-flash { position: relative; }
+  .trig-row-flash::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+    pointer-events: none;
+    animation: neb-flash-fade 1.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* زر النسخ بيتوهّج أخضر لما يقلب «اتنسخ» — حلقة ::before */
+  .copy-success { position: relative; }
+  .copy-success::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid color-mix(in srgb, var(--success) 55%, transparent);
+    pointer-events: none;
+    animation: neb-ring-out 750ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
   /* دخول كارت اختصاراتك ومكتبة البداية — ظهور واحد قوي من تحت */
   .animate-card-in { animation: neb-card-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 }
@@ -5120,6 +5187,9 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   .trig-icon::before, .trig-sheen, .trig-zap, .trig-panel { animation: none; }
   .trig-icon:hover { transform: none; }
   .trig-icon-saved, .trig-chip-active, .trig-search-pulsed, .trig-row-flash, .copy-success, .trig-input-error { animation: none; }
+  /* #5 — الـ ::before البديلة للحلقات/الوميض بتتخفي خالص
+     (animation:none لوحدها كانت هتسيب الطبقة ثابتة باينة) */
+  .trig-search-pulsed::before, .trig-row-flash::before, .copy-success::before, .tree-flash::before { display: none; }
   .trig-stage { animation: none; opacity: 1; }
   .animate-card-in { animation: none; }
 }
@@ -5140,11 +5210,13 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   from { opacity: 0; transform: translateY(5px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-/* النمو/الانكماش: صف الشبكة يتمدّد من صفر لكامل الارتفاع */
+/* النمو/الانكماش: صف الشبكة بيتبدّل فورًا من صفر لكامل الارتفاع
+   (#6 — بلا transition على grid-template-rows، فالفتح/القفل
+   ما يعيدش حساب التخطيط كل فريم؛ اللوحة الداخلية لسه بتتحرك
+   وتتلاشى بـ transform/opacity في 220/280ms زي ما هي). */
 .search-trig-expand {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .search-trig-expand-open {
   grid-template-rows: 1fr;
@@ -5285,7 +5357,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   color: color-mix(in srgb, var(--fhue) 40%, var(--text));
 }
 /* زر نسخ قلَب «اتنسخ» — حلقة نجاح ثابتة طول ما الحالة
-   ظاهرة، فوقها نبضة توهّج واحدة (neb-copy-glow). */
+   ظاهرة، فوقها نبضة حلقة واحدة (::before بتاعة .copy-success). */
 .copy-success {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 28%, transparent), 0 8px 20px -6px color-mix(in srgb, var(--success) 50%, transparent);
 }
@@ -5320,4 +5392,18 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   .search-trig-expand, .search-trig-expand-inner { transition: none; }
   .search-trig-panel::after, .trig-match, .trig-hero-pill::after { animation: none; }
   .trig-chip:hover { transform: none; }
+}
+
+/* ---------- scroll chaining (2026-11-26) ----------
+   The page behind any open menu/list/modal must stay put: a
+   scroller that reaches its edge hands the scroll to the page
+   (scroll chaining), and on touch that is how the background
+   moves while the user scrolls inside a list. These two scroll
+   areas are defined by CSS classes, so the rule lives here;
+   every JSX scroller carries the `overscroll-contain` utility
+   instead, and every full overlay additionally holds the
+   refcounted body lock (useBodyScrollLock in App.tsx). */
+.side-scroll-fade,
+.details-panel {
+  overscroll-behavior: contain;
 }
