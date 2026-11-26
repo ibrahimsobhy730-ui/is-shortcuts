@@ -62,5 +62,16 @@ check("9. fallback order is easiest-first", (() => {
 // No candidates at all (all stopwords) -> still empty, honestly (nothing to suggest).
 const stop = { title: "في من", body: "على عن", trigger: null };
 check("10. all-stopword reply honestly returns []", fn(stop, [], "تر").length === 0, JSON.stringify(fn(stop, [], "تر")));
+// Degenerate first-letters: «اختبار اقتراح» must NOT suggest «اا»
+// (first letters of two alef-words collapsing to one repeated letter).
+const deg = { title: "اختبار اقتراح", body: "اختبار اقتراح", trigger: null };
+check("11. no «اا» for «اختبار اقتراح»", (() => {
+  const r = fn(deg, [], "");
+  return !r.includes("اا") && r.length > 0;
+})(), JSON.stringify(fn(deg, [], "")));
+// ...but a healthy initialism (2+ distinct letters) still survives:
+// typing «ت» in «ترحيب الطلاب» narrows to «تط».
+const ok = { title: "ترحيب الطلاب", body: "ترحيب الطلاب", trigger: null };
+check("12. healthy initials kept («تط» while typing «ت»)", fn(ok, [], "ت").includes("تط"), JSON.stringify(fn(ok, [], "ت")));
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

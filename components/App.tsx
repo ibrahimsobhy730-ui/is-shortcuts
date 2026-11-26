@@ -510,6 +510,25 @@ function folderColorStyle(folder: { iconColor?: string | null }): React.CSSPrope
     : undefined;
 }
 
+/* The colour a SET trigger pill wears: its reply's folder colour,
+   when the folder has one — the named swatch's fcol-* class (the
+   class itself sets --fhue) or the custom hex's inline --fhue
+   (via folderColorStyle). The exact value/mapping the sidebar
+   folder icon wears — no second colour system. Auto folders (no
+   iconColor) wear nothing: the pill keeps the fixed NEBULA
+   --trig tokens. Only SET pills take it — the dimmed «أضف اختصار»
+   pill never gets it (TriggerIcon applies it only when has). */
+function triggerPillFolder(folder: { name: string; iconColor?: string | null } | null | undefined): {
+  className: string;
+  style: React.CSSProperties | undefined;
+} {
+  if (!folder?.iconColor) return { className: "", style: undefined };
+  return {
+    className: `trig-folder${FOLDER_COLOR_KEYS_CLIENT.has(folder.iconColor) ? ` fcol-${folder.iconColor}` : ""}`,
+    style: folderColorStyle(folder),
+  };
+}
+
 /* Dialog focus care — one hook for every modal and sheet: when a
    dialog opens, focus lands inside it (its first field when it has
    one, otherwise its first control), Tab cycles within it instead
@@ -1257,7 +1276,10 @@ function suggestTriggers(
   for (const w of meaningful) if (w.length > longest.length) longest = w;
   if (longest.length >= 3) cands.push(longest);
   /* First letters of the first three words — «ال» stripped so the
-     letter is the word's own, not the article's. */
+     letter is the word's own, not the article's. Initials that
+     collapse to one repeated letter («اا» from «اختبار اقتراح»)
+     name nothing — drop them: a usable initialism needs at
+     least 2 distinct letters. */
   if (meaningful.length >= 2) {
     const initials = meaningful
       .slice(0, 3)
@@ -1266,7 +1288,7 @@ function suggestTriggers(
         return (stripped || w).charAt(0);
       })
       .join("");
-    if (initials.length >= 2) cands.push(initials);
+    if (initials.length >= 2 && new Set([...initials]).size >= 2) cands.push(initials);
   }
   const bodyFirst = bodyWords.find((w) => w.length >= 3 && !isStop(w));
   if (bodyFirst) cands.push(bodyFirst);
@@ -6182,6 +6204,7 @@ function Workspace({
                 extras={searchTrigMatches.slice(1, 3)}
                 kindScore={searchTrigKind}
                 shortcuts={shortcuts}
+                folders={folders}
                 onCopy={(s) => handleCopy(s)}
                 onSaveTrigger={async (s, trigger) => {
                   await updateTriggerMut.mutateAsync({ s, trigger });
@@ -8105,6 +8128,7 @@ function Workspace({
           open={barOpen}
           onClose={() => setBarOpen(false)}
           shortcuts={shortcuts}
+          folders={folders}
           onCopy={(s) => handleCopy(s)}
           onOpenPreview={() => {
             setBarOpen(false);
@@ -8714,7 +8738,7 @@ function DetailsPanel({
         )}
         <dt className="font-semibold text-[var(--faint)]">الاختصار</dt>
         <dd className="font-semibold">
-          <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
+          <TriggerIcon item={item} folder={folders.find((f) => f.id === item.folderId) ?? null} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
         </dd>
         {item.source && (
           <>
@@ -11532,11 +11556,16 @@ function AccountModal({
    click-outside close) never fires with it. */
 function TriggerIcon({
   item,
+  folder,
   onSaveTrigger,
   takenTriggers = [],
   size = "full",
 }: {
   item: Shortcut;
+  /* The reply's folder — a SET pill wears its colour (see
+     triggerPillFolder); without it, or for an Auto folder, the
+     pill keeps the fixed NEBULA --trig tokens. */
+  folder?: { name: string; iconColor?: string | null } | null;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* The user's OTHER triggers (not this reply's own) — the
      client-side duplicate check. The server stays the final
@@ -11581,6 +11610,9 @@ function TriggerIcon({
   );
 
   const has = Boolean(item.trigger);
+  /* A SET pill wears its reply's folder colour; the dimmed
+     «أضف اختصار» pill never does — it stays dimmed neutral. */
+  const pillFolder = has ? triggerPillFolder(folder) : { className: "", style: undefined };
   const save = async (next: string) => {
     const err = triggerError(next, takenTriggers);
     if (err) return setError(err);
@@ -11633,11 +11665,19 @@ function TriggerIcon({
         }}
         className={`trig-icon lux-btn ${justSaved ? "trig-icon-saved " : ""}${
           has ? "" : "trig-icon-empty "
-        }${size === "compact" ? "h-6 max-w-32 px-1.5 text-[11px]" : "h-[26px] max-w-44 px-2 text-[11.5px]"}`}
+        }${pillFolder.className ? `${pillFolder.className} ` : ""}${
+          size === "compact" ? "h-6 max-w-32 px-1.5 text-[11px]" : "h-[26px] max-w-44 px-2 text-[11.5px]"
+        }`}
         /* Per-reply stagger for the sheen + glow + Zap (see
            tokens.css): --trig-delay shifts the whole pill's
-           motion so 88 pills never move in lockstep. */
-        style={{ "--trig-delay": `${(item.id % 7) * 0.4}s` } as React.CSSProperties}
+           motion so 88 pills never move in lockstep. A custom-hex
+           folder also hands its --fhue over here. */
+        style={
+          {
+            "--trig-delay": `${(item.id % 7) * 0.4}s`,
+            ...(pillFolder.style ?? {}),
+          } as React.CSSProperties
+        }
       >
         {/* The travelling sheen — a real element, not ::after:
             the button's ::after belongs to its tooltip (data-tip),
@@ -12080,7 +12120,7 @@ function ShortcutCard({
             {/* The trigger pill lives beside the title — never inside
                 the title button (a button cannot hold a button) — so
                 its tap opens its own editor instead of the details. */}
-            <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="compact" />
+            <TriggerIcon item={item} folder={cardFolder} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="compact" />
             <button
               type="button"
               aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`}
@@ -12278,7 +12318,7 @@ function ShortcutCard({
             {tags.length > 2 && <span className="font-semibold text-[var(--faint)]">+{tags.length - 2}</span>}
             {item.usageCount > 0 && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{lang === "en" ? `Used ${item.usageCount} times` : `اتستخدم ${item.usageCount} مرة`}</span>}
             {updatedLabel && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{relDateLabel(item.updatedAt, lang)}</span>}
-            <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
+            <TriggerIcon item={item} folder={cardFolder} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
           </div>
           <div className={density === "grid" ? "mt-auto pt-4" : "mt-4"}>
             {copyBtn}
@@ -13054,12 +13094,15 @@ function FolderPicker({
    with the same pill dimmed — tap it to add one. */
 function TriggerRow({
   s,
+  folder,
   onCopy,
   onSaveTrigger,
   takenTriggers = [],
   highlight = false,
 }: {
   s: Shortcut;
+  /* The reply's folder — a SET pill wears its colour. */
+  folder?: { name: string; iconColor?: string | null } | null;
   onCopy: (s: Shortcut) => Promise<boolean>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* The user's OTHER triggers — the client-side duplicate check
@@ -13099,7 +13142,7 @@ function TriggerRow({
       className={`lux-card flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3 ${highlight ? "trig-row-flash" : ""}`}
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <TriggerIcon item={s} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
+        <TriggerIcon item={s} folder={folder} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-bold">{s.title}</span>
           {preview && (
@@ -13164,6 +13207,7 @@ function SearchTriggerPreview({
   extras,
   kindScore,
   shortcuts,
+  folders,
   onCopy,
   onSaveTrigger,
   onDismiss,
@@ -13176,12 +13220,19 @@ function SearchTriggerPreview({
   extras: Shortcut[];
   kindScore: number;
   shortcuts: Shortcut[];
+  /* The folders — a matched pill wears its reply's folder colour. */
+  folders?: FolderRowT[];
   onCopy: (s: Shortcut) => Promise<boolean>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
   /* Clear the search (the panel's own dismiss button). */
   onDismiss: () => void;
 }) {
   const { lang, t } = useLang();
+  /* A matched pill wears its reply's folder colour (see
+     triggerPillFolder) — the hero pill and the extra matches. */
+  const pillFolderOf = (s: Shortcut | null) =>
+    triggerPillFolder(s ? (folders?.find((f) => f.id === s.folderId) ?? null) : null);
+  const bestPill = pillFolderOf(best);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignFilter, setAssignFilter] = useState("");
@@ -13385,7 +13436,7 @@ function SearchTriggerPreview({
             {best ? (
               <div key={best.id} className="trig-match mt-2.5">
                 <div className="trig-stage trig-stage-1 flex flex-wrap items-center gap-2">
-                  <span dir="auto" className="trig-hero-pill">
+                  <span dir="auto" className={`trig-hero-pill ${bestPill.className}`} style={bestPill.style}>
                     {best.trigger}
                   </span>
                   <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-extrabold text-[var(--accent-strong)]">
@@ -13420,7 +13471,9 @@ function SearchTriggerPreview({
                       {t("نتائج تانية بتطابق كمان:")}
                     </p>
                     <ul className="flex flex-col gap-1.5">
-                      {extras.map((s) => (
+                      {extras.map((s) => {
+                        const pf = pillFolderOf(s);
+                        return (
                         <li key={s.id}>
                           <button
                             type="button"
@@ -13433,7 +13486,7 @@ function SearchTriggerPreview({
                             onClick={() => void doCopy(s)}
                             className="lux-btn flex w-full items-center gap-2.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start hover:border-[var(--border-strong)] disabled:opacity-60"
                           >
-                            <span dir="auto" className="trig-hero-pill trig-hero-pill-sm">
+                            <span dir="auto" className={`trig-hero-pill trig-hero-pill-sm ${pf.className}`} style={pf.style}>
                               {s.trigger}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-[14px] font-bold">
@@ -13450,7 +13503,8 @@ function SearchTriggerPreview({
                             </span>
                           </button>
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
@@ -13601,9 +13655,12 @@ function SearchTriggerPreview({
    2s — the same flip the reply copy buttons use. */
 function MyShortcutsCard({
   items,
+  folders,
   onAddFirst,
 }: {
   items: Shortcut[];
+  /* The folders — a chip wears its reply's folder colour. */
+  folders?: FolderRowT[];
   onAddFirst: () => void;
 }) {
   const { lang, t } = useLang();
@@ -13612,6 +13669,9 @@ function MyShortcutsCard({
   const [copying, setCopying] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  /* A chip wears its reply's folder colour (see triggerPillFolder). */
+  const pillFolderOf = (s: Shortcut) =>
+    triggerPillFolder(folders ? (folders.find((f) => f.id === s.folderId) ?? null) : null);
   const text = useMemo(
     () => items.map((s) => `${s.trigger} → ${s.title}`).join("\n"),
     [items],
@@ -13719,14 +13779,16 @@ function MyShortcutsCard({
           </div>
         ) : (
           <ul className="max-h-80 overflow-y-auto border-t border-[var(--border)] p-2">
-            {items.map((s, i) => (
+            {items.map((s, i) => {
+              const pf = pillFolderOf(s);
+              return (
               <li
                 key={s.id}
                 className="trig-stage"
                 style={{ animationDelay: `${Math.min(i, 12) * 35}ms` } as React.CSSProperties}
               >
                 <div className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-[var(--surface-alt)]">
-                  <span dir="auto" className="trig-chip shrink-0">
+                  <span dir="auto" className={`trig-chip shrink-0 ${pf.className}`} style={pf.style}>
                     {s.trigger}
                   </span>
                   <span aria-hidden="true" className="shrink-0 text-[var(--faint)]">
@@ -13742,7 +13804,8 @@ function MyShortcutsCard({
                   </span>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ))}
     </section>
@@ -13872,6 +13935,7 @@ function StarterLibraryPicker({
               <ul className="flex flex-col gap-1">
                 {g.items.map((s, i) => {
                   const on = selected.includes(s.id);
+                  const pf = triggerPillFolder(folders.find((f) => f.id === s.folderId) ?? null);
                   return (
                     <li
                       key={s.id}
@@ -13899,7 +13963,7 @@ function StarterLibraryPicker({
                           {s.title}
                         </span>
                         {s.trigger && (
-                          <span dir="auto" className="trig-chip shrink-0">
+                          <span dir="auto" className={`trig-chip shrink-0 ${pf.className}`} style={pf.style}>
                             {s.trigger}
                           </span>
                         )}
@@ -14074,7 +14138,7 @@ function ShortcutsView({
     <div className="flex flex-col gap-6">
       {/* «كارت اختصاراتك» — every trigger → reply in one card,
           copyable as plain text in one tap. */}
-      <MyShortcutsCard items={allTriggers} onAddFirst={jumpToFirstFree} />
+      <MyShortcutsCard items={allTriggers} folders={folders} onAddFirst={jumpToFirstFree} />
       {/* The user's triggers as one-tap chips — no separate box:
           tapping a chip types it into the search box above, and
           the search box grows into that reply's preview. */}
@@ -14096,6 +14160,7 @@ function ShortcutsView({
                   q !== "" &&
                   normalizeSearchText(s.trigger ?? "") ===
                     normalizeSearchText(q);
+                const pf = triggerPillFolder(folders.find((f) => f.id === s.folderId) ?? null);
                 return (
                   <button
                     key={s.id}
@@ -14103,9 +14168,10 @@ function ShortcutsView({
                     aria-pressed={active}
                     data-trig-chip
                     onClick={() => onPickTrigger(s.trigger ?? "")}
-                    className={`trig-chip lux-btn ${
+                    className={`trig-chip lux-btn ${pf.className} ${
                       active ? "trig-chip-active" : ""
                     }`}
+                    style={pf.style}
                   >
                     <Icon d={I.zap} size={12} />
                     <span dir="auto">{s.trigger}</span>
@@ -14174,7 +14240,7 @@ function ShortcutsView({
               </h3>
               <ul className="flex flex-col gap-2">
                 {g.items.map((s) => (
-                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} />
+                  <TriggerRow key={s.id} s={s} folder={folders.find((f) => f.id === s.folderId) ?? null} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} />
                 ))}
               </ul>
             </section>
@@ -14196,7 +14262,7 @@ function ShortcutsView({
               </p>
               <ul className="flex flex-col gap-2">
                 {withoutTrigger.map((s) => (
-                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} highlight={flashId === s.id} />
+                  <TriggerRow key={s.id} s={s} folder={folders.find((f) => f.id === s.folderId) ?? null} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={otherTriggers(shortcuts, s.id)} highlight={flashId === s.id} />
                 ))}
               </ul>
             </section>
@@ -14224,12 +14290,15 @@ function ShortcutBar({
   open,
   onClose,
   shortcuts,
+  folders,
   onCopy,
   onOpenPreview,
 }: {
   open: boolean;
   onClose: () => void;
   shortcuts: Shortcut[];
+  /* The folders — a row's trigger pill wears its reply's folder colour. */
+  folders?: FolderRowT[];
   onCopy: (s: Shortcut) => Promise<boolean>;
   /* Jump to the Shortcuts section's preview box (closes the bar). */
   onOpenPreview?: () => void;
@@ -14331,7 +14400,9 @@ function ShortcutBar({
                 {t("آخر اختصارات استخدمتها")}
               </li>
             )}
-            {top.map((s, i) => (
+            {top.map((s, i) => {
+              const pf = triggerPillFolder(folders ? (folders.find((f) => f.id === s.folderId) ?? null) : null);
+              return (
               <Fragment key={s.id}>
                 {firstNeverIdx === i && (
                   <li aria-hidden="true" className="px-2.5 pb-1 pt-2 text-[11px] font-extrabold text-[var(--faint)]">
@@ -14355,7 +14426,7 @@ function ShortcutBar({
                   onClick={() => void copyAndClose(s)}
                   className="lux-btn flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-start hover:bg-[var(--surface-alt)] disabled:opacity-60"
                 >
-                  <span dir="auto" className="shrink-0 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[13px] font-bold text-[var(--accent-strong)]">
+                  <span dir="auto" className={`trig-chip shrink-0 ${pf.className}`} style={pf.style}>
                     {s.trigger}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -14379,7 +14450,8 @@ function ShortcutBar({
                 </button>
               </li>
               </Fragment>
-            ))}
+              );
+            })}
           </ul>
         )}
         <div className="flex items-center justify-between gap-2 border-t border-[var(--border)] px-4 py-2">
