@@ -66,6 +66,25 @@ export function classifyUploadError(e: unknown): UploadFailureKind {
     )
   )
     return "service";
+  /* The XHR / server fallbacks report the raw HTTP status (and the
+     Blob API's error code when the body carried one) — map the
+     status the same way the SDK's getBlobError maps its codes, so
+     a 403 from any path reads as «forbidden» instead of the
+     generic «unknown» (the 2026-11-26 cloud run showed exactly
+     that: every path failed, the UI said only «الرفع متمّش»).
+     This check MUST sit above the network check: «load failed»
+     is a substring of «upload failed», so a bare status string
+     would otherwise read as a network failure. */
+  const http = /Blob upload failed \((\d{3})/.exec(msg) ??
+    /server upload failed \(HTTP (\d{3})\)/.exec(msg) ??
+    /\(HTTP (\d{3})\)/.exec(msg);
+  if (http) {
+    const status = Number(http[1]);
+    if (status === 403) return "forbidden";
+    if (status === 404) return "not-found";
+    if (status === 429) return "service";
+    if (status >= 500) return "service";
+  }
   if (
     /failed to fetch|network request failed|networkerror|load failed|fetch failed|network error|terminated/i.test(
       msg,
@@ -148,7 +167,7 @@ export async function mintClientToken(
       typeof body === "object" &&
       typeof (body as Record<string, unknown>).error === "string"
         ? ((body as Record<string, unknown>).error as string)
-        : "الرفع متمّش — حاول تاني";
+        : `مش قادر يجهّز الرفع (HTTP ${res.status}) — حاول تاني`;
     throw new Error(msg);
   }
   const body: unknown = await res.json().catch(() => null);
@@ -276,7 +295,16 @@ export async function uploadViaXhr(
           : typeof errObj === "string"
             ? errObj
             : "";
-      reject(new Error(msg || `Blob upload failed (${xhr.status})`));
+      /* Surface the API's error code AND the HTTP status, not just
+         the message: the code is what distinguishes «the store
+         refuses public blobs» (forbidden) from a transport
+         failure, and classifyUploadError maps both. */
+      const code =
+        errRec !== null && typeof errRec.code === "string" ? errRec.code : "";
+      const detail = [msg, code ? `code: ${code}` : "", `HTTP ${xhr.status}`]
+        .filter(Boolean)
+        .join(" — ");
+      reject(new Error(detail || `Blob upload failed (${xhr.status})`));
     };
     xhr.onerror = () => reject(new TypeError("Network request failed"));
     xhr.ontimeout = () =>
@@ -317,7 +345,7 @@ export async function uploadViaServer(
       typeof body === "object" &&
       typeof (body as Record<string, unknown>).error === "string"
         ? ((body as Record<string, unknown>).error as string)
-        : "الرفع متمّش — حاول تاني";
+        : `الرفع من السيرفر فشل (HTTP ${res.status}) — حاول تاني`;
     throw new Error(msg);
   }
   const url =
@@ -329,6 +357,6 @@ export async function uploadViaServer(
       ? (body as Record<string, unknown>).pathname
       : undefined;
   if (typeof url !== "string" || typeof pn !== "string")
-    throw new Error("الرفع متمّش — حاول تاني");
+    throw new Error("رد السيرفر مش مفهوم — حاول تاني");
   return { url, pathname: pn };
 }

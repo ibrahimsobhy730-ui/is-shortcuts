@@ -1,13 +1,18 @@
-/* Static regression audit for the two 2026-11-26 workstreams that
-   have no runtime surface in Node:
-   (1) shortcut-mark distinctness — the shortcut mark is ⌘
-   (I.shortcut = Command), never Zap and never any folder/reply
-   glyph; the pill/chip/hero-pill are keycap-shaped (8px + bottom
-   edge), not round pills;
+/* Static regression audit for the 2026-11-26 redesign round
+   (upload diagnostics, shortcut-mark redesign, pin/edit/delete
+   grouping, context-menu dismiss, new-build notice):
+   (1) shortcut-mark distinctness — the shortcut mark is the
+   site's own solid filled bolt (ShortcutBolt), never Zap and
+   never any folder/reply glyph; the pill/hero-pill are solid
+   NEBULA capsules (radius 999px, --trig-pill-bg, white ink),
+   never the ⌘ keycap and never folder-tinted;
    (2) pin/edit/delete grouped — the three management actions sit
    in one .card-action-group on the card and in the details panel;
    delete is out of the ⋯ menu; the ⋯ keeps only preview +
-   duplicate.
+   duplicate;
+   (3) context-menu dismiss — the tree actions menu closes on
+   Escape and on mousedown-outside (usePopoverDismiss), not only
+   on a backdrop click.
    Run with: node scripts/verify-shortcut-mark.mjs */
 
 import { readFileSync } from "node:fs";
@@ -33,8 +38,18 @@ function check(name, ok, extra = "") {
   }
 }
 
-// ---- (1) the shortcut mark ----
-check("I.shortcut is Command", /shortcut:\s*Command,/.test(app));
+// ---- (1) the shortcut mark: solid filled bolt ----
+check("I.shortcut is ShortcutBolt", /shortcut:\s*ShortcutBolt as unknown as LucideIcon,/.test(app));
+check(
+  "ShortcutBolt is a filled SVG bolt (currentColor, own path)",
+  /function ShortcutBolt\(\{ size = 18 \}/.test(app) &&
+    /fill="currentColor"/.test(app) &&
+    /d="M13 2 L5 13\.2 H10\.2 L9\.2 22 L19 10\.8 H13\.8 L13 2 Z"/.test(app),
+);
+check(
+  "Command is gone (no import, no I.shortcut = Command)",
+  !/^Command,$/m.test(app) && !/shortcut:\s*Command,/.test(app),
+);
 check(
   "no I.zap usage anywhere (mark only)",
   !/I\.zap/.test(app) && !/I\.zap/.test(panel) && !/I\.zap/.test(editor),
@@ -82,34 +97,68 @@ check(
   "editor trigger label renders I.shortcut",
   /labelWithIcon\(I\.shortcut,/.test(editor),
 );
-
-// ---- (1b) keycap shape ----
-const trigIcon = /\.trig-icon \{[^}]*\}/s.exec(css)?.[0] ?? "";
-check("pill is a keycap: radius 8px", /border-radius: 8px;/.test(trigIcon));
 check(
-  "pill has the key bottom edge",
-  /inset 0 -2px 0 color-mix\(in srgb, var\(--trig\) 38%, transparent\)/.test(trigIcon),
+  "folder-colour pill is gone: no triggerPillFolder / trig-folder in TSX or CSS",
+  !/triggerPillFolder/.test(app.replace(/The folder-colour pill \(triggerPillFolder\) was REMOVED[\s\S]*?folder TILES still wear them\. \*\//, "")) &&
+    !/trig-folder/.test(app) &&
+    !/trig-folder/.test(panel) &&
+    !/trig-folder/.test(editor) &&
+    !/\.trig-icon\.trig-folder|\.trig-hero-pill\.trig-folder|\.trig-chip\.trig-folder/.test(css),
+  "a trig-folder reference survived",
 );
-const trigFolder = /\.trig-icon\.trig-folder \{[^}]*\}/s.exec(css)?.[0] ?? "";
 check(
-  "folder-tinted pill keeps the key edge (fhue)",
-  /inset 0 -2px 0 color-mix\(in srgb, var\(--fhue\) 38%, transparent\)/.test(trigFolder),
+  "no folder prop passed to TriggerIcon anywhere",
+  !/<TriggerIcon[^>]*folder=/.test(app) && !/<TriggerIcon[^>]*folder=/.test(panel),
+);
+
+// ---- (1b) solid capsule shape + sheen that starts fast ----
+const trigIcon = /\.trig-icon \{[^}]*\}/s.exec(css)?.[0] ?? "";
+check("pill is a capsule: radius 999px", /border-radius: 999px;/.test(trigIcon));
+check(
+  "pill uses the solid NEBULA gradient + white ink",
+  /background: var\(--trig-pill-bg\);/.test(trigIcon) && /color: #ffffff;/.test(trigIcon),
+);
+check(
+  "pill has NO keycap bottom edge",
+  !/inset 0 -2px 0/.test(trigIcon),
+);
+check(
+  "--trig-pill-bg defined in light and dark",
+  (css.match(/--trig-pill-bg: linear-gradient\(135deg, #1c40aa, #1668c4 60%, #2b7cd3\);/g) ?? []).length >= 1 &&
+    (css.match(/--trig-pill-bg: linear-gradient\(135deg, #2f7de1, #1e63c8 60%, #2b6fe0\);/g) ?? []).length >= 2,
 );
 const hero = /\.trig-hero-pill \{[^}]*\}/s.exec(css)?.[0] ?? "";
-check("hero pill is a keycap: radius 8px", /border-radius: 8px;/.test(hero));
+check("hero pill is a capsule: radius 999px", /border-radius: 999px;/.test(hero));
 check(
-  "hero pill has the key bottom edge",
-  /inset 0 -2px 0 color-mix\(in srgb, var\(--trig\) 38%, transparent\)/.test(hero),
+  "hero pill uses the solid gradient + white ink",
+  /background: var\(--trig-pill-bg\);/.test(hero) && /color: #ffffff;/.test(hero),
+);
+check(
+  "hero pill has NO keycap bottom edge",
+  !/inset 0 -2px 0/.test(hero),
 );
 const chip = /\.trig-chip \{[^}]*\}/s.exec(css)?.[0] ?? "";
-check("chip is a keycap: radius 8px", /border-radius: 8px;/.test(chip));
+check("chip is a capsule: radius 999px", /border-radius: 999px;/.test(chip));
 check(
-  "chip has the key bottom edge",
-  /inset 0 -2px 0 color-mix\(in srgb, var\(--trig\) 30%, transparent\)/.test(chip),
+  "chip has NO keycap bottom edge",
+  !/inset 0 -2px 0/.test(chip),
 );
 check(
-  "empty pill keeps the keycap radius (inherits .trig-icon)",
+  "active chip is the solid gradient with white text",
+  /\.trig-chip-active \{[^}]*background: var\(--trig-pill-bg\);[^}]*color: #ffffff;/.test(css),
+);
+check(
+  "empty pill keeps the capsule radius (inherits .trig-icon)",
   /\.trig-icon-empty \{[^}]*box-shadow: none;[^}]*\}/s.test(css),
+);
+check(
+  "sheen stagger capped at 0.5s (was up to 2.4s — a pill could sit still for a whole 2s window)",
+  /\(item\.id % 3\) \* 0\.25/.test(app) && !/\(item\.id % 7\) \* 0\.4/.test(app),
+);
+check(
+  "sheen animation + keyframes present in CSS",
+  /\.trig-sheen \{[^}]*animation:[^}]*neb-trig-sheen[^}]*\}/s.test(css) &&
+    /@keyframes neb-trig-sheen \{[\s\S]*?translateX\(-110%\)[\s\S]*?translateX\(110%\)/.test(css),
 );
 
 // ---- (2) pin / edit / delete grouped ----
@@ -170,6 +219,20 @@ check(
     if (start === -1 || end === -1) return false;
     return !/I\.trash/.test(app.slice(start, end));
   })(),
+);
+
+// ---- (3) context-menu dismiss: Escape + mousedown-outside ----
+check(
+  "ctxMenu wired to usePopoverDismiss (Escape + mousedown-outside)",
+  /usePopoverDismiss\(ctxMenu !== null, \[ctxMenuRef\], \(\) => \{\s*setCtxMenu\(null\);\s*setCtxMoveOpen\(false\);\s*\}\);/.test(app),
+);
+check(
+  "ctxMenu panel carries the dismiss ref",
+  /<div\s*ref=\{ctxMenuRef\}\s*role="menu"/.test(app),
+);
+check(
+  "ctxMenu backdrop click still closes (second layer)",
+  /<div className="fixed inset-0 z-\[var\(--z-menu\)\]" role="presentation" onClick=\{\(\) => setCtxMenu\(null\)\}/.test(app),
 );
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);

@@ -441,32 +441,44 @@ export function EditorModal({
     if (!item) return;
     setMediaError(null);
     setMediaStorageDown(false);
+    /* Stage tracking (2026-11-26): every failure names the stage
+       it died in — «المرحلة: الرفع المباشر» — so the next
+       screenshot diagnoses the failure instead of showing one of
+       three different wordings for the same underlying problem.
+       withStage is applied to every error this function shows. */
+    let stage = "التحقق من الملف";
+    const withStage = (m: string) => `${m} — المرحلة: ${stage}`;
     const allowed =
       kind === "image"
         ? ["image/jpeg", "image/png", "image/webp"]
         : ["video/mp4", "video/webm"];
     if (!allowed.includes(file.type)) {
       setMediaError(
-        kind === "image"
-          ? "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"
-          : "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي",
+        withStage(
+          kind === "image"
+            ? "الصورة لازم تكون JPG أو PNG أو WebP — الـ GIF مش مدعوم دلوقتي"
+            : "الفيديو لازم يكون MP4 أو WebM — الـ MOV مش مدعوم دلوقتي",
+        ),
       );
       return;
     }
     const cap = kind === "image" ? 8 * 1024 * 1024 : 50 * 1024 * 1024;
     if (file.size > cap) {
       setMediaError(
-        kind === "image"
-          ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
-          : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
+        withStage(
+          kind === "image"
+            ? "الصورة أكبر من 8 ميجا — جرّب صورة أصغر"
+            : "الفيديو أكبر من 50 ميجا — جرّب فيديو أصغر",
+        ),
       );
       return;
     }
     /* Preflight: the Blob endpoint either answers from this
        browser or it doesn't — find out before starting a doomed
        upload instead of parking the bar at 79% / 0%. */
+    stage = "فحص الاتصال";
     if (!(await checkBlobReachable())) {
-      setMediaError(uploadErrorMessage("unreachable", kind === "video"));
+      setMediaError(withStage(uploadErrorMessage("unreachable", kind === "video")));
       return;
     }
     setMediaUploading(true);
@@ -505,6 +517,7 @@ export function EditorModal({
       let width: number | null = null;
       let height: number | null = null;
       let durationMs: number | null = null;
+      stage = "تجهيز الملف";
       if (kind === "image") {
         const prepared = await prepareImage(file);
         upFile = prepared.file;
@@ -516,7 +529,7 @@ export function EditorModal({
         width = meta.width || null;
         height = meta.height || null;
         if (durationMs > 5 * 60 * 1000) {
-          setMediaError("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر");
+          setMediaError(withStage("الفيديو أطول من 5 دقايق — جرّب فيديو أقصر"));
           return;
         }
       }
@@ -533,9 +546,11 @@ export function EditorModal({
       const pathname = `media/${userId}/${item.id}/${crypto.randomUUID()}.${ext}`;
       /* Probe first so the server's exact error surfaces (see
          mintClientToken), then the real client upload. */
+      stage = "تجهيز الرفع";
       await mintClientToken(token, pathname, item.id, kind);
       let blob: { url: string; pathname: string };
       try {
+        stage = "الرفع المباشر";
         blob = await upload(pathname, countedStream(upFile, onRead), {
           access: "public",
           handleUploadUrl: "/api/media/upload",
@@ -572,7 +587,9 @@ export function EditorModal({
           timeoutMs,
         );
         try {
+          stage = "تجهيز الرفع";
           const freshToken = await mintClientToken(token, pathname, item.id, kind);
+          stage = "الرفع البديل";
           blob = await uploadViaXhr(
             pathname,
             upFile,
@@ -585,11 +602,13 @@ export function EditorModal({
           if (kind === "video" || upFile.size > 4 * 1024 * 1024) {
             throw xhrErr;
           }
+          stage = "الرفع من السيرفر";
           blob = await uploadViaServer(token, item.id, kind, pathname, upFile);
         } finally {
           window.clearTimeout(freshTimeout);
         }
       }
+      stage = "حفظ الوسائط";
       const saved = await api.attachMedia({
         token,
         shortcutId: item.id,
@@ -609,20 +628,35 @@ export function EditorModal({
       if (msg.includes("التخزين مش متظبط")) setMediaStorageDown(true);
       /* Error wording, in priority order: a stalled watchdog;
          the server's own Arabic message, verbatim (503, validation,
-         attach errors); a video that failed every path; otherwise
-         the mapped English SDK/transport error. Never a generic
-         spinner, never a silent failure. */
+         attach errors); a SPECIFIC classified cause (forbidden,
+         too-large, token…) — the old code hid those behind the
+         generic video line when fallbacks had been tried; the
+         generic video line only for unclassified failures;
+         otherwise the mapped English SDK/transport error. Every
+         branch carries the stage — one failure, one diagnosis.
+         Never a generic spinner, never a silent failure. */
+      const classified = classifyUploadError(e);
+      let base: string;
       if (stalled.current) {
-        setMediaError(uploadErrorMessage("stalled", kind === "video"));
+        base = uploadErrorMessage("stalled", kind === "video");
       } else if (/[\u0600-\u06FF]/.test(msg)) {
-        setMediaError(msg);
+        base = msg;
+      } else if (
+        classified === "content-type" ||
+        classified === "too-large" ||
+        classified === "token" ||
+        classified === "token-expired" ||
+        classified === "forbidden" ||
+        classified === "not-found" ||
+        classified === "service"
+      ) {
+        base = uploadErrorMessage(classified, kind === "video");
       } else if (kind === "video" && triedFallback.current) {
-        setMediaError("الفيديو مش راضي يترفع من المتصفح ده");
+        base = "الفيديو مش راضي يترفع من المتصفح ده";
       } else {
-        setMediaError(
-          uploadErrorMessage(classifyUploadError(e), kind === "video"),
-        );
+        base = uploadErrorMessage(classified, kind === "video");
       }
+      setMediaError(withStage(base));
     } finally {
       window.clearTimeout(timeoutId);
       window.clearInterval(watchdogId);

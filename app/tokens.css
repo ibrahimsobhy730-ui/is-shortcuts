@@ -166,6 +166,9 @@
   --trig-strong: #1c40aa;
   --trig-soft: #dae9ff;
   --trig-ink: #ffffff;
+  /* خلفية حبّة الاختصار الصلبة (إعادة تصميم 2026-11-26): تدرّج
+     ملكي قوي واحد لكل الحبّات، وحبرها أبيض دائمًا. */
+  --trig-pill-bg: linear-gradient(135deg, #1c40aa, #1668c4 60%, #2b7cd3);
 }
 
 :root[data-theme="dark"] {
@@ -234,6 +237,9 @@
   --trig-strong: #a2cfff;
   --trig-soft: rgb(115 177 255 / 0.16);
   --trig-ink: #020713;
+  /* ليلًا التدرّج أفتح شوية عشان الحبّة الصلبة ما تغمقش
+     وتبلع العلامة البيضاء. */
+  --trig-pill-bg: linear-gradient(135deg, #2f7de1, #1e63c8 60%, #2b6fe0);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -301,6 +307,7 @@
     --trig-strong: #a2cfff;
     --trig-soft: rgb(115 177 255 / 0.16);
     --trig-ink: #020713;
+    --trig-pill-bg: linear-gradient(135deg, #2f7de1, #1e63c8 60%, #2b6fe0);
   }
 }
 
@@ -4741,17 +4748,24 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 
 /* ============================================================
    أيقونة الاختصار المتحركة — TriggerIcon
-   عنصر زجاجي NEBULA واحد (برق + نص الاختصار) يعيش على كل كارت
-   رد في كل المجلدات وكل الكثافات، ويفتح محررًا مصغّرًا من جواه.
-   كل التوقيتات منحنيات حرفية — var(--ease-out) لا يحرّك شيئًا
-   في هذا البناء. الحركة transform/opacity فقط عشان قائمة الـ 88
-   رد تفضل ناعمة. لا ذهبي/كهرماني هنا أبدًا: أزرق ملكي ← سماوي.
-   لون الحبّة: اللي ليها اختصار بتلبس لون مجلد الرد (--fhue من
-   فئة fcol-* أو من --fhue المضمّنة للون مخصص، نفس قيمة أيقونة
-   المجلد بالظبط)؛ مجلد «تلقائية» (من غير لون أيقونة) والحبّة
-   الفاضية «أضف اختصار» بيفضلوا على أزرق NEBULA الثابت (--trig).
-   معيار الإبهار: اللمعة ساطعة وواضحة، توهّج داخلي يتنفّس،
-   والـ hover يطلق لمعة سريعة — أنيق لا صاخب.
+   (إعادة تصميم 2026-11-26 — حكم المالك: شكل ⌘ المفتاح ولونه
+   سيئان): الحبّة دلوقتي كبسولة صلبة بلون NEBULA واحد قوي
+   (تدرّج ملكي ← سماوي، نفس لون زر «نسخ الرد»)، بحبر أبيض
+   وعلامة برق مصمتة بيضاء — لا لون مجلد باهت ولا ⌘ رفيعة.
+   لماذا: التدرّج الباهت بلون المجلد كان بيطلع مغسولًا (وردي
+   باهت على وردي باهت، ذهبي طيني)، والـ ⌘ الرفيعة 13px كانت
+   بتتقري خربشة مش علامة، وبلاطة المجلد نفسها وردية بنفس
+   العائلة فالحبّة كانت بتضيع جنبها بدل ما تتميّز. الكبسولة
+   الصلبة + البرق المصمت (ملء مقابل كل أيقونات الموقع الرفيعة)
+   بيخلّوا الاختصار يتقري من السيلويت قبل الكلمة، في الفاتح
+   والغامق بنفس القوة. عنصر زجاجي NEBULA واحد (برق + نص
+   الاختصار) يعيش على كل كارت رد في كل المجلدات وكل الكثافات،
+   ويفتح محررًا مصغّرًا من جواه. كل التوقيتات منحنيات حرفية —
+   var(--ease-out) لا يحرّك شيئًا في هذا البناء. الحركة
+   transform/opacity فقط عشان قائمة الـ 88 رد تفضل ناعمة.
+   لا ذهبي/كهرماني هنا أبدًا: أزرق ملكي ← سماوي.
+   اللمعة ساطعة وواضحة، توهّج داخلي يتنفّس، والـ hover يطلق
+   لمعة سريعة — أنيق لا صاخب.
    (إصلاح 2026-11-26: اللمعة كانت ::after على زرار شايل
    data-tip، فقاعدة التلميح مسحتها بـ content:none — اللمعة
    دلوقتي عنصر span.trig-sheen جوه الزرار، والتلميح فضل على
@@ -4818,15 +4832,14 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 }
 /* #5 — توهّج النسخ بقى حلقة ::before (neb-ring-out فوق) بدل
    box-shadow. */
-/* حبّة الاختصار — شكل مفتاح (2026-11-26، تمييز الاختصار):
-   الحبّة مش حبّة مستديرة — هي «مفتاح»: زوايا مربّعة 8px وحافة
-   سفلية غامقة 2px (inset) زي قاعدة زر لوحة مفاتيح حقيقي.
-   لا بلاطة مجلد (مربع 36px بأيقونة بس) ولا بطاقة رد (مستطيل
-   كبير) عندها الشكل ده، فالاختصار بيتعرف من سيلويته قبل ما
-   تقرا الكلمة. العلامة جوّاه ⌘ (Command — I.shortcut)، مش
-   برق ولا أي أيقونة مجلد/رد. لون الحبّة = لون مجلد الرد زي ما
-   هو (قاعدة التماسك باللون ما اتغيرتش)، واللمعة والتوهّج
-   والنبضة زي ما هم. */
+/* حبّة الاختصار — كبسولة صلبة (2026-11-26، إعادة التصميم):
+   لا مفتاح ولا مربع — كبسولة مستديرة بالكامل بتدرّج ملكي قوي
+   وحبر أبيض، نفس لغة زر «نسخ الرد». لا بلاطة مجلد (مربع 36px
+   بأيقونة بس) ولا بطاقة رد (مستطيل كبير) عندها الشكل ده،
+   والبرق المصمت الأبيض جوّاها مش موجود في أي أيقونة مجلد/رد،
+   فالاختصار بيتعرف من سيلويته قبل ما تقرا الكلمة. اللمعة
+   والتوهّج والنبضة زي ما هم — على الأزرق الصلب اللمعة البيضاء
+   بتبان أوضح بكتير من على التدرّج الباهت. */
 .trig-icon {
   position: relative;
   overflow: hidden;
@@ -4834,11 +4847,11 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--trig) 45%, transparent);
-  background: linear-gradient(120deg, var(--trig-soft), color-mix(in srgb, var(--trig) 22%, var(--surface)));
-  color: var(--trig-strong);
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 38%, transparent);
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  background: var(--trig-pill-bg);
+  color: #ffffff;
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 55%, transparent), 0 1px 0 rgb(255 255 255 / 0.22) inset;
   cursor: pointer;
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -4850,7 +4863,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--trig) 70%, transparent), transparent 70%);
+  background: radial-gradient(90% 130% at 50% 0%, rgb(255 255 255 / 0.38), transparent 70%);
   pointer-events: none;
   animation: neb-trig-glow 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   animation-delay: var(--trig-delay, 0s);
@@ -4877,26 +4890,15 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 }
 .trig-icon:hover .trig-sheen { animation-duration: 0.8s; }
 /* الغامق: اللمعة والتوهّج أقوى (شريط أبيض كامل وعريض
-   أكتر، وتوهّج 85% بدل 70%) عشان يبانوا على الخلفية
-   الغامقة — اللمعة أصلًا بيضا فالمفروض تبان أكتر في
-   الغامق، ولو ما بانتش في لقطة فالسبب غالبًا إن الحبّة
-   المصوَّرة ما كانش فيها لمعة أصلًا (شريحة البار مثلًا)
-   أو إن اللقطتين وقعوا برّه الشريط. ملحوظة دقة: قاعدة
-   التوهّج الغامق مستثناة منها حبّة المجلد
-   (:not(.trig-folder)) — لولا الاستثناء ده، القاعدة دي
-   (0,2,1) كانت هتتفوّق بوضعها المتأخر على
-   .trig-icon.trig-folder::before (0,2,1) وترجّع توهّج
-   حبّة المجلد للأزرق الثابت في الغامق، وده يكسر قاعدة
-   لون الحبّة = لون المجلد. حبّة المجلد ليها نسختها
-   الخاصة تحت (--fhue بـ 85%). */
+   أكتر) عشان يبانوا على الخلفية الغامقة — اللمعة أصلًا
+   بيضا فالمفروض تبان أكتر في الغامق. (ملحوظة: استثناء
+   حبّة المجلد :not(.trig-folder) اتلغى مع إلغاء لون
+   المجلد نفسه — الحبّة دلوقتي واحدة في الثيمين.) */
 :root[data-theme="dark"] .trig-sheen {
   background: linear-gradient(100deg, transparent 22%, rgb(255 255 255 / 1) 44%, rgb(255 255 255 / 1) 56%, transparent 78%);
 }
-:root[data-theme="dark"] .trig-icon:not(.trig-folder)::before {
-  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--trig) 85%, transparent), transparent 70%);
-}
-:root[data-theme="dark"] .trig-icon.trig-folder::before {
-  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--fhue) 85%, transparent), transparent 70%);
+:root[data-theme="dark"] .trig-icon::before {
+  background: radial-gradient(90% 130% at 50% 0%, rgb(255 255 255 / 0.45), transparent 70%);
 }
 :root[data-theme="dark"] .trig-hero-pill::after {
   background: linear-gradient(100deg, transparent 22%, rgb(255 255 255 / 0.95) 44%, rgb(255 255 255 / 0.95) 56%, transparent 78%);
@@ -4906,7 +4908,8 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   animation: neb-trig-mark 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
   animation-delay: var(--trig-delay, 0s);
 }
-/* بلا اختصار بعد: هادئ وباهت، بإطار متقطع يدعو للدوس */
+/* بلا اختصار بعد: هادئ وباهت، بإطار متقطع يدعو للدوس —
+   كبسولة شبح بنفس شكل الحبّة الصلبة، بلا ملء. */
 .trig-icon-empty {
   background: transparent;
   border-style: dashed;
@@ -4921,42 +4924,15 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 .trig-icon-empty .trig-mark { animation: none; }
 .trig-icon:hover {
   transform: translateY(-1px) scale(1.05);
-  border-color: color-mix(in srgb, var(--trig) 70%, transparent);
-  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--trig) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--trig) 14%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 38%, transparent);
+  border-color: rgb(255 255 255 / 0.55);
+  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--trig) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--trig) 14%, transparent);
 }
-.trig-icon-empty:hover { color: var(--trig-strong); }
+.trig-icon-empty:hover { color: var(--trig-strong); border-color: color-mix(in srgb, var(--trig) 70%, transparent); }
 .trig-icon:active { transform: scale(0.95); }
 .trig-icon:focus-visible {
   outline: 2px solid var(--trig);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--trig) 22%, transparent);
-}
-/* حبّة ليها اختصار بتلبس لون مجلد الرد — --fhue جاي من فئة
-   fcol-* بتاعة المجلد أو من --fhue المضمّنة (لون مخصص)، يعني
-   نفس قيمة أيقونة المجلد بالظبط. الخلفية والإطار والتوهّج هم
-   خلطات بلاطة أيقونة المجلد نفسها (تظليل خفيف فوق --surface)؛
-   أما الحبر فبيميل لـ --text أكتر من البلاطة (40% لون مقابل
-   76% في البلاطة): خلطة البلاطة بتفشل في التباين مع نص صغير —
-   ألوان فاتحة (ذهبي/ليموني/#ffd166 مخصص) في الفاتح وألوان
-   غامقة (كحلي/#1a2a6c مخصص) في الغامق بتنزل تحت 4.5:1 — لكن
-   40% بتعدّي كل الألوان المسمّاة والمخصصة في الثيمين (أدنى
-   حالة محسوبة 5.57:1)، والحبر لسه ملوّن باين. */
-.trig-icon.trig-folder {
-  border-color: color-mix(in srgb, var(--fhue) 45%, transparent);
-  background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 12%, var(--surface)));
-  color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--fhue) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
-}
-.trig-icon.trig-folder::before {
-  background: radial-gradient(90% 130% at 50% 0%, color-mix(in srgb, var(--fhue) 70%, transparent), transparent 70%);
-}
-.trig-icon.trig-folder:hover {
-  border-color: color-mix(in srgb, var(--fhue) 70%, transparent);
-  box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--fhue) 70%, transparent), 0 0 0 3px color-mix(in srgb, var(--fhue) 14%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
-}
-.trig-icon.trig-folder:focus-visible {
-  outline-color: var(--fhue);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fhue) 22%, transparent);
 }
 @media (prefers-reduced-motion: no-preference) {
   /* حركة الحبّة الخاملة (اللمعة والتوهّج والعلامة) عايشة في
@@ -5102,18 +5078,19 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   animation: neb-trig-sheen 5.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 /* حبّة الاختصار داخل المعاينة — النص كما كتبه صاحبه بالظبط.
-   نفس شكل المفتاح (زوايا 8px + حافة سفلية) زي حبّة البطاقة. */
+   نفس الكبسولة الصلبة زي حبّة البطاقة (إعادة تصميم
+   2026-11-26)، مش المفتاح القديم. */
 .trig-hero-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--trig) 45%, transparent);
-  background: linear-gradient(120deg, var(--trig-soft), color-mix(in srgb, var(--trig) 16%, var(--surface)));
-  color: var(--trig-strong);
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 38%, transparent);
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  background: var(--trig-pill-bg);
+  color: #ffffff;
+  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--trig) 55%, transparent), 0 1px 0 rgb(255 255 255 / 0.22) inset;
   padding: 4px 10px;
   font-size: 13px;
   font-weight: 800;
@@ -5136,72 +5113,36 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
   padding: 2px 8px;
   font-size: 12px;
 }
-/* حبّة المعاينة بتلبس لون مجلد الرد — نفس خلطات حبّة البطاقة
-   (تظليل خفيف + حبر مايل لـ --text)، فتفضل مقروءة في الفاتح
-   والغامق لأي لون مجلد. */
-.trig-hero-pill.trig-folder {
-  border-color: color-mix(in srgb, var(--fhue) 45%, transparent);
-  background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 12%, var(--surface)));
-  color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  box-shadow: 0 2px 10px -4px color-mix(in srgb, var(--fhue) 50%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
-}
 /* شرائح الاختصارات الموجودة — تطفو وتتوهّج عند الـ hover.
-   نفس شكل المفتاح (زوايا 8px + حافة سفلية) زي حبّة البطاقة،
+   كبسولة بتظليل NEBULA خفيف وحبر أزرق قوي (إعادة تصميم
+   2026-11-26): الشريحة صف في قائمة، مش حبّة بطاقة، فبتفضل
+   أخف من الحبّة الصلبة — لكن بنفس الكبسولة ونفس العلامة،
    فالشريحة في أي صف بتتقرأ «اختصار» من شكلها. */
 .trig-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: 8px;
+  border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--trig) 38%, transparent);
   background: linear-gradient(120deg, var(--trig-soft), color-mix(in srgb, var(--trig) 10%, var(--surface)));
   color: var(--trig-strong);
   padding: 5px 11px;
   font-size: 12.5px;
   font-weight: 800;
-  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--trig) 38%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 30%, transparent);
+  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--trig) 38%, transparent);
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 160ms cubic-bezier(0.22, 1, 0.36, 1), background-color 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .trig-chip:hover {
   transform: translateY(-1px) scale(1.04);
   border-color: color-mix(in srgb, var(--trig) 65%, transparent);
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--trig) 65%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig) 30%, transparent);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--trig) 65%, transparent);
 }
 .trig-chip:active { transform: scale(0.96); }
 .trig-chip-active {
-  background: linear-gradient(150deg, var(--trig), var(--trig-strong));
-  color: var(--trig-ink);
-  border-color: transparent;
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--trig) 75%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--trig-strong) 45%, transparent);
-}
-/* شريحة اختصار بتلبس لون مجلد الرد — نفس خلطات حبّة البطاقة،
-   فتفضل مقروءة في الفاتح والغامق لأي لون مجلد. الشريحة النشطة
-   (الاختصار المكتوب في البحث دلوقتي) بتفضل على تظليل المجلد
-   الخفيف وبتتميّز بحلقة قوية بلون المجلد بدل الملء الأزرق —
-   الملء بلون المجلد كان هيحتاج حبر مختلف لكل لون. */
-.trig-chip.trig-folder {
-  border-color: color-mix(in srgb, var(--fhue) 38%, transparent);
-  background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 10%, var(--surface)));
-  color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--fhue) 38%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 30%, transparent);
-}
-.trig-chip.trig-folder:hover {
-  border-color: color-mix(in srgb, var(--fhue) 65%, transparent);
-  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--fhue) 65%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 30%, transparent);
-}
-.trig-chip.trig-folder .trig-chip-count {
-  background: color-mix(in srgb, var(--fhue) 14%, transparent);
-  color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-}
-.trig-chip.trig-folder.trig-chip-active {
-  background: linear-gradient(120deg, color-mix(in srgb, var(--fhue) 26%, var(--surface)), color-mix(in srgb, var(--fhue) 12%, var(--surface)));
-  color: color-mix(in srgb, var(--fhue) 40%, var(--text));
-  border-color: var(--fhue);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fhue) 28%, transparent), 0 6px 18px -6px color-mix(in srgb, var(--fhue) 55%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--fhue) 38%, transparent);
-}
-.trig-chip.trig-folder.trig-chip-active .trig-chip-count {
-  background: color-mix(in srgb, var(--fhue) 16%, transparent);
-  color: color-mix(in srgb, var(--fhue) 40%, var(--text));
+  background: var(--trig-pill-bg);
+  color: #ffffff;
+  border-color: rgb(255 255 255 / 0.28);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--trig) 75%, transparent);
 }
 /* زر نسخ قلَب «اتنسخ» — حلقة نجاح ثابتة طول ما الحالة
    ظاهرة، فوقها نبضة حلقة واحدة (::before بتاعة .copy-success). */
@@ -5230,7 +5171,7 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 }
 .trig-chip-active .trig-chip-count {
   background: rgb(255 255 255 / 0.22);
-  color: var(--trig-ink);
+  color: #ffffff;
 }
 @media (prefers-reduced-motion: no-preference) {
   .trig-match { animation: neb-trig-match-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }

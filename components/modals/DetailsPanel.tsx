@@ -200,7 +200,7 @@ export function DetailsPanel({
         )}
         <dt className="font-semibold text-[var(--faint)]">الاختصار</dt>
         <dd className="font-semibold">
-          <TriggerIcon item={item} folder={folders.find((f) => f.id === item.folderId) ?? null} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
+          <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
         </dd>
         {item.source && (
           <>

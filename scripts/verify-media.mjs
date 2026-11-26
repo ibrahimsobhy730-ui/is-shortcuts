@@ -382,6 +382,41 @@ try {
     "uploadErrorMessage too-large differs by kind",
     uploadErrorMessage("too-large", false) !== uploadErrorMessage("too-large", true),
   );
+  // ---- upload diagnostics (2026-11-26): one failure, one diagnosis ----
+  check(
+    "classify maps XHR 403 to forbidden (was: generic unknown)",
+    classifyUploadError(new Error("Blob upload failed (403)")) === "forbidden",
+  );
+  check(
+    "classify maps XHR 404 to not-found",
+    classifyUploadError(new Error("Blob upload failed (404)")) === "not-found",
+  );
+  check(
+    "classify maps XHR 429/500 to service",
+    classifyUploadError(new Error("Blob upload failed (429)")) === "service" &&
+      classifyUploadError(new Error("server upload failed (HTTP 500)")) === "service",
+  );
+  check(
+    "classify maps an XHR error carrying the API code to forbidden",
+    classifyUploadError(new Error("Access denied — code: forbidden — HTTP 403")) === "forbidden",
+  );
+  const editorSrc = readFileSync(join(root, "components", "modals", "EditorModal.tsx"), "utf8");
+  const stages = ["التحقق من الملف", "فحص الاتصال", "تجهيز الملف", "تجهيز الرفع", "الرفع المباشر", "الرفع البديل", "الرفع من السيرفر", "حفظ الوسائط"];
+  check(
+    "editor tracks all 8 upload stages",
+    stages.every((s) => editorSrc.includes(`"${s}"`)),
+    stages.filter((s) => !editorSrc.includes(`"${s}"`)).join(", "),
+  );
+  check(
+    "editor appends the stage to every upload error (withStage)",
+    /const withStage = \(m: string\) => `\$\{m\} — المرحلة: \$\{stage\}`;/.test(editorSrc) &&
+      /setMediaError\(withStage\(base\)\);/.test(editorSrc),
+  );
+  check(
+    "video failures surface a SPECIFIC classified cause before the generic video line",
+    /else if \(\s*classified === "content-type"/.test(editorSrc) &&
+      editorSrc.indexOf('classified === "content-type"') < editorSrc.indexOf("الفيديو مش راضي يترفع من المتصفح ده"),
+  );
 
 } catch (e) {
   console.log(`ERROR: ${e.stack ?? e.message}`);

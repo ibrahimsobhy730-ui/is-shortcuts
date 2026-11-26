@@ -27,10 +27,10 @@
   "packageManager": "npm@10.9.4",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "node scripts/write-version.mjs && next build",
     "db:import": "node scripts/import-backup.ts",
     "db:setup": "node scripts/setup-db.ts",
-    "vercel-build": "node --experimental-strip-types scripts/setup-db.ts && next build",
+    "vercel-build": "node scripts/write-version.mjs && node --experimental-strip-types scripts/setup-db.ts && next build",
     "dev": "next dev",
     "gen:fields": "node scripts/gen-fields.ts",
     "start": "next start",
