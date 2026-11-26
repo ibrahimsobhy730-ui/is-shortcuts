@@ -192,6 +192,10 @@ export const FIELDS = {
       "name": "tags",
       "maxLength": 300
     },
+    "trigger": {
+      "name": "trigger",
+      "maxLength": 24
+    },
     "extShortcut": {
       "name": "extShortcut",
       "maxLength": 60
@@ -238,6 +242,10 @@ export const FIELDS = {
     "tags": {
       "name": "tags",
       "maxLength": 300
+    },
+    "trigger": {
+      "name": "trigger",
+      "maxLength": 24
     },
     "extShortcut": {
       "name": "extShortcut",
@@ -352,6 +360,10 @@ export const FIELDS = {
       "tags": {
         "name": "tags",
         "maxLength": 300
+      },
+      "trigger": {
+        "name": "trigger",
+        "maxLength": 24
       },
       "extShortcut": {
         "name": "extShortcut",

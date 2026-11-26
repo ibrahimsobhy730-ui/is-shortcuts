@@ -22,6 +22,14 @@ const client = new Client({ connectionString });
 await client.connect();
 try {
   await client.query(sql);
+  /* Trigger column (added after the first deploy): the init file
+     above creates it for fresh databases; live databases created
+     before it need the idempotent ALTER + unique index below, run
+     on every build so no manual migration step is ever needed. */
+  await client.query(`
+    ALTER TABLE shortcuts ADD COLUMN IF NOT EXISTS trigger TEXT NOT NULL DEFAULT '';
+    CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, trigger) WHERE trigger <> '';
+  `);
   const { rows } = await client.query(`
     SELECT 'users' AS t, COUNT(*)::int AS n FROM users
     UNION ALL SELECT 'folders', COUNT(*)::int FROM folders

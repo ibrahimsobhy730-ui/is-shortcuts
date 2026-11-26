@@ -48,7 +48,7 @@ export const users = pgTable("users", {
 });
 
 /* Copy history: one row per successful copy/expansion of a library
-   reply (site or extension), stamped when it happened.
+   reply on the site, stamped when it happened.
    The title is snapshotted so the history still reads correctly
    after the reply is renamed; shortcut_id goes null only in the
    snapshot sense — the row itself is kept when a reply is deleted,
@@ -191,12 +191,23 @@ export const shortcuts = pgTable("shortcuts", {
   /* Free-form keywords (comma-separated as typed) that search matches
      alongside title/body — the reply's tags. */
   tags: text("tags").notNull().default(""),
+  /* The reply's own expansion trigger, chosen and typed by its owner
+     in the reply editor (e.g. ";salam"). Per-user: uniqueness is
+     scoped to (user_id, trigger) — another account may use the same
+     word. Empty = this reply has no trigger. The site's shortcuts
+     section / shortcut bar reads only the signed-in user's triggers.
+     Never auto-assigned and
+     never copied from extShortcut (that field stays a record-only
+     note about outside programs). */
+  trigger: text("trigger").notNull().default(""),
   /* The shortcut word the user registered for this reply in programs
      OUTSIDE the site (his own text expander), written by him in the
      reply editor purely so he can see which external shortcut a
      reply belongs to. A record-keeping note only: nothing on the
-     site expands, matches or copies by it — the trigger system
-     stays removed (migration 0011). Empty = not recorded. */
+     site expands, matches or copies by it — the site's own
+     functional trigger is the `trigger` field above, while this
+     field stays a record-only note about outside programs.
+     Empty = not recorded. */
   extShortcut: text("ext_shortcut").notNull().default(""),
   /* Where this reply originally came from, picked by the user in
      the editor from a fixed list (Chatwoot / Text Blaze /
@@ -204,7 +215,7 @@ export const shortcuts = pgTable("shortcuts", {
      origin. A record-keeping label only — it changes nothing
      about copying, search or sync. Empty = no source recorded.
      (The "Text Blaze" value is just a source name in this list;
-     the removed extension/sidebar item stays removed.) */
+     there is no extension or sidebar item for it.) */
   source: text("source").notNull().default(""),
   folderId: integer("folder_id"),
   sortOrder: integer("sort_order").notNull().default(0),

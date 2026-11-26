@@ -10,6 +10,8 @@ const shortcutShape = z.object({
   body: z.string(),
   category: z.string(),
   tags: z.string(),
+  /* The reply's own expansion trigger ("" = none). */
+  trigger: z.string(),
   extShortcut: z.string(),
   source: z.string(),
   folderId: z.number().nullable(),
@@ -310,6 +312,7 @@ function toShape(row: ShortcutRow): z.infer<typeof shortcutShape> {
     body: row.body,
     category: row.category,
     tags: row.tags ?? "",
+    trigger: row.trigger ?? "",
     extShortcut: row.extShortcut ?? "",
     source: row.source ?? "",
     folderId: row.folderId ?? null,
@@ -550,6 +553,56 @@ async function requireOwnedShortcut(
   const row = rows[0];
   if (!row) throw new Error("الاختصار ده مش موجود في مكتبتك");
   return row;
+}
+
+/* ---- per-user expansion triggers ----
+   A trigger is the word its owner types in the site's search /
+   shortcut bar to expand this one reply (e.g. ";salam"). Rules, enforced here on the server — the
+   client mirrors them only for instant feedback:
+   - "" = no trigger.
+   - otherwise: ^;[a-z0-9][a-z0-9_-]{0,23}$ — starts with ";", 2–24
+     chars total, lowercase latin letters / digits / "_" / "-".
+     Input is trimmed and lowercased first, so ";Salam" stores as
+     ";salam".
+   - unique among the same user's NON-deleted replies (case-insensitive
+     by construction, since everything is stored lowercase). Another
+     account may use the same word; a trashed reply frees its word. */
+const TRIGGER_RE = /^;[a-z0-9][a-z0-9_-]{0,23}$/;
+
+function normalizeTrigger(raw: string | null | undefined): string {
+  const t = (raw ?? "").trim().toLowerCase();
+  if (t === "") return "";
+  if (!TRIGGER_RE.test(t)) {
+    throw new Error(
+      "الاختصار لازم يبدأ بـ ; ويكون حروف إنجليزي صغيرة وأرقام و _ أو - بس، من حرفين لـ 24 حرف — مثال: ;salam",
+    );
+  }
+  return t;
+}
+
+async function assertTriggerAvailable(
+  ctx: Ctx,
+  userId: number,
+  trigger: string,
+  excludeId?: number,
+): Promise<void> {
+  if (trigger === "") return;
+  const db = ctx.db<typeof schema>();
+  const rows = await db
+    .select({ id: schema.shortcuts.id })
+    .from(schema.shortcuts)
+    .where(
+      and(
+        eq(schema.shortcuts.userId, userId),
+        eq(schema.shortcuts.trigger, trigger),
+        isNull(schema.shortcuts.deletedAt),
+      ),
+    )
+    .limit(1);
+  const clash = rows[0];
+  if (clash && clash.id !== excludeId) {
+    throw new Error("الاختصار ده مستخدم في رد تاني عندك — اختار اختصار مختلف");
+  }
 }
 
 /** Appends one entry to the account's copy history and prunes it to
@@ -1617,6 +1670,7 @@ export const Actions = {
           body: s.body,
           category: s.category,
           tags: s.tags,
+          trigger: s.trigger ?? "",
           extShortcut: s.extShortcut,
           source: s.source,
           folderId: s.folderId,
@@ -1824,6 +1878,9 @@ export const Actions = {
       body: z.string().min(1).max(20000),
       category: z.string().trim().min(1).max(60),
       tags: z.string().trim().max(300).optional().default(""),
+      /* The reply's own expansion trigger, typed by its owner.
+         "" = none; validated + deduped per user in the handler. */
+      trigger: z.string().trim().max(24).optional().default(""),
       /* The external-shortcut note (see the schema): the word the
          user registered for this reply in outside programs, kept
          only so the editor can show it back to him. */
@@ -1836,6 +1893,8 @@ export const Actions = {
     async handler(ctx, args) {
       const db = ctx.db<typeof schema>();
       const me = await requireUser(ctx, args.token);
+      const trigger = normalizeTrigger(args.trigger);
+      await assertTriggerAvailable(ctx, me.id, trigger);
       let category = args.category;
       let folderId: number | null = null;
       /* folderId === null sent explicitly means the top level (no
@@ -1873,6 +1932,7 @@ export const Actions = {
           body: args.body,
           category,
           tags: args.tags,
+          trigger,
           extShortcut: args.extShortcut,
           source: args.source,
           folderId,
@@ -1895,6 +1955,7 @@ export const Actions = {
       body: z.string().min(1).max(20000),
       category: z.string().trim().min(1).max(60),
       tags: z.string().trim().max(300).optional().default(""),
+      trigger: z.string().trim().max(24).optional().default(""),
       extShortcut: z.string().trim().max(60).optional().default(""),
       source: sourceField.optional().default(""),
       /* The editor's folder picker: when sent, the reply is filed
@@ -1908,11 +1969,14 @@ export const Actions = {
       const db = ctx.db<typeof schema>();
       const me = await requireUser(ctx, args.token);
       const current = await requireOwnedShortcut(ctx, me.id, args.id);
+      const trigger = normalizeTrigger(args.trigger);
+      await assertTriggerAvailable(ctx, me.id, trigger, args.id);
       const patch: {
         title: string;
         body: string;
         category: string;
         tags: string;
+        trigger: string;
         extShortcut: string;
         source: string;
         folderId?: number | null;
@@ -1923,6 +1987,7 @@ export const Actions = {
         body: args.body,
         category: args.category,
         tags: args.tags,
+        trigger,
         extShortcut: args.extShortcut,
         source: args.source,
         updatedAt: new Date(),
@@ -2110,6 +2175,11 @@ export const Actions = {
           body: src.body,
           category: src.category,
           tags: src.tags ?? "",
+          /* A copy never inherits the trigger: the word stays with
+             the original reply, and copying it would collide with
+             the per-user uniqueness rule. The owner can set a new
+             trigger on the copy in the editor. */
+          trigger: "",
           extShortcut: src.extShortcut ?? "",
           source: src.source ?? "",
           favorite: src.favorite ?? false,
@@ -2135,6 +2205,7 @@ export const Actions = {
             body: z.string().min(1).max(20000),
             category: z.string().trim().min(1).max(60).default("عام"),
             tags: z.string().trim().max(300).optional().default(""),
+            trigger: z.string().trim().max(24).optional().default(""),
             extShortcut: z.string().trim().max(60).optional().default(""),
             source: sourceField.optional().default(""),
           }),
@@ -2159,12 +2230,26 @@ export const Actions = {
         .from(schema.shortcuts)
         .where(eq(schema.shortcuts.userId, me.id));
       /* A reply counts as a duplicate when a row with the same title
-         AND the same body already exists (older backups are matched
-         the same way — the shortcut word they may still carry in the
-         file is simply not read anymore). */
+         AND the same body already exists. The duplicate check uses
+         title+body only — a trigger word in the file is not part of
+         the check; triggers are read and restored separately below. */
       const keyOf = (title: string, body: string) =>
         title.trim().toLowerCase() + "\n" + body.trim();
       const seen = new Set(existing.map((r) => keyOf(r.title, r.body)));
+      /* Triggers already in this library (live rows only) plus the
+         ones this import has already taken, so an imported trigger
+         can never collide with another of the user's replies. */
+      const takenTriggers = new Set<string>();
+      const liveTriggers = await db
+        .select({ trigger: schema.shortcuts.trigger })
+        .from(schema.shortcuts)
+        .where(
+          and(
+            eq(schema.shortcuts.userId, me.id),
+            isNull(schema.shortcuts.deletedAt),
+          ),
+        );
+      for (const r of liveTriggers) if (r.trigger) takenTriggers.add(r.trigger);
       let imported = 0;
       let skipped = 0;
       for (const item of args.items) {
@@ -2174,12 +2259,26 @@ export const Actions = {
           continue;
         }
         seen.add(key);
+        /* A bad or already-taken trigger never fails the whole
+           import: that reply simply lands trigger-less, and its
+           owner can set a trigger in the editor afterwards. */
+        let trigger = "";
+        try {
+          const t = normalizeTrigger(item.trigger);
+          if (t && !takenTriggers.has(t)) {
+            trigger = t;
+            takenTriggers.add(t);
+          }
+        } catch {
+          trigger = "";
+        }
         await db.insert(schema.shortcuts).values({
           userId: me.id,
           title: item.title,
           body: item.body,
           category: item.category,
           tags: item.tags,
+          trigger,
           extShortcut: item.extShortcut,
           source: item.source,
         });
@@ -2950,6 +3049,10 @@ export const Actions = {
             body: r.body,
             category: copy.name,
             tags: r.tags ?? "",
+            /* Folder copies never inherit triggers (see
+               duplicateShortcut): each copied reply starts
+               trigger-less so no per-user collision can occur. */
+            trigger: "",
             extShortcut: r.extShortcut ?? "",
             source: r.source ?? "",
             folderId: copy.id,

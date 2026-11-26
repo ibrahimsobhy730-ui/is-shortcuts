@@ -106,6 +106,14 @@ try {
         body: x.body as string,
         category: typeof x.category === "string" && x.category ? x.category : "عام",
         tags: typeof x.tags === "string" ? x.tags : "",
+        /* The reply's own expansion trigger (;word, 2–24 chars).
+           Anything malformed lands trigger-less — a bad word in a
+           backup file must never block the whole import. */
+        trigger:
+          typeof x.trigger === "string" &&
+          /^;[a-z0-9][a-z0-9_-]{0,23}$/.test(x.trigger.trim().toLowerCase())
+            ? x.trigger.trim().toLowerCase()
+            : "",
         extShortcut: typeof x.extShortcut === "string" ? x.extShortcut : "",
         source: typeof x.source === "string" ? x.source : "",
       }));
@@ -166,8 +174,8 @@ try {
         }
         seen.add(key);
         await client.query(
-          "INSERT INTO shortcuts (user_id, title, body, category, tags, ext_shortcut, source) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-          [userId, it.title, it.body, it.category, it.tags, it.extShortcut, it.source],
+          "INSERT INTO shortcuts (user_id, title, body, category, tags, trigger, ext_shortcut, source) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+          [userId, it.title, it.body, it.category, it.tags, it.trigger, it.extShortcut, it.source],
         );
         imported++;
       }
@@ -221,9 +229,9 @@ try {
       let nShortcuts = 0;
       for (const s of shortcuts) {
         nShortcuts += await ins(
-          `INSERT INTO shortcuts (id, user_id, title, body, category, tags, ext_shortcut, source, folder_id, sort_order, pinned, favorite, deleted_at, usage_count, last_used_at, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) ON CONFLICT (id) DO NOTHING`,
-          [s.id, s.userId ?? null, s.title, s.body, s.category ?? "عام", s.tags ?? "", s.extShortcut ?? "", s.source ?? "", s.folderId ?? null, s.sortOrder ?? 0, s.pinned ?? false, s.favorite ?? false, s.deletedAt ?? null, s.usageCount ?? 0, s.lastUsedAt ?? null, s.createdAt ?? new Date(), s.updatedAt ?? new Date()],
+          `INSERT INTO shortcuts (id, user_id, title, body, category, tags, trigger, ext_shortcut, source, folder_id, sort_order, pinned, favorite, deleted_at, usage_count, last_used_at, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) ON CONFLICT (id) DO NOTHING`,
+          [s.id, s.userId ?? null, s.title, s.body, s.category ?? "عام", s.tags ?? "", s.trigger ?? "", s.extShortcut ?? "", s.source ?? "", s.folderId ?? null, s.sortOrder ?? 0, s.pinned ?? false, s.favorite ?? false, s.deletedAt ?? null, s.usageCount ?? 0, s.lastUsedAt ?? null, s.createdAt ?? new Date(), s.updatedAt ?? new Date()],
         );
       }
       let nHistory = 0;

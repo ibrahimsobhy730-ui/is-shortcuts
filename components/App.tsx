@@ -201,8 +201,7 @@ type Shortcut = ApiResponse<typeof api, "listShortcuts">["shortcuts"][number];
 /* The reply-source choices in the editor: the services' own
    English names, verbatim — the same fixed list the server
    validates against. Empty string = no source recorded. (The
-   "Text Blaze" entry is only a source label here; the removed
-   extension/sidebar item stays removed.) */
+   "Text Blaze" entry is only a source label here.) */
 const REPLY_SOURCES = ["Chatwoot", "Text Blaze", "Google Sheets", "Google Docs"] as const;
 type FolderRowT = ApiResponse<typeof api, "listFolders">["folders"][number];
 type SmartFolderT = ApiResponse<typeof api, "listSmartFolders">["smartFolders"][number];
@@ -235,7 +234,7 @@ const KNOWN_CATEGORIES = [
   "عام",
 ];
 
-type ViewMode = "default" | "favorites" | "most" | "least" | "recent" | "used" | "unused" | "history" | "trash";
+type ViewMode = "default" | "favorites" | "most" | "least" | "recent" | "used" | "unused" | "history" | "trash" | "shortcuts";
 
 /* How dense the reply list is. Compact is the working default — one
    reply per row, copy always visible — comfortable is the classic
@@ -1120,6 +1119,30 @@ function normalizeSearchText(text: string): string {
     .trim();
 }
 
+/* ---------- in-site triggers ----------
+   A trigger is the word its owner types in the site's search /
+   shortcut bar to find this one reply (e.g. ";salam"). Rules mirror
+   the server exactly (lib/actions.ts): "" = no trigger; otherwise
+   ^;[a-z0-9][a-z0-9_-]{0,23}$ — starts with ";", 2–24 chars total,
+   lowercase latin letters / digits / "_" / "-". Unique among the
+   same user's own replies; the server rejects duplicates. */
+const TRIGGER_RE = /^;[a-z0-9][a-z0-9_-]{0,23}$/;
+
+/** Lowercases + trims a typed trigger; "" stays "" (no trigger). */
+function normalizeTriggerInput(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+/** Short inline error for a bad trigger, or null when it is fine
+    ("" = no trigger, always fine). */
+function triggerError(raw: string): string | null {
+  const t = normalizeTriggerInput(raw);
+  if (t === "") return null;
+  if (!TRIGGER_RE.test(t))
+    return "الاختصار لازم يبدأ بـ ; ويكون حروف إنجليزي صغيرة وأرقام و _ أو - بس، من حرفين لـ 24 حرف — مثال: ;salam";
+  return null;
+}
+
 function parseTags(tags: string): string[] {
   return tags
     .split(/[,،]/)
@@ -1134,6 +1157,7 @@ type SearchableReply = {
   tags: string;
   usageCount: number;
   pinned: boolean;
+  trigger?: string;
 };
 
 /** -1 when the reply does not match at all; otherwise a score where
@@ -1146,9 +1170,19 @@ function searchScore(s: SearchableReply, rawQuery: string): number {
   const folder = normalizeSearchText(s.category);
   const body = normalizeSearchText(s.body);
   let score = -1;
-  if (title === q) score = 100;
-  else if (title.startsWith(q)) score = 85;
-  else if (title.includes(q)) score = 70;
+  /* A trigger match outranks everything: the user typed the exact
+     word that names this one reply. The leading ";" is optional in
+     the query — "salam" finds ";salam" just like ";salam" does. */
+  const trig = (s.trigger ?? "").trim().toLowerCase();
+  if (trig) {
+    const bare = trig.slice(1);
+    if (q === trig || q === bare) score = 120;
+    else if (trig.startsWith(q) || bare.startsWith(q)) score = Math.max(score, 95);
+    else if (trig.includes(q) || bare.includes(q)) score = Math.max(score, 60);
+  }
+  if (title === q) score = Math.max(score, 100);
+  else if (title.startsWith(q)) score = Math.max(score, 85);
+  else if (title.includes(q)) score = Math.max(score, 70);
   if (tags.includes(q)) score = Math.max(score, 55);
   if (folder.includes(q)) score = Math.max(score, 45);
   if (body.includes(q)) score = Math.max(score, 30);
@@ -1809,7 +1843,6 @@ const EN: Record<string, string> = {
   "مسار التنقل": "Breadcrumb",
   "أقسام الموقع": "Site sections",
   "الرئيسية": "Home",
-  "إضافة المتصفح": "Browser extension",
   "حسابي": "My account",
   "توسيع القائمة الجانبية للبحث فيها": "Expand the sidebar to search it",
   "توسيع القائمة والبحث عن أي مجلد أو صفحة": "Expand the sidebar and search for any folder or page",
@@ -1851,7 +1884,6 @@ const EN: Record<string, string> = {
   "الأكثر": "Top",
   "السجل": "History",
   "توسيع": "Expand",
-  "الإضافة": "Extension",
   "النسخ": "Backup",
   "الخصوصية": "Privacy",
   "تغيير عرض القائمة الجانبية بالسحب": "Drag to resize the sidebar",
@@ -2859,6 +2891,7 @@ function Workspace({
   const [guideOpen, setGuideOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [barOpen, setBarOpen] = useState(false);
   const [fillVarsItem, setFillVarsItem] = useState<Shortcut | null>(null);
   /* Folder-view ordering + its little menu (see FolderSort). */
   const [folderSort, setFolderSort] = useState<FolderSort>(() => {
@@ -3041,7 +3074,8 @@ function Workspace({
       category: string;
       tags?: string;
       extShortcut?: string;
-      source?: string;
+      trigger?: string;
+      source?: "" | (typeof REPLY_SOURCES)[number];
     }>;
   } | null>(null);
   const [treeFormError, setTreeFormError] = useState<string | null>(null);
@@ -3328,6 +3362,31 @@ function Workspace({
     onSuccess: invalidate,
   });
 
+  /* Inline trigger save (shortcuts view rows): the full reply is
+     re-sent with only the trigger changed — updateShortcut takes
+     the whole reply, and the server validates + dedupes the word. */
+  const updateTriggerMut = useMutation({
+    mutationFn: async (v: { s: Shortcut; trigger: string }) =>
+      await api.updateShortcut({
+        token,
+        id: v.s.id,
+        title: v.s.title,
+        body: v.s.body,
+        category: v.s.category,
+        tags: v.s.tags ?? "",
+        extShortcut: v.s.extShortcut ?? "",
+        trigger: v.trigger,
+        source: (v.s.source ?? "") as "" | (typeof REPLY_SOURCES)[number],
+        folderId: v.s.folderId ?? null,
+      }),
+    onSuccess: () => {
+      invalidate();
+      showToast("اتحفظ الاختصار");
+    },
+    onError: (e) =>
+      showToast(e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني", "error"),
+  });
+
   const togglePin = useMutation({
     mutationFn: async (s: Shortcut) =>
       await api.togglePin({ token, id: s.id, pinned: !s.pinned }),
@@ -3356,7 +3415,7 @@ function Workspace({
 
   const importMut = useMutation({
     mutationFn: async (v: {
-      items: Array<{ title: string; body: string; category: string; tags?: string }>;
+      items: Array<{ title: string; body: string; category: string; tags?: string; extShortcut?: string; trigger?: string; source?: "" | (typeof REPLY_SOURCES)[number] }>;
       mode: "merge" | "replace";
     }) => await api.importShortcuts({ token, items: v.items, mode: v.mode }),
     onSuccess: (res, v) => {
@@ -3371,8 +3430,8 @@ function Workspace({
     onError: () => showToast("الاستيراد متمّش — حاول تاني", "error"),
   });
 
-  /* Copy history — real server log of successful copies (site and
-     extension report into it). */
+  /* Copy history — real server log of successful copies from the
+     site itself. */
   const historyQuery = useQuery({
     queryKey: ["copyHistory", token],
     queryFn: () => api.listCopyHistory({ token }),
@@ -3707,6 +3766,17 @@ function Workspace({
   const goTrash = () => {
     setSmartId(null);
     setView("trash");
+    setSection("home");
+    window.scrollTo({ top: 0 });
+  };
+
+  /* Open «الاختصارات»: every trigger in one place, grouped by
+     folder, with the replies that have no trigger yet underneath. */
+  const goShortcuts = () => {
+    setSmartId(null);
+    setView("shortcuts");
+    setCategory("الكل");
+    setSearch("");
     setSection("home");
     window.scrollTo({ top: 0 });
   };
@@ -4342,6 +4412,7 @@ function Workspace({
      Home now, not separate destinations. */
   const buildTree = (): TNode[] => [
     pageNode("p:home", "الرئيسية", I.home, "الرئيسية — كل ردودك مرتبة في مجلداتها، والمفضلة والمستخدمة مؤخراً والأكثر استخداماً من أزرار العرض فوق القائمة", section === "home" && view === "default" && category === "الكل" && !search.trim() && smartId === null, shortcuts.length, goHome, 0),
+    pageNode("p:shortcuts", "الاختصارات", I.zap, "الاختصارات — كل كلمات الاختصار بتاعتك في مكان واحد، مرتبة بالمجلد، مع الردود اللي لسه ملهاش اختصار", section === "home" && view === "shortcuts", shortcuts.filter((s) => s.trigger).length, goShortcuts, 0),
     {
       key: "g:library",
       kind: "group",
@@ -4582,6 +4653,12 @@ function Workspace({
         { label: "المكتبة", run: goHome },
         { label: "الرئيسية", run: goHome },
         { label: "سلة المهملات" },
+      ];
+    if (view === "shortcuts")
+      return [
+        { label: "المكتبة", run: goHome },
+        { label: "الرئيسية", run: goHome },
+        { label: "الاختصارات" },
       ];
     if (activeSmart)
       return [
@@ -4942,6 +5019,7 @@ function Workspace({
       const railPage = (key: string) => flat.find((i) => i.key === key);
       const shortLabel: Record<string, string> = {
         "p:home": "الرئيسية",
+        "p:shortcuts": "الاختصارات",
         "p:bulk": "جماعية",
         "p:home-tools": "النسخ",
         "p:account": "حسابي",
@@ -5028,6 +5106,7 @@ function Workspace({
           })}
           {railCaption(t("عرض"))}
           {railPageBtn("p:home")}
+          {railPageBtn("p:shortcuts")}
           {railBtn("rail-fav", I.star, t("المفضلة"), {
             active: section === "home" && view === "favorites",
             tip: t("الردود المثبتة بس — اللي بترجع لها على طول"),
@@ -5524,6 +5603,7 @@ function Workspace({
       category: x.category,
       tags: x.tags ?? "",
       extShortcut: x.extShortcut ?? "",
+                          trigger: x.trigger ?? "",
       source: x.source ?? "",
     }));
     downloadText(
@@ -5546,6 +5626,7 @@ function Workspace({
               category: s.category,
               tags: s.tags ?? "",
               extShortcut: s.extShortcut ?? "",
+              trigger: s.trigger ?? "",
               source: s.source ?? "",
             },
           ],
@@ -5569,6 +5650,7 @@ function Workspace({
         category: x.category,
         tags: x.tags ?? "",
         extShortcut: x.extShortcut ?? "",
+                          trigger: x.trigger ?? "",
         source: x.source ?? "",
       }));
     if (items.length === 0) return;
@@ -5607,6 +5689,7 @@ function Workspace({
               category?: string;
               tags?: string;
               extShortcut?: string;
+              trigger?: string;
               source?: string;
             } =>
               typeof x === "object" &&
@@ -5621,11 +5704,12 @@ function Workspace({
             category: typeof x.category === "string" && x.category ? x.category : "عام",
             tags: typeof x.tags === "string" ? x.tags : "",
             extShortcut: typeof x.extShortcut === "string" ? x.extShortcut : "",
+            trigger: typeof x.trigger === "string" ? x.trigger : "",
             source:
-              typeof x.source === "string" &&
+              (typeof x.source === "string" &&
               (REPLY_SOURCES as readonly string[]).includes(x.source)
                 ? x.source
-                : "",
+                : "") as "" | (typeof REPLY_SOURCES)[number],
           }));
         if (items.length === 0) throw new Error("empty");
         setImportPreview({ fileName: file.name, items });
@@ -5816,6 +5900,20 @@ function Workspace({
               </button>
             )}
           </div>
+          {/* Shortcut bar: the fast trigger panel — one visible
+              button, no keyboard shortcut (custom keyboard shortcuts
+              were removed and stay removed). */}
+          <button
+            type="button"
+            aria-label={t("شريط الاختصارات")}
+            data-tip={t("شريط الاختصارات — اكتب الاختصار وانسخ رده على طول")}
+            data-tip-pos="below"
+            onClick={() => setBarOpen(true)}
+            className="lux-btn flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
+          >
+            <Icon d={I.zap} size={16} />
+            <span className="hidden md:inline">{t("شريط الاختصارات")}</span>
+          </button>
           {/* Sync status: a single quiet dot — green while the
               connection is live, amber while offline. */}
           <span
@@ -6983,7 +7081,17 @@ function Workspace({
 
         {/* List */}
         <section className="mt-4">
-          {view === "trash" ? (
+          {view === "shortcuts" ? (
+            <ShortcutsView
+              shortcuts={shortcuts}
+              folders={folders}
+              query={search}
+              onCopy={(s) => handleCopy(s)}
+              onSaveTrigger={async (s, trigger) => {
+                await updateTriggerMut.mutateAsync({ s, trigger });
+              }}
+            />
+          ) : view === "trash" ? (
             <TrashView
               folders={trashQuery.data?.folders ?? []}
               shortcuts={trashQuery.data?.shortcuts ?? []}
@@ -7520,6 +7628,7 @@ function Workspace({
                           category: x.category,
                           tags: x.tags ?? "",
                           extShortcut: x.extShortcut ?? "",
+                          trigger: x.trigger ?? "",
                           source: x.source ?? "",
                         })),
                       },
@@ -7697,6 +7806,14 @@ function Workspace({
             importMut.mutate({ items, mode: "merge" });
             setBulkOpen(false);
           }}
+        />
+      )}
+      {barOpen && (
+        <ShortcutBar
+          open={barOpen}
+          onClose={() => setBarOpen(false)}
+          shortcuts={shortcuts}
+          onCopy={(s) => handleCopy(s)}
         />
       )}
       {editor.open && (
@@ -8288,6 +8405,14 @@ function DetailsPanel({
             </dd>
           </>
         )}
+        <dt className="font-semibold text-[var(--faint)]">الاختصار</dt>
+        <dd className="font-semibold">
+          {item.trigger ? (
+            <span dir="ltr" className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[var(--accent-strong)]">{item.trigger}</span>
+          ) : (
+            <span className="text-[var(--faint)]">—</span>
+          )}
+        </dd>
         {item.source && (
           <>
             <dt className="font-semibold text-[var(--faint)]">المصدر</dt>
@@ -10009,7 +10134,8 @@ function ImportPreviewModal({
     category: string;
     tags?: string;
     extShortcut?: string;
-    source?: string;
+    trigger?: string;
+    source?: "" | (typeof REPLY_SOURCES)[number];
   }>;
   existingKeys: Set<string>;
   importing: boolean;
@@ -10265,91 +10391,69 @@ function PreviewModal({
 
 /* The published privacy policy texts (Arabic + English) — the
    same texts the privacy page renders. */
-const PRIVACY_POLICY_AR = `سياسة خصوصية إضافة IS للمتصفح
+const PRIVACY_POLICY_AR = `سياسة خصوصية موقع IS
 
 آخر تحديث: نوفمبر 2026
 
-إضافة IS للمتصفح («الإضافة») تابعة لمنصة IS لإدارة الاختصارات النصية («الموقع»). السياسة دي بتشرح ببساطة إيه البيانات اللي بنتعامل معاها وليه.
+موقع IS («الموقع») منصة لإدارة الاختصارات النصية. السياسة دي بتشرح ببساطة إيه البيانات اللي بنتعامل معاها وليه.
 
 ١) البيانات اللي بنجمعها
 • بيانات الحساب اللي بتسجل بيها على الموقع: الاسم، البريد الإلكتروني، رقم الموبايل (اختياري)، وكلمة المرور — وكلمة المرور بتتحفظ مشفرة ببصمة تجزئة مع ملح (salted hash)، مش كنص صريح أبداً.
-• ردودك: العنوان ونص الرد والتصنيف وعدد مرات الاستخدام — دي المحتوى اللي انت بتحفظه بنفسك على حسابك.
-• الإضافة نفسها بتخزن على جهازك بس: نسخة من مكتبتك ورمز جلسة تسجيل الدخول — عشان البحث والإدراج يشتغلوا فوراً وحتى من غير إنترنت.
+• ردودك: العنوان ونص الرد والتصنيف والوسوم وعدد مرات الاستخدام — دي المحتوى اللي انت بتحفظه بنفسك على حسابك.
+• سجل النسخ: وقت نسخ كل رد، عشان تقدر ترجع للي استخدمته.
+• على جهازك بس: رمز جلسة تسجيل الدخول وتفضيلات العرض — عشان تفضل مسجل دخولك وتفضل إعداداتك زي ما هي.
 
-٢) الإضافة بتعمل إيه على الصفحات؟
-الإضافة بتشتغل على المواقع اللي بتفتحها عشان تكتشف خانات الكتابة وتدرج فيها الرد اللي بتختاره بنفسك من البحث السريع أو النافذة أو قائمة الزر الأيمن. محتوى الصفحات مش بيتبعت لأي مكان ومش بيتحفظ ومش بيستخدم لأي غرض تاني.
+٢) إزاي بنستخدم بياناتك
+بياناتك بتخدم حسابك انت بس: عرض ردودك ونسخها وتنظيمها. مفيش أي بيانات بتروح لأي طرف تالت، ومفيش تتبع إعلاني ولا تحليلات من أطراف خارجية، ومفيش بيع بيانات — لا دلوقتي ولا بعدين.
 
-٣) المزامنة
-لما بتسجل دخولك من الإضافة، رمز الجلسة بيتبعت لموقع IS بس عشان نجيب مكتبتك ونحدثها. مفيش أي بيانات بتروح لأي طرف تالت، ومفيش تتبع إعلاني ولا تحليلات من أطراف خارجية، ومفيش بيع بيانات — لا دلوقتي ولا بعدين.
+٣) حقوقك
+تقدر تعدل ردودك أو تمسحها في أي وقت من الموقع، وتسجيل خروجك بيمسح رمز الجلسة من جهازك. لحذف حسابك وبياناته من الموقع كلياً، تواصل مع مالك الموقع من خلال الموقع نفسه.
 
-٤) الأذونات وليه محتاجينها
-• التخزين (storage): حفظ مكتبتك وإعداداتك ورمز الجلسة على جهازك.
-• الوصول لكل المواقع (host permissions): الإدراج لازم يشتغل في أي موقع بتكتب فيه — ده غرض الإضافة الوحيد.
-• قوائم الزر الأيمن (contextMenus): قائمة «إدراج رد جاهز» جوه خانات الكتابة.
-• المنبهات (alarms): المزامنة الدورية كل ٣٠ دقيقة.
-• التبويبات (tabs): توصيل الرد اللي اخترته لخانة الكتابة في التبويب الحالي وتنفيذ أوامر لوحة المفاتيح.
-• الاتصال الخارجي (externally_connectable): موقع IS بس يقدر يسأل الإضافة إن كانت مثبتة عشان يعرض حالة التثبيت الحقيقية.
-
-٥) حقوقك
-تقدر تعدل ردودك أو تمسحها في أي وقت من الموقع، وتسجل خروجك من الإضافة يمسح رمز الجلسة من جهازك، ومسح الإضافة من المتصفح بيمسح كل بياناتها المحلية. لحذف حسابك وبياناته من الموقع كلياً، تواصل مع مالك الموقع من خلال الموقع نفسه.
-
-٦) التعديلات
+٤) التعديلات
 لو السياسة اتغيرت، هنحدث التاريخ اللي فوق وننشر النسخة الجديدة هنا على الموقع.`;
 
-const PRIVACY_POLICY_EN = `IS Browser Extension — Privacy Policy
+const PRIVACY_POLICY_EN = `IS Site — Privacy Policy
 
 Last updated: November 2026
 
-The IS browser extension (the "Extension") is part of the IS text-shortcut platform (the "Site"). This policy explains, plainly, what data we handle and why.
+The IS site (the "Site") is a text-shortcut management platform. This policy explains, plainly, what data we handle and why.
 
 1) Data we collect
 • Account data you register with on the Site: your name, email address, optional mobile number, and password — passwords are stored only as a salted hash, never in plain text.
-• Your snippets: the title, reply text, category, and usage counts — content you save yourself on your account.
-• The Extension stores, on your device only: a copy of your library and your sign-in session token — so search and insert work instantly and even offline.
+• Your replies: the title, reply text, category, tags, and usage counts — content you save yourself on your account.
+• Copy history: when each reply was copied, so you can see what you used.
+• On your device only: your sign-in session token and display preferences — so you stay signed in and your settings stay as you left them.
 
-2) What the Extension does on pages
-The Extension runs on the websites you open to detect text fields and insert the reply you explicitly pick from the quick search, the popup, or the right-click menu. Page content is never transmitted anywhere, never stored, and never used for any other purpose.
+2) How we use your data
+Your data serves your account only: showing, copying, and organizing your replies. No data goes to any third party. There is no advertising tracking, no third-party analytics, and no sale of data — ever.
 
-3) Synchronization
-When you sign in from the Extension, the session token is sent only to the IS Site to fetch and update your library. No data goes to any third party. There is no advertising tracking, no third-party analytics, and no sale of data — ever.
+3) Your rights
+You can edit or delete your replies at any time on the Site, and signing out removes the session token from your device. To delete your account and its data from the Site entirely, contact the Site owner through the Site.
 
-4) Permissions and why they are needed
-• storage: keeps your library, settings, and session token on your device.
-• Host permissions (all URLs): inserting the reply you pick has to work on any site you type on — that is the Extension's single purpose.
-• contextMenus: the "insert a ready reply" right-click menu inside text fields.
-• alarms: the periodic 30-minute sync.
-• tabs: delivers the snippet you picked to the text field in your current tab and routes the keyboard commands.
-• externally_connectable: only the IS Site may ask the Extension whether it is installed, so the Site can show a truthful installation state.
-
-5) Your rights
-You can edit or delete your snippets at any time on the Site. Signing out of the Extension removes the session token from your device, and removing the Extension from your browser deletes all of its local data. To delete your account and its data from the Site entirely, contact the Site owner through the Site.
-
-6) Changes
+4) Changes
 If this policy changes, we will update the date above and publish the new version here on the Site.`;
 
 /* ---------- privacy policy page ----------
-   The extension's privacy policy, published on the site itself: the
-   Chrome Web Store dashboard points at this site for it, and the exact
-   same texts ship in the submission pack for pasting. Arabic first
-   (the site's language), then the English version for store review. */
+   The site's own privacy policy, published on the site itself.
+   Arabic first (the site's language), then the English version. */
 function PrivacySection({ onBack }: { onBack: () => void }) {
   return (
     <section className="animate-page pt-5 lg:pt-8">
       <button
         type="button"
-        aria-label="رجوع لقسم إضافة المتصفح"
-        data-tip="رجوع لقسم إضافة المتصفح"
+        aria-label="رجوع للرئيسية"
+        data-tip="رجوع للرئيسية"
         onClick={onBack}
         className="lux-btn lux-row inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
       >
         <Icon d={I.chevron} size={16} />
-        رجوع للإضافة
+        رجوع للرئيسية
       </button>
       <h1 className="mt-5 flex items-center gap-2.5 text-[26px] font-bold leading-snug">
         <span className="text-[var(--accent)]">
           <Icon d={I.shield} size={24} />
         </span>
-        سياسة خصوصية الإضافة
+        سياسة الخصوصية
       </h1>
       <div className="elev-card mt-5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
         <p className="whitespace-pre-wrap text-[15px] leading-[2]">{PRIVACY_POLICY_AR}</p>
@@ -11360,6 +11464,11 @@ function ShortcutCard({
                     <Icon d={I.star} size={13} />
                   </span>
                 )}
+                {item.trigger && (
+                  <span dir="ltr" className="shrink-0 rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 font-mono text-[11px] font-bold text-[var(--accent-strong)]">
+                    {item.trigger}
+                  </span>
+                )}
               </span>
               <span className="mt-0.5 block truncate text-[13px] text-[var(--dim)]">
                 <HighlightText
@@ -11569,6 +11678,9 @@ function ShortcutCard({
             {tags.length > 2 && <span className="font-semibold text-[var(--faint)]">+{tags.length - 2}</span>}
             {item.usageCount > 0 && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{lang === "en" ? `Used ${item.usageCount} times` : `اتستخدم ${item.usageCount} مرة`}</span>}
             {updatedLabel && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{relDateLabel(item.updatedAt, lang)}</span>}
+            {item.trigger && (
+              <span dir="ltr" className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 font-mono text-[11.5px] font-bold text-[var(--accent-strong)]">{item.trigger}</span>
+            )}
           </div>
           <div className={density === "grid" ? "mt-auto pt-4" : "mt-4"}>
             {copyBtn}
@@ -12328,6 +12440,442 @@ function FolderPicker({
   );
 }
 
+/* ---------- shortcuts view ----------
+   «الاختصارات»: every trigger in one place, grouped by folder, each
+   row showing the trigger → the reply's title + one-line preview,
+   a one-click copy (records use, like every copy), and inline
+   trigger editing. Replies with no trigger yet sit in a second
+   group below, each with a quick inline "add trigger" input. */
+function TriggerRow({
+  s,
+  onCopy,
+  onSaveTrigger,
+}: {
+  s: Shortcut;
+  onCopy: (s: Shortcut) => Promise<boolean>;
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
+}) {
+  const { lang, t } = useLang();
+  const [copied, setCopied] = useState(false);
+  const [copying, setCopying] = useState(false);
+  /* Editing starts open for trigger-less replies (the quick-add
+     input) and behind a pencil for replies that already have one. */
+  const [editing, setEditing] = useState(!s.trigger);
+  const [value, setValue] = useState(s.trigger ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const copiedTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+  /* When the saved trigger changes elsewhere (editor, another row
+     save), the row follows it — unless it is being edited now. */
+  useEffect(() => {
+    if (!editing) setValue(s.trigger ?? "");
+  }, [s.trigger, editing]);
+
+  const doCopy = async () => {
+    if (copying) return;
+    setCopying(true);
+    try {
+      const ok = await onCopy(s);
+      if (!ok) return;
+      setCopied(true);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 1600);
+    } finally {
+      setCopying(false);
+    }
+  };
+  const save = async () => {
+    const err = triggerError(value);
+    if (err) return setError(err);
+    setError(null);
+    setSaving(true);
+    try {
+      await onSaveTrigger(s, normalizeTriggerInput(value));
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "حفظ الاختصار متمّش — حاول تاني");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const preview = s.body.replace(/\s+/g, " ").trim().slice(0, 90);
+
+  return (
+    <li className="lux-card flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {editing ? (
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <input
+              aria-label={lang === "en" ? `Trigger for ${s.title}` : `اختصار رد ${s.title}`}
+              dir="ltr"
+              maxLength={24}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void save();
+                if (e.key === "Escape") {
+                  setValue(s.trigger ?? "");
+                  setError(null);
+                  setEditing(false);
+                }
+              }}
+              placeholder=";salam"
+              className="w-36 min-w-0 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-sm outline-none focus:border-[var(--accent)]"
+            />
+            <button
+              type="button"
+              aria-label={t("حفظ الاختصار")}
+              data-tip={t("حفظ الاختصار")}
+              disabled={saving}
+              onClick={() => void save()}
+              className="lux-btn shrink-0 rounded-full bg-[var(--accent)] p-2 text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+            >
+              <Icon d={I.check} size={15} />
+            </button>
+            {s.trigger && (
+              <button
+                type="button"
+                aria-label={t("إلغاء تعديل الاختصار")}
+                data-tip={t("إلغاء")}
+                disabled={saving}
+                onClick={() => {
+                  setValue(s.trigger ?? "");
+                  setError(null);
+                  setEditing(false);
+                }}
+                className="lux-btn shrink-0 rounded-full p-2 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)] disabled:opacity-60"
+              >
+                <Icon d={I.x} size={15} />
+              </button>
+            )}
+          </span>
+        ) : (
+          <>
+            <button
+              type="button"
+              aria-label={lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
+              data-tip={t("نسخ الرد")}
+              onClick={() => void doCopy()}
+              className="shrink-0"
+            >
+              <span dir="ltr" className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 font-mono text-[13px] font-bold text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-[var(--accent-ink)]">
+                {s.trigger}
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label={lang === "en" ? `Edit trigger of ${s.title}` : `تعديل اختصار ${s.title}`}
+              data-tip={t("تعديل الاختصار")}
+              onClick={() => setEditing(true)}
+              className="lux-btn shrink-0 rounded-full p-1.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+            >
+              <Icon d={I.edit} size={14} />
+            </button>
+          </>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-bold">{s.title}</span>
+          {preview && (
+            <span className="mt-0.5 block truncate text-[13px] text-[var(--dim)]">{preview}</span>
+          )}
+        </span>
+      </div>
+      <span className="flex shrink-0 items-center gap-1.5">
+        {error && (
+          <span role="alert" className="max-w-56 text-xs font-semibold leading-snug text-[var(--danger)]">
+            {error}
+          </span>
+        )}
+        <button
+          type="button"
+          aria-label={copied ? (lang === "en" ? `Copied reply ${s.title}` : `اتنسخ رد ${s.title}`) : lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
+          data-tip={copied ? t("اتنسخ — الصقه في أي شات") : t("نسخ الرد")}
+          aria-live="polite"
+          aria-busy={copying}
+          disabled={copying}
+          onClick={() => void doCopy()}
+          className={`lux-btn flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-bold ${copied ? "bg-[var(--success-soft)] text-[var(--success)]" : "border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"}`}
+        >
+          <Icon d={copied ? I.check : I.copy} size={15} />
+          {copied ? t("اتنسخ") : t("نسخ")}
+        </button>
+      </span>
+    </li>
+  );
+}
+
+function ShortcutsView({
+  shortcuts,
+  folders,
+  query,
+  onCopy,
+  onSaveTrigger,
+}: {
+  shortcuts: Shortcut[];
+  folders: FolderRowT[];
+  query: string;
+  onCopy: (s: Shortcut) => Promise<boolean>;
+  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
+}) {
+  const { lang, t } = useLang();
+  const q = query.trim();
+  const searching = q.length > 0;
+  const withTrigger = useMemo(
+    () =>
+      shortcuts
+        .filter((s) => s.trigger)
+        .filter((s) => !searching || searchScore(s, q) >= 0)
+        .sort((a, b) =>
+          searching
+            ? searchScore(b, q) - searchScore(a, q)
+            : (a.trigger ?? "").localeCompare(b.trigger ?? ""),
+        ),
+    [shortcuts, searching, q],
+  );
+  const withoutTrigger = useMemo(
+    () =>
+      shortcuts
+        .filter((s) => !s.trigger)
+        .filter((s) => !searching || searchScore(s, q) >= 0)
+        .sort((a, b) =>
+          searching
+            ? searchScore(b, q) - searchScore(a, q)
+            : a.title.localeCompare(b.title, "ar"),
+        ),
+    [shortcuts, searching, q],
+  );
+  /* Folder groups follow the folder tree's own order, so the view
+     reads the same way the library does. */
+  const groups = useMemo(() => {
+    const rank = new Map<string, number>();
+    folders.forEach((f, i) => {
+      if (!rank.has(f.name)) rank.set(f.name, i);
+    });
+    const map = new Map<string, Shortcut[]>();
+    for (const s of withTrigger) {
+      const arr = map.get(s.category) ?? [];
+      arr.push(s);
+      map.set(s.category, arr);
+    }
+    return [...map.entries()]
+      .sort(
+        ([a], [b]) =>
+          (rank.get(a) ?? 10000) - (rank.get(b) ?? 10000) ||
+          a.localeCompare(b, "ar"),
+      )
+      .map(([name, items]) => ({ name, items }));
+  }, [withTrigger, folders]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <p className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-3 text-sm leading-relaxed text-[var(--dim)]">
+        {lang === "en"
+          ? `${withTrigger.length} trigger${withTrigger.length === 1 ? "" : "s"} — type any trigger in the search above or in the shortcut bar to jump straight to its reply. Each trigger belongs to you only.`
+          : `${withTrigger.length} اختصار — اكتب أي اختصار في البحث اللي فوق أو في «شريط الاختصارات» عشان توصل لرده على طول. كل اختصار بتاعك انت بس.`}
+      </p>
+      {withTrigger.length === 0 && withoutTrigger.length === 0 ? (
+        <div className="pattern-star rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-10 text-center">
+          <p className="font-semibold">
+            {searching
+              ? t("مفيش اختصار بيطابق بحثك")
+              : t("لسه مفيش اختصارات — ابدأ من هنا")}
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
+            {searching
+              ? t("جرّب كلمة تانية، أو امسح البحث عشان تشوف كل الاختصارات.")
+              : t("افتح أي رد للتعديل واكتب له اختصار زي ;salam، أو ضيف اختصار لأي رد من اللي تحت على طول.")}
+          </p>
+        </div>
+      ) : (
+        <>
+          {groups.map((g) => (
+            <section key={g.name} aria-label={g.name}>
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
+                <span className="editor-label-icon">
+                  <Icon d={I.folder} size={14} />
+                </span>
+                {g.name}
+                <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+                  {g.items.length}
+                </span>
+                <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {g.items.map((s) => (
+                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} />
+                ))}
+              </ul>
+            </section>
+          ))}
+          {withoutTrigger.length > 0 && (
+            <section aria-label={t("ردود من غير اختصار")}>
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
+                <span className="editor-label-icon">
+                  <Icon d={I.zap} size={14} />
+                </span>
+                {t("ردود لسه ملهاش اختصار")}
+                <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+                  {withoutTrigger.length}
+                </span>
+                <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
+              </h3>
+              <p className="mb-2 text-[13px] leading-relaxed text-[var(--dim)]">
+                {t("اكتب اختصار لكل رد من هنا على طول — دوس علامة الصح عشان يتحفظ.")}
+              </p>
+              <ul className="flex flex-col gap-2">
+                {withoutTrigger.map((s) => (
+                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- shortcut bar ----------
+   «شريط الاختصارات»: a fast panel opened by a visible button in the
+   header (no keyboard shortcut — custom keyboard shortcuts were
+   removed and stay removed). One input live-filters the user's own
+   triggers; Enter copies the top match's reply (records use) and
+   closes; Esc closes; clicking a row copies it too. */
+function ShortcutBar({
+  open,
+  onClose,
+  shortcuts,
+  onCopy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  shortcuts: Shortcut[];
+  onCopy: (s: Shortcut) => Promise<boolean>;
+}) {
+  const { lang, t } = useLang();
+  const [query, setQuery] = useState("");
+  const [copyingId, setCopyingId] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEscapeClose(onClose);
+  useDialogFocus(dialogRef, open);
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setCopyingId(null);
+      inputRef.current?.focus();
+    }
+  }, [open ]);
+  const matches = useMemo(() => {
+    const q = query.trim();
+    const list = shortcuts.filter((s) => s.trigger);
+    if (!q) return [...list].sort((a, b) => b.usageCount - a.usageCount || a.id - b.id);
+    return [...list]
+      .filter((s) => searchScore(s, q) >= 0)
+      .sort((a, b) => searchScore(b, q) - searchScore(a, q));
+  }, [shortcuts, query]);
+  const top = matches.slice(0, 8);
+  if (!open) return null;
+  const copyAndClose = async (s: Shortcut) => {
+    if (copyingId !== null) return;
+    setCopyingId(s.id);
+    try {
+      await onCopy(s);
+    } finally {
+      setCopyingId(null);
+      onClose();
+    }
+  };
+  return (
+    <div
+      className="animate-fade fixed inset-0 z-50 flex items-start justify-center bg-[var(--scrim)] px-4 pt-[12vh] backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("شريط الاختصارات")}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className="animate-sheet elev-pop w-full max-w-lg overflow-hidden rounded-[var(--radius)] glass-panel"
+      >
+        <div className="flex items-center gap-2 border-b border-[var(--border)] px-4 py-3">
+          <span className="text-[var(--accent)]">
+            <Icon d={I.zap} size={19} />
+          </span>
+          <input
+            ref={inputRef}
+            aria-label={t("اكتب الاختصار")}
+            dir="ltr"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && top[0]) void copyAndClose(top[0]);
+            }}
+            placeholder=";salam…"
+            className="min-w-0 flex-1 bg-transparent text-left font-mono text-[16px] outline-none placeholder:text-[var(--faint)]"
+          />
+          <button
+            type="button"
+            aria-label={t("قفل شريط الاختصارات")}
+            data-tip={t("قفل")}
+            onClick={onClose}
+            className="lux-btn shrink-0 rounded-full p-1.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+          >
+            <Icon d={I.x} size={17} />
+          </button>
+        </div>
+        {top.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-[var(--dim)]">
+            {query.trim()
+              ? t("مفيش اختصار بيطابق اللي كتبته")
+              : t("لسه مفيش اختصارات — ضيف اختصار لأي رد من صفحة «الاختصارات» أو من المحرر.")}
+          </p>
+        ) : (
+          <ul className="max-h-[50vh] overflow-y-auto p-1.5">
+            {top.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  aria-label={lang === "en" ? `Copy reply ${s.title}` : `نسخ رد ${s.title}`}
+                  disabled={copyingId !== null}
+                  onClick={() => void copyAndClose(s)}
+                  className="lux-btn flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2.5 text-start hover:bg-[var(--surface-alt)] disabled:opacity-60"
+                >
+                  <span dir="ltr" className="shrink-0 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 font-mono text-[13px] font-bold text-[var(--accent-strong)]">
+                    {s.trigger}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-bold">{s.title}</span>
+                    <span className="block truncate text-[13px] text-[var(--dim)]">
+                      {s.body.replace(/\s+/g, " ").trim().slice(0, 80)}
+                    </span>
+                  </span>
+                  {copyingId === s.id ? (
+                    <span className="spinner shrink-0" aria-hidden="true" />
+                  ) : (
+                    <span className="shrink-0 text-[var(--faint)]">
+                      <Icon d={I.copy} size={16} />
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="border-t border-[var(--border)] px-4 py-2 text-center text-xs font-semibold text-[var(--faint)]">
+          {t("Enter بينسخ أول نتيجة · Esc بيقفل الشريط")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- editor modal ----------
    Organized the way the site itself thinks about a reply: first
    the reply (its name and its text), then its organization (the
@@ -12370,6 +12918,7 @@ function EditorModal({
     folderId: number | null;
     tags: string;
     extShortcut: string;
+    trigger: string;
     source: string;
   } | null>(() => {
     if (item) return null;
@@ -12383,6 +12932,7 @@ function EditorModal({
       const body = typeof d.body === "string" ? d.body : "";
       const tags = typeof d.tags === "string" ? d.tags : "";
       const extShortcut = typeof d.extShortcut === "string" ? d.extShortcut : "";
+      const trigger = typeof d.trigger === "string" ? d.trigger : "";
       const source =
         typeof d.source === "string" &&
         (REPLY_SOURCES as readonly string[]).includes(d.source)
@@ -12395,7 +12945,7 @@ function EditorModal({
       else if (typeof d.category === "string")
         folderId = folders.find((f) => f.name === d.category)?.id ?? null;
       if (!title && !body) return null;
-      return { title, body, folderId, tags, extShortcut, source };
+      return { title, body, folderId, tags, extShortcut, trigger, source };
     } catch {
       return null;
     }
@@ -12417,6 +12967,14 @@ function EditorModal({
   const [extShortcut, setExtShortcut] = useState(
     item?.extShortcut ?? draft?.extShortcut ?? "",
   );
+  /* The in-site trigger: the word the owner types in the site's
+     search / shortcut bar to find this reply (e.g. ";salam").
+     "" = no trigger. Never copied from extShortcut — the two are
+     unrelated words, one for programs outside the site, one for
+     inside it. */
+  const [trigger, setTrigger] = useState(
+    item?.trigger ?? draft?.trigger ?? "",
+  );
   /* Where this reply originally came from — one of the fixed
      REPLY_SOURCES names, or "" when never recorded. Chosen from
      a list in «التنظيم والبحث», saved with the reply and shown
@@ -12430,7 +12988,7 @@ function EditorModal({
      Clicking the backdrop (or X / إلغاء) closes instantly when
      nothing changed, and asks first when it would lose edits —
      the one case where click-outside must not silently dismiss. */
-  const [initial] = useState(() => ({ title, body, folderId, tags, extShortcut, source }));
+  const [initial] = useState(() => ({ title, body, folderId, tags, extShortcut, trigger, source }));
   /* The last snapshot that is actually saved in the library. The
      dirty check runs against it (not the open-time snapshot), so
      once autosave lands an edit, the editor is clean again and
@@ -12442,6 +13000,7 @@ function EditorModal({
     folderId !== savedSnap.folderId ||
     tags !== savedSnap.tags ||
     extShortcut !== savedSnap.extShortcut ||
+    trigger !== savedSnap.trigger ||
     source !== savedSnap.source;
   /* Autosave status for an existing reply: the indicator in the
      footer always says where the text stands — never a silent
@@ -12489,13 +13048,13 @@ function EditorModal({
       try {
         window.localStorage.setItem(
           draftKey,
-          JSON.stringify({ title, body, folderId, tags, extShortcut, source }),
+          JSON.stringify({ title, body, folderId, tags, extShortcut, trigger, source }),
         );
         setDraftSaved(true);
       } catch { /* ignore */ }
     }, 400);
     return () => window.clearTimeout(t);
-  }, [item, draftKey, title, body, folderId, tags, extShortcut, source]);
+  }, [item, draftKey, title, body, folderId, tags, extShortcut, trigger, source]);
 
   const applyTemplate = (idx: number) => {
     const tpl = STARTER_TEMPLATES[idx];
@@ -12517,6 +13076,7 @@ function EditorModal({
       category: selectedFolder?.name ?? "عام",
       tags: tags.trim(),
       extShortcut: extShortcut.trim(),
+      trigger: normalizeTriggerInput(trigger),
       source: source as "" | (typeof REPLY_SOURCES)[number],
       folderId,
     };
@@ -12527,7 +13087,7 @@ function EditorModal({
      so. It never closes the editor and never fires on invalid text
      (blank title/body stay for the explicit حفظ + the guard). */
   const autosaveMut = useMutation({
-    mutationFn: async (snap: { title: string; body: string; folderId: number | null; tags: string; extShortcut: string; source: string }) => {
+    mutationFn: async (snap: { title: string; body: string; folderId: number | null; tags: string; extShortcut: string; trigger: string; source: string }) => {
       if (!item) return;
       const selectedFolder =
         snap.folderId !== null
@@ -12541,6 +13101,7 @@ function EditorModal({
         category: selectedFolder?.name ?? "عام",
         tags: snap.tags.trim(),
         extShortcut: snap.extShortcut.trim(),
+        trigger: normalizeTriggerInput(snap.trigger),
         source: snap.source as "" | (typeof REPLY_SOURCES)[number],
         folderId: snap.folderId,
       });
@@ -12574,13 +13135,16 @@ function EditorModal({
       return;
     }
     setBodyError(null);
+    /* An invalid trigger never autosaves: the server would reject
+       it, and the inline field error below explains why. */
+    if (triggerError(trigger)) return;
     setSaveState("saving");
     const t = window.setTimeout(() => {
-      autosaveMutRef.current.mutate({ title, body, folderId, tags, extShortcut, source });
+      autosaveMutRef.current.mutate({ title, body, folderId, tags, extShortcut, trigger, source });
     }, 1500);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, dirty, title, body, folderId, tags, extShortcut, source]);
+  }, [item, dirty, title, body, folderId, tags, extShortcut, trigger, source]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -12603,12 +13167,14 @@ function EditorModal({
       queryClient.invalidateQueries({ queryKey: ["folders", token] });
       onSaved();
     },
-    onError: () => setError("الحفظ متمّش — حاول تاني"),
+    onError: (e) => setError(e instanceof Error ? e.message : "الحفظ متمّش — حاول تاني"),
   });
 
   const submit = () => {
     if (!title.trim()) return setError("اكتب اسم الرد");
     if (!body.trim()) return setError("اكتب نص الرد اللي هيتحفظ في مكتبتك");
+    const trigErr = triggerError(trigger);
+    if (trigErr) return setError(trigErr);
     setError(null);
     saveMut.mutate();
   };
@@ -12787,7 +13353,7 @@ function EditorModal({
 
           <div className="mt-6">
             {sectionHead(I.keyboard, "الاختصار الخارجي")}
-            <div className="mt-3">
+            <div className="mt-3 flex flex-col gap-3">
               <label className="block">
                 {labelWithIcon(I.keyboard, "اختصار الرد في البرامج اللي برة (اختياري)")}
                 <input
@@ -12802,6 +13368,26 @@ function EditorModal({
                 <span className="mt-1 block text-xs text-[var(--dim)]">
                   لو مسجّل الرد ده باختصار في برنامج برة الموقع، اكتبه هنا عشان تفتكره كل ما تفتح الرد — الخانة دي للتذكير بس، ومش بتأثر على النسخ من هنا.
                 </span>
+              </label>
+              <label className="block">
+                {labelWithIcon(I.zap, "الاختصار داخل الموقع (اختياري)")}
+                <input
+                  aria-label="الاختصار داخل الموقع"
+                  dir="ltr"
+                  maxLength={24}
+                  value={trigger}
+                  onChange={(e) => setTrigger(e.target.value)}
+                  placeholder=";salam"
+                  className={`${field} text-left font-mono`}
+                />
+                <span className="mt-1 block text-xs text-[var(--dim)]">
+                  الكلمة اللي بتكتبها في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — لازم تبدأ بـ ; وتكون حروف إنجليزي صغيرة وأرقام و _ أو - بس، من حرفين لـ 24 حرف.
+                </span>
+                {triggerError(trigger) && (
+                  <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
+                    {triggerError(trigger)}
+                  </span>
+                )}
               </label>
             </div>
           </div>

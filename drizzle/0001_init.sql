@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS shortcuts (
   body TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'عام',
   tags TEXT NOT NULL DEFAULT '',
+  trigger TEXT NOT NULL DEFAULT '',
   ext_shortcut TEXT NOT NULL DEFAULT '',
   source TEXT NOT NULL DEFAULT '',
   folder_id INTEGER,
@@ -97,6 +98,9 @@ CREATE TABLE IF NOT EXISTS shortcuts (
 );
 CREATE INDEX IF NOT EXISTS shortcuts_user_id_idx ON shortcuts(user_id);
 CREATE INDEX IF NOT EXISTS shortcuts_folder_id_idx ON shortcuts(folder_id);
+-- Per-user trigger uniqueness: the same trigger word may exist for
+-- different accounts, but never twice in one account's live library.
+CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, trigger) WHERE trigger <> '';
 
 -- Profile-picture bytes (replaces the Muse artifact's ctx.blobs store).
 -- Key is `avatars/<userId>`, same as before.
