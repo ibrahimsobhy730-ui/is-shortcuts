@@ -121,8 +121,9 @@ check(
 // live demo + how-it-works sits INSIDE the auth split, beside
 // the sign-in form on desktop and first on mobile, on BOTH
 // login and register pages. Hard rules pinned here:
-// no extension mention, no invented testimonial, demo
-// samples clearly labeled as examples, form stays first.
+// extension download card + guide present (owner override
+// 2026-11-27 22:36), no invented testimonial, demo samples
+// clearly labeled as examples, form stays first.
 const explainer = read("components/AuthExplainer.tsx");
 const demo = read("components/AuthDemo.tsx");
 check(
@@ -147,10 +148,10 @@ check(
     /دي أمثلة للتوضيح بس/.test(explainer),
 );
 check(
-  "explainer mentions no extension and no testimonial",
-  !/extension/i.test(explainer) &&
-    !/اكستنشن/i.test(explainer) &&
-    !/إضافة المتصفح|إضافة كروم/i.test(explainer) &&
+  "explainer has the extension download card + guide (owner override 2026-11-27 22:36) and no testimonial",
+  /auth-r8-ext/.test(explainer) &&
+    /is-shortcuts-extension\.zip/.test(explainer) &&
+    /<ExtensionInstallGuide/.test(explainer) &&
     !/testimonial|★★★★★|⭐/.test(explainer),
 );
 check(

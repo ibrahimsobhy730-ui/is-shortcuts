@@ -196,6 +196,9 @@ export function EditorModal({
   const [titleError, setTitleError] = useState<string | null>(null);
   const [bodyError, setBodyError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  /* شرح الاختصار الطويل يعيش في popover صغير جنب العنوان، مش
+     فقرة تحت الحقل — نفس النص كاملًا، بلا اختصار. */
+  const [showTrigInfo, setShowTrigInfo] = useState(false);
   const discardRef = useRef<HTMLDivElement>(null);
   /* The warning renders above the action row, possibly below the
      sheet's fold — bring it into view the moment it appears so the
@@ -736,7 +739,37 @@ export function EditorModal({
               {/* The trigger sits directly under the title — the
                   reply's name, then its shortcut, then its text. */}
               <div className="block">
-                {labelWithIcon(I.shortcut, "الاختصار داخل الموقع (اختياري)")}
+                {labelWithIcon(
+                  I.shortcut,
+                  <>
+                    الاختصار داخل الموقع (اختياري)
+                    <span className="relative">
+                      <button
+                        type="button"
+                        aria-label="شرح الاختصار داخل الموقع"
+                        aria-expanded={showTrigInfo}
+                        onClick={() => setShowTrigInfo((v) => !v)}
+                        className="lux-btn flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        <Icon d={I.info} size={13} />
+                      </button>
+                      {showTrigInfo && (
+                        <span className="pop-glass absolute start-0 top-full z-30 mt-1.5 w-72 rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-elevated)] p-3 text-xs font-normal leading-relaxed text-[var(--dim)] shadow-[var(--shadow-pop)]">
+                          النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
+                        </span>
+                      )}
+                    </span>
+                  </>,
+                )}
+                {showTrigInfo && (
+                  <button
+                    type="button"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onClick={() => setShowTrigInfo(false)}
+                    className="fixed inset-0 z-20 cursor-default"
+                  />
+                )}
                 <input
                   aria-label="الاختصار داخل الموقع"
                   dir="auto"
@@ -745,9 +778,6 @@ export function EditorModal({
                   placeholder="اكتب أي نص…"
                   className={`${field} text-start`}
                 />
-                <span className="mt-1 block text-xs text-[var(--dim)]">
-                  النص اللي بتكتبه في بحث الموقع أو في «شريط الاختصارات» عشان تلاقي الرد ده على طول — أي نص ينفع: عربي أو إنجليزي أو رموز، المهم ما يتكررش مع اختصار تاني عندك. بيتحفظ زي ما كتبته بالظبط.
-                </span>
                 {triggerError(trigger, takenTriggers) && (
                   <span role="alert" className="mt-1 block text-xs font-semibold text-[var(--danger)]">
                     {triggerError(trigger, takenTriggers)}
@@ -764,16 +794,16 @@ export function EditorModal({
                   )}
                 {triggerSuggestions.length > 0 && (
                   <span className="mt-2 block">
-                    <span className="mb-1 block text-[11.5px] font-bold text-[var(--faint)]">
-                      اقتراحات جاهزة — دوس على أي واحدة:
-                    </span>
-                    <span className="flex flex-wrap gap-1.5">
+                    <span className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                      <span className="shrink-0 text-[12px] font-bold text-[var(--faint)]">
+                        اقتراحات:
+                      </span>
                       {triggerSuggestions.map((sug) => (
                         <button
                           key={sug}
                           type="button"
                           onClick={() => setTrigger(sug)}
-                          className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
+                          className="lux-btn shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
                         >
                           <span dir="auto">{sug}</span>
                         </button>
@@ -791,13 +821,13 @@ export function EditorModal({
                 </span>
                 <RichTextEditor value={body} onChange={setBody} />
                 {extractVariables(body).length > 0 && (
-                  <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[var(--dim)]">
-                    <span className="editor-label-icon">
+                  <p className="no-scrollbar mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 text-xs font-semibold text-[var(--dim)]">
+                    <span className="editor-label-icon shrink-0">
                       <Icon d={I.braces} size={14} />
                     </span>
-                    متغيرات هتتملى وقت النسخ:
+                    <span className="shrink-0">متغيرات هتتملى وقت النسخ:</span>
                     {extractVariables(body).map((v) => (
-                      <span key={v} className="rounded-full bg-[var(--gold-soft)] px-2 py-0.5 font-bold text-[var(--gold-bright)]">
+                      <span key={v} className="shrink-0 rounded-full bg-[var(--gold-soft)] px-2 py-0.5 font-bold text-[var(--gold-bright)]">
                         {v}
                       </span>
                     ))}

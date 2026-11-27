@@ -138,10 +138,10 @@ check(
     !/testimonial|شهادة/.test(explainer),
 );
 check(
-  "no extension mention in the explainer's rendered text (comments excluded)",
-  !/extension|إضافة متصفح|اكستنشن/.test(
-    explainer.replace(/\/\*[\s\S]*?\*\//g, ""),
-  ),
+  "extension download card in the explainer (owner override 2026-11-27 22:36: ZIP + install guide ON the site — the old no-extension rule is superseded by his explicit order)",
+  /auth-r8-ext/.test(explainer) &&
+    /is-shortcuts-extension\.zip/.test(explainer) &&
+    /<ExtensionInstallGuide/.test(explainer),
 );
 
 /* ---- (4) Removals still hold; Library Tools stays collapsed ---- */

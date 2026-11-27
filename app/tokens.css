@@ -63,6 +63,16 @@
 
   /* ---- Z scale ---- */
   --z-panel: 40; --z-modal: 50; --z-menu: 70; --z-toast: 80;
+
+  /* ---- Hero deck (dark command deck, both themes) — full redesign ---- */
+  --deck-bg: linear-gradient(155deg, #0a1230 0%, #0d1e4a 52%, #12407e 100%);
+  --deck-text: oklch(0.97 0.012 250);
+  --deck-dim: oklch(0.82 0.035 252);
+  --deck-faint: oklch(0.66 0.04 253);
+  --deck-border: oklch(1 0 0 / 0.16);
+  --deck-search-bg: oklch(1 0 0 / 0.10);
+  --deck-search-border: oklch(1 0 0 / 0.30);
+  --deck-glow: 0 24px 60px -20px rgb(37 99 235 / 0.55);
 }
 
 /* ============================================================
@@ -105,14 +115,14 @@
   --logo-hi: oklch(from var(--accent) 0.66 0.145 h);
   --logo-mid: oklch(from var(--accent) 0.55 0.16 h);
   --logo-lo: oklch(from var(--accent) 0.44 0.145 h);
-  --bg: oklch(0.962 0.016 252);
-  --surface: oklch(1 0 0 / 0.86);
+  --bg: oklch(0.94 0.02 252);
+  --surface: oklch(1 0 0 / 0.97);
   --surface-alt: oklch(0.945 0.02 252 / 0.82);
-  --surface-elevated: oklch(1 0 0 / 0.94);
-  --surface-hover: oklch(0.955 0.018 252 / 0.92);
-  --surface-selected: oklch(0.915 0.045 256 / 0.92);
+  --surface-elevated: oklch(1 0 0 / 0.99);
+  --surface-hover: oklch(0.935 0.028 252 / 0.98);
+  --surface-selected: oklch(0.895 0.055 256 / 0.97);
   --surface-pressed: oklch(0.885 0.055 256 / 0.94);
-  --bg-sidebar: oklch(1 0 0 / 0.62);
+  --bg-sidebar: oklch(1 0 0 / 0.88);
   --ink: oklch(0.21 0.06 264);
   --text: oklch(0.21 0.06 264);
   --dim: oklch(0.42 0.05 260);
@@ -120,7 +130,7 @@
   --text-disabled: oklch(0.68 0.03 252);
   --silver: oklch(0.84 0.024 250);
   --border: oklch(0.855 0.026 252 / 0.9);
-  --border-strong: oklch(0.68 0.05 254);
+  --border-strong: oklch(0.58 0.055 254);
   --cyan: oklch(0.66 0.14 205);
   --cyan-soft: oklch(0.93 0.045 205);
   --success: oklch(0.55 0.15 160);
@@ -134,19 +144,19 @@
   --navy: oklch(0.26 0.09 264);
   --navy-2: oklch(0.34 0.1 262);
   --scrim: oklch(0.16 0.05 264 / 0.5);
-  --glass-bg: oklch(1 0 0 / 0.72);
-  --glass-border: oklch(0.82 0.03 252 / 0.85);
+  --glass-bg: oklch(1 0 0 / 0.86);
+  --glass-border: oklch(0.76 0.032 252 / 1);
   --glass-line: oklch(1 0 0 / 0.7);
   --on-grad: oklch(1 0 0);
   --shadow-1: 0 1px 2px oklch(0.30 0.08 262 / 0.07);
   --shadow-2:
-    0 1px 2px oklch(0.30 0.08 262 / 0.05),
-    0 6px 18px -8px oklch(0.30 0.08 262 / 0.10),
-    0 22px 44px -20px oklch(0.35 0.10 262 / 0.18);
+    0 1px 2px oklch(0.30 0.08 262 / 0.08),
+    0 6px 18px -8px oklch(0.30 0.08 262 / 0.16),
+    0 22px 44px -20px oklch(0.35 0.10 262 / 0.28);
   --shadow-3:
-    0 2px 4px oklch(0.30 0.08 262 / 0.05),
-    0 16px 34px -12px oklch(0.35 0.10 262 / 0.16),
-    0 40px 72px -28px oklch(0.40 0.12 258 / 0.26);
+    0 2px 4px oklch(0.30 0.08 262 / 0.08),
+    0 16px 34px -12px oklch(0.35 0.10 262 / 0.24),
+    0 40px 72px -28px oklch(0.40 0.12 258 / 0.36);
   --shadow-4:
     0 10px 22px oklch(0.28 0.08 262 / 0.10),
     0 52px 96px -32px oklch(0.32 0.10 262 / 0.36);
@@ -156,7 +166,7 @@
   --glow-accent: 0 16px 40px -12px color-mix(in srgb, var(--accent) 55%, transparent);
   --accent: oklch(0.52 0.185 262);
   --accent-strong: oklch(0.44 0.17 264);
-  --accent-soft: oklch(0.925 0.045 256);
+  --accent-soft: oklch(0.895 0.06 256);
   --accent-ink: oklch(1 0 0);
   /* لون حبّة الاختصار الثابت — NEBULA ملكي ← سماوي، لا يتبع
      لون التمييز المختار (الأخضر/الفيروزي كان بيحوّل الحبّة
@@ -1243,6 +1253,39 @@ button[class*="bg-[var(--accent-soft)]"] {
   .lux-card:hover .tree-grip, .lux-card:focus-within .tree-grip,
   .folder-bar:hover .tree-grip, .folder-bar:focus-within .tree-grip { opacity: 1; }
 }
+/* Full redesign — the card toolbar is hover-only: the management
+   group, the favorite star and the compact row's secondary actions
+   hide until the card is hovered or focused (fine pointers only).
+   Touch always shows them; a selected card, or a delete-confirm
+   in progress, keeps its actions visible. */
+@media (hover: hover) and (pointer: fine) {
+  .reply-card .card-hover-action {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 180ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 180ms;
+  }
+  .reply-card:hover .card-hover-action,
+  .reply-card:focus-within .card-hover-action,
+  .reply-card.card-marked .card-hover-action,
+  .reply-card .card-hover-action:has(.card-action-danger-confirm) {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+}
+/* Full redesign — horizontal pill rows fade at the scroll edges
+   instead of clipping a pill mid-text at narrow widths. */
+@media (max-width: 1023px) {
+  .filter-scroll,
+  .no-scrollbar.overflow-x-auto {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .card-actions, .quick-preview { transform: none; transition-delay: 0s; }
 }
@@ -2090,13 +2133,13 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
 
 /* ---- ألوان أرقى: اللؤلؤي والملكي (نهاري) ---- */
 :root, :root[data-theme="light"] {
-  --bg: oklch(0.972 0.009 252);
-  --surface-alt: oklch(0.952 0.013 252 / 0.85);
+  --bg: oklch(0.94 0.02 252);
+  --surface-alt: oklch(0.925 0.028 252 / 0.96);
   --ink: oklch(0.20 0.055 266);
   --text: oklch(0.20 0.055 266);
-  --dim: oklch(0.40 0.045 262);
-  --faint: oklch(0.52 0.035 258);
-  --border: oklch(0.868 0.018 252 / 0.9);
+  --dim: oklch(0.36 0.05 262);
+  --faint: oklch(0.47 0.04 258);
+  --border: oklch(0.79 0.03 252 / 1);
   --cyan: oklch(0.64 0.125 208);
 }
 :root[data-accent="royal"], :root[data-theme="light"][data-accent="royal"] {
@@ -2155,7 +2198,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
    القائمة الجانبية مرتبة: إيقاع واحد لكل الصفوف
    ============================================================ */
 .modern-sidebar .tree-row, .drawer-nav .tree-row {
-  min-height: 38px;
+  min-height: 40px;
   border-radius: 12px;
   padding-top: 6px;
   padding-bottom: 6px;
@@ -2174,7 +2217,6 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   margin-top: 0;
   min-height: 34px;
   font-size: 13px;
-  letter-spacing: 0.01em;
   color: var(--dim);
 }
 .tree-row-group .tree-icon {
@@ -2237,7 +2279,7 @@ button[aria-pressed="true"]:has(> svg.lucide-star) {
   padding: 3px 8px;
   min-width: 27px;
   text-align: center;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.25;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
 }
@@ -5538,17 +5580,14 @@ summary:focus-visible {
 /* ---- Command deck ---- */
 .cmd-deck {
   position: relative;
-  border: 1px solid transparent;
+  border: 1px solid var(--deck-border);
   border-radius: 28px;
   padding: 20px 22px 18px;
-  background:
-    linear-gradient(155deg, color-mix(in srgb, var(--accent) 10%, var(--surface-elevated)), color-mix(in srgb, var(--surface-elevated) 96%, transparent) 52%, color-mix(in srgb, var(--cyan) 9%, var(--surface-elevated))) padding-box,
-    linear-gradient(130deg, color-mix(in srgb, var(--accent) 68%, transparent), var(--border) 42%, color-mix(in srgb, var(--grad-end, var(--cyan)) 58%, transparent)) border-box;
+  background: var(--deck-bg);
   box-shadow:
+    var(--deck-glow),
     var(--shadow-3),
-    0 28px 64px -26px color-mix(in srgb, var(--accent) 38%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(1.45);
-  backdrop-filter: blur(18px) saturate(1.45);
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
 }
 /* The glow lives in its own clipped layer so the deck itself
    keeps overflow visible — the search preview dropdown must
@@ -5565,8 +5604,8 @@ summary:focus-visible {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(480px 190px at 18% -30px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
-    radial-gradient(420px 170px at 88% -20px, color-mix(in srgb, var(--cyan) 13%, transparent), transparent 70%);
+    radial-gradient(480px 190px at 18% -30px, rgb(59 130 246 / 0.32), transparent 70%),
+    radial-gradient(420px 170px at 88% -20px, rgb(56 189 248 / 0.24), transparent 70%);
   animation: neb-hero-glow 11s ease-in-out infinite alternate;
 }
 .cmd-deck-glow::after {
@@ -5602,7 +5641,7 @@ summary:focus-visible {
   font-size: clamp(25px, 3.4vw, 38px);
   line-height: 1.85;
   text-wrap: balance;
-  color: var(--ink);
+  color: var(--deck-text);
   text-align: center;
 }
 .cmd-deck-divider {
@@ -5613,15 +5652,15 @@ summary:focus-visible {
   font-size: 13px;
   font-weight: 600;
   line-height: 1.7;
-  color: var(--dim);
+  color: var(--deck-dim);
   font-variant-numeric: tabular-nums;
 }
 .cmd-deck-counters b {
-  color: var(--text);
+  color: var(--deck-text);
   font-weight: 800;
 }
 .cmd-deck-counters [aria-hidden="true"] {
-  color: var(--faint);
+  color: var(--deck-faint);
   padding-inline: 2px;
 }
 /* The collapsed banner: a TRUE slim strip — one row with the
@@ -5643,22 +5682,22 @@ summary:focus-visible {
   font-size: 16px;
   line-height: 1.7;
   text-align: start;
-  color: var(--ink);
+  color: var(--deck-text);
 }
 .cmd-deck-strip-counters {
   flex: none;
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
-  color: var(--dim);
+  color: var(--deck-dim);
   font-variant-numeric: tabular-nums;
 }
 .cmd-deck-strip-counters b {
-  color: var(--text);
+  color: var(--deck-text);
   font-weight: 800;
 }
 .cmd-deck-strip-counters [aria-hidden="true"] {
-  color: var(--faint);
+  color: var(--deck-faint);
   padding-inline: 2px;
 }
 .cmd-deck-search {
@@ -5672,6 +5711,33 @@ summary:focus-visible {
   justify-content: center;
   gap: 10px;
 }
+/* Full redesign — the deck is a DARK hero in both themes: the hide
+   button, the show button, the chips label and the divider all take
+   deck (light-on-navy) colors, never the page's light-theme ink. */
+.cmd-deck .hero-hide-btn {
+  background: oklch(1 0 0 / 0.10);
+  border-color: var(--deck-border);
+  color: var(--deck-dim);
+}
+@media (hover: hover) {
+  .cmd-deck .hero-hide-btn:hover {
+    background: oklch(1 0 0 / 0.18);
+    color: var(--deck-text);
+    border-color: oklch(1 0 0 / 0.30);
+  }
+}
+.cmd-deck-strip > button {
+  border-color: var(--deck-border);
+  color: var(--deck-dim);
+}
+.cmd-deck-strip > button:hover {
+  color: var(--deck-text);
+  border-color: oklch(1 0 0 / 0.30);
+}
+.cmd-deck-bottom > div > span:first-child { color: var(--deck-dim); }
+.cmd-deck .orn-divider::before { background: linear-gradient(to left, oklch(0.78 0.13 255), transparent); }
+.cmd-deck .orn-divider::after { background: linear-gradient(to right, oklch(0.80 0.11 205), transparent); }
+.cmd-deck .orn-divider > i { background: oklch(0.80 0.12 255); }
 @media (max-width: 640px) {
   .cmd-deck { padding: 16px 16px 14px; border-radius: 24px; }
   .cmd-deck-hero { padding: 2px 40px 0; }
@@ -6034,18 +6100,18 @@ summary:focus-visible {
   width: 100%;
   aspect-ratio: 16 / 10;
   border-radius: 28px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--deck-border);
   overflow: hidden;
   /* تلاشٍ ناعم في آخر ثانية من الحلقة قبل إعادتها. */
   transition: opacity 500ms ease;
   background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.05), transparent 32%),
-    radial-gradient(120% 90% at 82% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
-    radial-gradient(100% 85% at 8% 100%, color-mix(in srgb, var(--cyan) 16%, transparent), transparent 50%),
-    var(--surface);
+    radial-gradient(120% 90% at 82% 0%, rgb(59 130 246 / 0.30), transparent 55%),
+    radial-gradient(100% 85% at 8% 100%, rgb(56 189 248 / 0.22), transparent 50%),
+    var(--deck-bg);
   box-shadow:
+    var(--deck-glow),
     var(--shadow-4),
-    inset 0 1px 0 var(--glass-line);
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
 }
 .auth-r8-stage-fading {
   opacity: 0.35;
@@ -6066,7 +6132,7 @@ summary:focus-visible {
   display: flex;
   flex-direction: column;
   border-radius: 20px;
-  border: 1px solid var(--border);
+  border: 1px solid oklch(1 0 0 / 0.22);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   box-shadow: var(--shadow-2);
   overflow: hidden;
@@ -6726,10 +6792,14 @@ summary:focus-visible {
 /* Stronger aurora inside the stage (it read flat in light mode). */
 .auth-r8-stage {
   background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.06), transparent 32%),
-    radial-gradient(120% 90% at 82% 0%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 55%),
-    radial-gradient(100% 85% at 8% 100%, color-mix(in srgb, var(--cyan) 22%, transparent), transparent 50%),
-    var(--surface);
+    radial-gradient(120% 90% at 82% 0%, rgb(59 130 246 / 0.32), transparent 55%),
+    radial-gradient(100% 85% at 8% 100%, rgb(56 189 248 / 0.24), transparent 50%),
+    var(--deck-bg);
+  border-color: var(--deck-border);
+  box-shadow:
+    var(--deck-glow),
+    var(--shadow-4),
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
 }
 /* Customer question bubble (mock text, same fictional examples). */
 .auth-r8-bubble-q { animation: auth-r8-pop-in 320ms var(--r8-ease-spring) both; }
@@ -7099,18 +7169,19 @@ summary:focus-visible {
   background: color-mix(in srgb, var(--surface-alt) 70%, var(--surface));
   border-top-color: color-mix(in srgb, var(--border-strong) 30%, transparent);
 }
-/* Stage: stronger aurora + visible border in light. */
+/* Stage: full redesign — the stage is a DARK navy deck in BOTH
+   themes (same --deck-* tokens as the home hero); the light
+   surface version is gone. */
 :root[data-theme="light"] .auth-r8-stage {
   background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.10), transparent 32%),
-    radial-gradient(120% 90% at 82% 0%, color-mix(in srgb, var(--accent) 32%, transparent), transparent 55%),
-    radial-gradient(100% 85% at 8% 100%, color-mix(in srgb, var(--cyan) 24%, transparent), transparent 50%),
-    var(--surface);
-  border-color: color-mix(in srgb, var(--border-strong) 45%, transparent);
+    radial-gradient(120% 90% at 82% 0%, rgb(59 130 246 / 0.32), transparent 55%),
+    radial-gradient(100% 85% at 8% 100%, rgb(56 189 248 / 0.24), transparent 50%),
+    var(--deck-bg);
+  border-color: var(--deck-border);
   box-shadow:
+    var(--deck-glow),
     var(--shadow-4),
-    0 2px 6px oklch(0.30 0.08 262 / 0.06),
-    inset 0 1px 0 var(--glass-line);
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
 }
 
 /* ---- (5) Light-theme depth pass: visible borders, tinted
@@ -7196,3 +7267,139 @@ summary:focus-visible {
     padding-inline: 16px;
   }
 }
+
+/* ============ Full redesign (2026-11-27): the whole site, one
+   coherent pass — owner's call «تعديل للموقع بالكامل».
+   AUTH: the demo stage is a DARK navy deck in both themes (same
+   --deck-* tokens as the home hero); the explainer column is
+   tightened so the new extension download card fits WITHOUT
+   scrolling at 1440×900 / 1366×768. ============ */
+
+/* ---- No-scroll at 1366×768 WITH the download card: rev2's
+   compact rhythm, tightened a little further (the earlier
+   un-scoped loosenings are gone — they fought rev2). The stage
+   drops 31vh→28vh; the demo column keeps rev2's 8px/2px
+   padding. Measured target: demo content ≤ ~706px in the
+   718px split. ---- */
+@media (min-width: 1100px) {
+  .auth-r8-demo-head { margin-bottom: 6px; }
+  .auth-r8-eyebrow { margin-bottom: 4px; padding: 3px 10px; }
+  .auth-r8-demo-title { font-size: 28px; }
+  .auth-r8-demo-sub { margin-top: 2px; font-size: 14px; }
+  .auth-r8-stage { height: clamp(200px, 27vh, 300px); }
+  .auth-r8-steps { margin-top: 6px; }
+  .auth-r8-step { padding: 5px 10px; gap: 4px; }
+  .auth-r8-try { margin-top: 8px; padding: 8px 14px; row-gap: 6px; }
+  .auth-r8-add { margin-top: 8px; padding: 6px 12px; }
+  .auth-r8-features { margin-top: 4px; }
+  .auth-r8-ext { margin-top: 8px; padding: 6px 12px; }
+  .auth-r8-ext-icon { width: 34px; height: 34px; border-radius: 12px; }
+}
+
+/* ---- Extension download card: one compact horizontal strip at
+   the foot of the explainer — icon tile, title + version line,
+   ghost «شرح التثبيت» (opens the guide dialog) + the primary
+   download button. ---- */
+.auth-r8-ext {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface));
+  box-shadow: var(--shadow-1);
+}
+.auth-r8-ext-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--accent);
+}
+.auth-r8-ext-text { flex: 1; min-width: 0; }
+.auth-r8-ext-title { font-size: 13.5px; font-weight: 800; line-height: 1.5; }
+.auth-r8-ext-sub { margin-top: 1px; font-size: 12.5px; line-height: 1.6; color: var(--dim); }
+.auth-r8-ext-guide {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.auth-r8-ext-guide:hover { border-color: var(--accent); color: var(--accent-strong); }
+.auth-r8-ext-dl {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .auth-r8-ext { flex-wrap: wrap; }
+  .auth-r8-ext-guide, .auth-r8-ext-dl { flex: 1; justify-content: center; }
+}
+
+/* ---- Extension guide dialog (opens from the auth download card
+   and from the showcase): scrim tap closes it, like every other
+   open surface on the site. ---- */
+.auth-r8-guide-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--scrim);
+}
+.auth-r8-guide-panel {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: 90dvh;
+  overflow-y: auto;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  padding: 16px;
+}
+.auth-r8-guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.auth-r8-guide-head-title { font-size: 16px; font-weight: 800; }
+.auth-r8-guide-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--dim);
+}
+.auth-r8-guide-close:hover { color: var(--text); border-color: var(--accent); }

@@ -232,6 +232,12 @@ const AccountModal = dynamic(() =>
 const EditorModal = dynamic(() =>
   import("./modals/EditorModal").then((m) => m.EditorModal),
 );
+/* The extension showcase page (video + chapters + download + guide)
+   loads in its own chunk — it is only rendered when the user opens
+   «تحميل الاكستنشن» from the tools group. */
+const ExtensionShowcase = dynamic(() =>
+  import("./ExtensionShowcase").then((m) => m.ExtensionShowcase),
+);
 
 /* Form inputs take their limits (maxLength, min, required, …) from
    the server actions' own request schemas, so the page and the
@@ -1180,10 +1186,11 @@ export function FolderSourceControl({
 }
 
 /* ---------- dashboard sections ---------- */
-type Section = "home" | "account"; /* privacy page removed 2026-11-26: specialization pass — it does not serve shortcuts */
+type Section = "home" | "account" | "extension"; /* privacy page removed 2026-11-26: specialization pass — it does not serve shortcuts */
 
 const SECTIONS: Array<{ key: Section; label: string; icon: LucideIcon; tip: string }> = [
   { key: "home", label: "الرئيسية", icon: House, tip: "الرئيسية — كل ردودك ومجلداتك والمفضلة في مكان واحد" },
+  { key: "extension", label: "تحميل الاكستنشن", icon: Puzzle, tip: "تحميل الاكستنشن — فيديو الشرح وخطوات التثبيت والتحميل" },
   { key: "account", label: "حسابي", icon: User, tip: "حسابي — الاسم وكلمة المرور والجلسات" },
 ];
 
@@ -2323,6 +2330,8 @@ const EN: Record<string, string> = {
   "بحث وأوامر سريعة في كل الموقع": "Quick search across the whole site",
   "بحث سريع": "Quick search",
   "حسابي — الاسم وكلمة المرور والجلسات": "My account — name, password and sessions",
+  "تحميل الاكستنشن": "Download the Extension",
+  "تحميل الاكستنشن — فيديو الشرح وخطوات التثبيت والتحميل": "Download the Extension — the video, the install steps and the download",
   "تفعيل الوضع النهاري": "Switch to light mode",
   "تفعيل الوضع الليلي": "Switch to dark mode",
   "التبديل إلى الوضع النهاري": "Switch to light mode",
@@ -5463,6 +5472,7 @@ function Workspace({
       depth: 0,
       children: [
         pageNode("p:bulk", "إضافة جماعية", I.upload, "إضافة مجموعة ردود مرة واحدة باللصق", false, null, () => setBulkOpen(true)),
+        pageNode("p:extension", "تحميل الاكستنشن", I.puzzle, "تحميل الاكستنشن — فيديو الشرح وخطوات التثبيت والتحميل", section === "extension", null, () => goSection("extension")),
         pageNode("p:home-tools", "النسخ الاحتياطي", I.archive, "النسخ الاحتياطية والاستيراد — في آخر الرئيسية", false, null, scrollToTools),
       ],
     },
@@ -5625,6 +5635,7 @@ function Workspace({
   type Crumb = { label: string; run?: () => void };
   const crumbs: Crumb[] = (() => {
     if (section === "account") return [{ label: "الحساب" }, { label: "حسابي" }];
+    if (section === "extension") return [{ label: "الأدوات" }, { label: "تحميل الاكستنشن" }];
     if (search.trim())
       return [
         { label: "المكتبة", run: goHome },
@@ -5969,7 +5980,7 @@ function Workspace({
             </span>
           )}
           {node.count !== null && node.count !== undefined && (
-            <span className="tree-count shrink-0 text-[11px] font-semibold text-[var(--faint)]">
+            <span className="tree-count shrink-0 text-[12px] font-semibold text-[var(--faint)]">
               {node.count}
             </span>
           )}
@@ -6040,6 +6051,7 @@ function Workspace({
         "p:home": "الرئيسية",
         "p:shortcuts": "الاختصارات",
         "p:bulk": "جماعية",
+        "p:extension": "الاكستنشن",
         "p:home-tools": "النسخ",
         "p:account": "حسابي",
         "p:logout": "خروج",
@@ -6166,6 +6178,7 @@ function Workspace({
           })}
           {railCaption(t("الأدوات"))}
           {railPageBtn("p:bulk")}
+          {railPageBtn("p:extension")}
           {railPageBtn("p:home-tools")}
           {railCaption(t("الحساب"))}
           {railPageBtn("p:account")}
@@ -6994,7 +7007,7 @@ function Workspace({
               <Palette size={18} strokeWidth={1.75} aria-hidden="true" />
             </button>
             {accentOpen && (
-              <div className="pop-glass animate-menu absolute end-0 top-[calc(100%+8px)] z-[var(--z-menu)] w-60 rounded-[var(--r-md)] p-3" role="dialog" aria-label={t("المظهر")}>
+              <div className="pop-glass animate-menu absolute end-0 top-[calc(100%+8px)] z-[var(--z-menu)] w-72 rounded-[var(--r-md)] p-4" role="dialog" aria-label={t("المظهر")}>
                 <p className="px-1 text-[12.5px] font-bold text-[var(--faint)]">{lang === "en" ? "Theme" : "الثيم"}</p>
                 <div className="mt-1.5 flex items-center gap-0.5 rounded-full bg-[var(--surface-alt)] p-1" role="group" aria-label={lang === "en" ? "Theme mode" : "وضع الثيم"}>
                   {(
@@ -7022,7 +7035,7 @@ function Workspace({
                   ))}
                 </div>
                 <p className="mt-3.5 px-1 text-[12.5px] font-bold text-[var(--faint)]">{lang === "en" ? "Accent colour" : "لون التمييز"}</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 px-1 pb-1" role="group" aria-label={t("اختيار لون التمييز")}>
+                <div className="mt-2 grid grid-cols-6 gap-2 px-1 pb-1" role="group" aria-label={t("اختيار لون التمييز")}>
                   {ACCENTS.map((a) => (
                     <button
                       key={a.key}
@@ -7039,7 +7052,7 @@ function Workspace({
                         try { localStorage.setItem("is-accent-nebula89", "1"); } catch { /* ignore */ }
                         setAccent(a.key);
                       }}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-110"
+                      className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-transform hover:scale-110 ${accent === a.key ? "ring-2 ring-[var(--text)] ring-offset-2 ring-offset-[var(--surface-elevated)]" : ""}`}
                       style={{ background: a.swatch }}
                     >
                       {accent === a.key && <Icon d={I.check} size={15} />}
@@ -7047,7 +7060,7 @@ function Workspace({
                   ))}
                 </div>
                 <p className="mt-3.5 px-1 text-[12.5px] font-bold text-[var(--faint)]">{lang === "en" ? "Icon colour" : "لون الأيقونات"}</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 px-1 pb-1" role="group" aria-label={lang === "en" ? "Icon colour choice" : "اختيار لون الأيقونات"}>
+                <div className="mt-1.5 px-1 pb-1" role="group" aria-label={lang === "en" ? "Icon colour choice" : "اختيار لون الأيقونات"}>
                   <button
                     type="button"
                     aria-label={lang === "en" ? "Automatic icon colour" : "لون أيقونات تلقائي"}
@@ -7055,10 +7068,11 @@ function Workspace({
                     data-tip={lang === "en" ? "Automatic — icons keep their current colours" : "تلقائي — الأيقونات بألوانها الحالية"}
                     data-tip-pos="below"
                     onClick={() => setIconTone("auto")}
-                    className={`lux-btn h-8 shrink-0 rounded-full px-3 text-xs font-bold ${iconTone === "auto" ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "bg-[var(--surface-alt)] text-[var(--dim)] hover:text-[var(--text)]"}`}
+                    className={`lux-btn flex w-full items-center justify-center rounded-full px-3 py-1.5 text-xs font-bold ${iconTone === "auto" ? "bg-[var(--accent)] text-[var(--accent-ink)]" : "bg-[var(--surface-alt)] text-[var(--dim)] hover:text-[var(--text)]"}`}
                   >
                     {lang === "en" ? "Auto" : "تلقائي"}
                   </button>
+                  <div className="mt-2 grid grid-cols-6 gap-2">
                   {ICON_TONES.map((a) => (
                     <button
                       key={a.key}
@@ -7068,14 +7082,14 @@ function Workspace({
                       data-tip={a.label}
                       data-tip-pos="below"
                       onClick={() => setIconTone(a.key)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white transition-transform hover:scale-110"
+                      className={`flex h-9 w-9 items-center justify-center rounded-full text-white transition-transform hover:scale-110 ${iconTone === a.key ? "ring-2 ring-[var(--text)] ring-offset-2 ring-offset-[var(--surface-elevated)]" : ""}`}
                       style={{ background: a.swatch }}
                     >
                       {iconTone === a.key && <Icon d={I.check} size={15} />}
                     </button>
                   ))}
                   <label
-                    className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-transform hover:scale-110"
+                    className="relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-white transition-transform hover:scale-110"
                     style={{
                       background: customToneOf(iconTone) ?? "conic-gradient(#ef4444, #f59e0b, #84cc16, #06b6d4, #6366f1, #d946ef, #ef4444)",
                       boxShadow: customToneOf(iconTone) ? `0 0 0 2px var(--surface), 0 0 0 4px ${customToneOf(iconTone)}` : undefined,
@@ -7092,6 +7106,7 @@ function Workspace({
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                     />
                   </label>
+                  </div>
                 </div>
                 <p className="mt-3.5 px-1 text-[12.5px] font-bold text-[var(--faint)]">{lang === "en" ? "Folder tiles" : "بلاطات المجلدات"}</p>
                 <div className="mt-1.5 flex items-center gap-0.5 rounded-full bg-[var(--surface-alt)] p-1" role="group" aria-label={lang === "en" ? "Folder tile style" : "نمط بلاطات المجلدات"}>
@@ -8692,7 +8707,7 @@ function Workspace({
               سابقة — المكرر منها بيتخطى لوحده. النسخة العادية مش بتشمل الصور
               — دي في «تصدير نسخة كاملة» بس، وهناك كروابط مش كملفات.
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
               <button
                 type="button"
                 aria-label="تنزيل نسخة احتياطية JSON" data-tip="تنزيل نسخة احتياطية من مكتبتك (JSON) — مش بتشمل الصور، دي في النسخة الكاملة بس"
@@ -8718,20 +8733,30 @@ function Workspace({
                     "application/json;charset=utf-8",
                   );
                 }}
-                className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
+                className="lux-btn flex items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3.5 text-start shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
               >
-                <Icon d={I.file} size={18} />
-                نسخة احتياطية
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Icon d={I.file} size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-bold">نسخة احتياطية</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-[var(--dim)]">JSON — من غير الصور</span>
+                </span>
               </button>
               <button
                 type="button"
                 aria-label="تصدير نسخة كاملة من الموقع كله" data-tip="نسخة كاملة من الموقع كله: الحسابات والمجلدات والردود وسلة المهملات والصور — لنقل الموقع كله لمكان تاني. الصور المرفقة بالردود كروابط بس، مش الملفات نفسها"
                 onClick={() => fullBackupMut.mutate()}
                 disabled={fullBackupMut.isPending}
-                className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)] disabled:opacity-60"
+                className="lux-btn flex items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3.5 text-start shadow-[var(--shadow-card)] hover:border-[var(--border-strong)] disabled:opacity-60"
               >
-                <Icon d={I.archive} size={18} />
-                {fullBackupMut.isPending ? "بيتجهّز…" : "تصدير نسخة كاملة"}
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Icon d={I.archive} size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-bold">{fullBackupMut.isPending ? "بيتجهّز…" : "تصدير نسخة كاملة"}</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-[var(--dim)]">كل حاجة — للنقل لمكان تاني</span>
+                </span>
               </button>
               <button
                 type="button"
@@ -8744,19 +8769,29 @@ function Workspace({
                     "text/csv;charset=utf-8",
                   );
                 }}
-                className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
+                className="lux-btn flex items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3.5 text-start shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
               >
-                <Icon d={I.file} size={18} />
-                تصدير CSV
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Icon d={I.file} size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-bold">تصدير CSV</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-[var(--dim)]">بتتفتح في Excel وGoogle Sheets</span>
+                </span>
               </button>
               <button
                 type="button"
                 aria-label="استيراد نسخة احتياطية من ملف" data-tip="استيراد نسخة احتياطية من ملف (JSON أو CSV)"
                 onClick={() => fileRef.current?.click()}
-                className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 font-bold shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
+                className="lux-btn flex items-start gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3.5 text-start shadow-[var(--shadow-card)] hover:border-[var(--border-strong)]"
               >
-                <Icon d={I.upload} size={18} />
-                استورد نسخة احتياطية
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <Icon d={I.upload} size={18} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-bold">استورد نسخة احتياطية</span>
+                  <span className="mt-0.5 block text-[12.5px] leading-relaxed text-[var(--dim)]">من ملف JSON أو CSV</span>
+                </span>
               </button>
               <input
                 ref={fileRef}
@@ -8823,6 +8858,8 @@ function Workspace({
             showToast={showToast}
           />
         )}
+
+        {section === "extension" && <ExtensionShowcase lang={lang} />}
 
         <footer className="mt-16 flex flex-wrap items-center justify-center gap-2.5 text-xs text-[var(--dim)]">
           <Logo size={20} />
@@ -9377,7 +9414,10 @@ function Workspace({
           </div>
         </div>
       )}
-      {showTop && !detailItem && !drawerOpen && (
+      {/* Back-to-top never floats over a modal's footer: at narrow
+          widths the editor/bulk sheets sit at the bottom of the
+          viewport, exactly where this button lives (bottom-24). */}
+      {showTop && !detailItem && !drawerOpen && !editor.open && !bulkOpen && !accountOpen && !previewItem && !importPreview && !smartEditor.open && (
         <button
           type="button"
           aria-label={t("الرجوع لفوق")}
@@ -9913,11 +9953,11 @@ function TrashView({
   const empty = folders.length === 0 && shortcuts.length === 0;
   if (empty) {
     return (
-      <div className="pattern-star rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-10 text-center">
-        <div className="mb-3 flex justify-center text-[var(--faint)]">
-          <Icon d={I.trash} size={40} />
+      <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[linear-gradient(150deg,color-mix(in_srgb,var(--accent)_7%,var(--surface)),var(--surface)_60%)] px-4 py-12 text-center shadow-[var(--shadow-1)]">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--accent)_26%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)]">
+          <Icon d={I.trash} size={28} />
         </div>
-        <p className="font-semibold">{lang === "en" ? "The trash is empty" : "سلة المهملات فاضية"}</p>
+        <p className="text-[18px] font-extrabold">{lang === "en" ? "The trash is empty" : "سلة المهملات فاضية"}</p>
         <span aria-hidden="true" className="orn-divider"><i /></span>
         <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
           {lang === "en"
@@ -11240,7 +11280,8 @@ function AccountSection({
       <div className="mt-9">
         <GroupHead label="بيانات الدخول" hint="الاسم والبريد اللي بتدخل بيهم" />
       </div>
-      <div className="elev-card mt-5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+      <div className="elev-card rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
         <h2 className="font-bold">الاسم الظاهر</h2>
         <p className="mt-1 text-sm leading-relaxed text-[var(--dim)]">
           الاسم ده بيظهر فوق في أعلى الموقع وفي بطاقة حسابك أول ما تسجّل دخولك.
@@ -11281,7 +11322,7 @@ function AccountSection({
         )}
       </div>
 
-      <div className="elev-card mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+      <div className="elev-card rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
         <h2 className="font-bold">البريد الإلكتروني للدخول</h2>
         <p className="mt-1 text-sm leading-relaxed text-[var(--dim)]">
           {user.email
@@ -11326,6 +11367,7 @@ function AccountSection({
             كطريقة دخول زي ما هو.
           </p>
         )}
+      </div>
       </div>
 
       <div className="mt-9">
@@ -12239,7 +12281,7 @@ export const ShortcutCard = memo(function ShortcutCard({
               data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
               aria-pressed={item.pinned}
               onClick={() => onPin(item)}
-              className={`lux-btn shrink-0 rounded-full p-2.5 ${item.pinned ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
+              className={`lux-btn card-hover-action shrink-0 rounded-full p-2.5 ${item.pinned ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
             >
               <Icon d={I.pin} size={16} />
             </button>
@@ -12249,7 +12291,7 @@ export const ShortcutCard = memo(function ShortcutCard({
               data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
               aria-pressed={item.favorite}
               onClick={() => onFavorite(item)}
-              className={`lux-btn shrink-0 rounded-full p-2.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
+              className={`lux-btn card-hover-action shrink-0 rounded-full p-2.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
             >
               <Icon d={I.star} size={16} />
             </button>
@@ -12258,7 +12300,7 @@ export const ShortcutCard = memo(function ShortcutCard({
               aria-label={lang === "en" ? `Edit ${item.title}` : `تعديل ${item.title}`}
               data-tip={t("تعديل")}
               onClick={() => onEdit(item)}
-              className="lux-btn shrink-0 rounded-full p-2.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+              className="lux-btn card-hover-action shrink-0 rounded-full p-2.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
             >
               <Icon d={I.edit} size={16} />
             </button>
@@ -12269,7 +12311,7 @@ export const ShortcutCard = memo(function ShortcutCard({
                 currentFolderId={item.folderId ?? null}
                 onMove={(folderId) => onMove(item, folderId)}
                 subject={item.title}
-                triggerClassName="p-2.5 shrink-0"
+                triggerClassName="p-2.5 shrink-0 card-hover-action"
                 iconPx={16}
               />
             )}
@@ -12322,11 +12364,11 @@ export const ShortcutCard = memo(function ShortcutCard({
                 aria-label={item.favorite ? (lang === "en" ? `Remove ${item.title} from favorites` : `إزالة ${item.title} من المفضلة`) : lang === "en" ? `Add ${item.title} to favorites` : `إضافة ${item.title} للمفضلة`} data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
                 aria-pressed={item.favorite}
                 onClick={() => onFavorite(item)}
-                className={`lux-btn rounded-full p-1.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
+                className={`lux-btn card-hover-action rounded-full p-1.5 ${item.favorite ? "bg-[var(--favorite-soft)] text-[var(--favorite)]" : "text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"}`}
               >
                 <Icon d={I.star} size={18} />
               </button>
-              <div className="card-action-group" role="group" aria-label={t("إجراءات إدارة الرد")}>
+              <div className="card-action-group card-hover-action" role="group" aria-label={t("إجراءات إدارة الرد")}>
                 <button
                   type="button"
                   aria-label={item.pinned ? (lang === "en" ? `Unpin ${item.title}` : `إلغاء تثبيت ${item.title}`) : lang === "en" ? `Pin ${item.title}` : `تثبيت ${item.title}`} data-tip={item.pinned ? t("إلغاء التثبيت") : t("تثبيت في الأعلى")}
@@ -12524,11 +12566,11 @@ export function RichTextEditor({
   };
 
   const toolBtn =
-    "lux-btn lux-row flex items-center gap-1 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)]";
+    "lux-btn lux-row flex shrink-0 items-center gap-1 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)]";
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="أدوات تنسيق الرد">
+      <div className="no-scrollbar flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5" role="toolbar" aria-label="أدوات تنسيق الرد">
         <button type="button" aria-label="نص عريض" data-tip="عريض بصيغة واتساب — بيظهر منسق لما يتلصق هناك" onClick={() => wrapSelection("*", "*", "نص عريض")} className={toolBtn}>
           <Icon d={I.bold} size={16} />
           عريض
@@ -12562,8 +12604,8 @@ export function RichTextEditor({
         </button>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className="flex items-center gap-1 text-xs font-bold text-[var(--dim)]">
+      <div className="no-scrollbar mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5">
+        <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-[var(--dim)]">
           <Icon d={I.braces} size={14} />
           متغيرات ديناميكية:
         </span>
@@ -12574,7 +12616,7 @@ export function RichTextEditor({
             aria-label={`إدراج متغير ${v.label}`}
             data-tip={v.tip}
             onClick={() => insertAtCursor(v.token)}
-            className="lux-btn rounded-[4px] bg-[var(--cyan-soft)] px-2 py-1 font-mono text-xs font-bold text-[var(--cyan)] hover:brightness-110"
+            className="lux-btn shrink-0 rounded-[4px] bg-[var(--cyan-soft)] px-2 py-1 font-mono text-xs font-bold text-[var(--cyan)] hover:brightness-110"
           >
             {v.token}
           </button>
@@ -12587,7 +12629,7 @@ export function RichTextEditor({
         aria-label="نص الرد"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        rows={9}
+        rows={11}
         placeholder="النص الكامل اللي هيتكتب لما تستخدم الاختصار…"
         className="mt-2.5 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base leading-relaxed outline-none focus:border-[var(--accent)]"
       />
@@ -14829,7 +14871,7 @@ function ShortcutsView({
                 </span>
                 <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
               </h3>
-              <ul className="flex flex-col gap-2">
+              <ul className="grid gap-3 sm:grid-cols-2">
                 {g.items.map((s) => (
                   <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(s.id) ?? []} />
                 ))}
@@ -14851,7 +14893,7 @@ function ShortcutsView({
               <p className="mb-2 text-[13px] leading-relaxed text-[var(--dim)]">
                 {t("دوس «أضف اختصار» على أي رد من اللي تحت واكتب له كلمة — دوسة واحدة وبيتحفظ.")}
               </p>
-              <ul className="flex flex-col gap-2">
+              <ul className="grid gap-3 sm:grid-cols-2">
                 {withoutTrigger.map((s) => (
                   <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(s.id) ?? []} highlight={flashId === s.id} />
                 ))}
@@ -15172,6 +15214,11 @@ function BulkModal({
   onImport: (items: BulkItem[]) => void;
 }) {
   const [text, setText] = useState("");
+  const BULK_EXAMPLE = `ترحيب سريع
+أهلاً بيك 🤍
+---
+عرض خاص
+نص العرض كامل…`;
   const parsed = useMemo(() => parseBulk(text), [text]);
   /* Click-outside closes the sheet — unless text was pasted and not
      imported yet, in which case it asks first instead of losing it. */
@@ -15204,21 +15251,42 @@ function BulkModal({
           <span dir="ltr" className="font-mono font-bold">---</span> لوحده. أو الصق JSON بنفس
           شكل ملف النسخة الاحتياطية — والردود الموجودة عندك قبل كده هتتخطى تلقائياً.
         </p>
-        <pre className="mt-2 overflow-x-auto overscroll-contain rounded-[var(--radius)] bg-[var(--surface-alt)] p-3 font-mono text-xs leading-relaxed">
-{`ترحيب سريع
-أهلاً بيك 🤍
----
-عرض خاص
-نص العرض كامل…`}
-        </pre>
+        <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[12px] font-bold text-[var(--faint)]">مثال — الشكل المطلوب</span>
+            <button
+              type="button"
+              aria-label="ملء حقل اللصق بالمثال"
+              onClick={() => setText(BULK_EXAMPLE)}
+              className="lux-btn shrink-0 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
+            >
+              جرّب المثال ده
+            </button>
+          </div>
+          <div className="mt-2.5 flex flex-col gap-2">
+            <div>
+              <p className="text-[13px] font-bold">ترحيب سريع</p>
+              <p className="text-[13px] text-[var(--dim)]">أهلاً بيك 🤍</p>
+            </div>
+            <span className="flex items-center gap-2 text-[11px] font-bold text-[var(--faint)]" aria-hidden="true">
+              <span className="h-px flex-1 bg-[var(--border)]" />
+              ---
+              <span className="h-px flex-1 bg-[var(--border)]" />
+            </span>
+            <div>
+              <p className="text-[13px] font-bold">عرض خاص</p>
+              <p className="text-[13px] text-[var(--dim)]">نص العرض كامل…</p>
+            </div>
+          </div>
+        </div>
         <span className="block" data-tip="الصق الردود هنا — كل رد: عنوان، ثم النص">
         <textarea
           aria-label="نص الإضافة الجماعية"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          rows={10}
+          rows={12}
           placeholder="الصق الردود هنا…"
-          className="mt-3 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base leading-relaxed outline-none focus:border-[var(--accent)]"
+          className="mt-3 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-3 text-base leading-relaxed shadow-[var(--shadow-1)] outline-none focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]"
         />
         </span>
         <p className="mt-1.5 text-sm text-[var(--dim)]" aria-live="polite">
@@ -15259,7 +15327,7 @@ function BulkModal({
             onClick={() => onImport(parsed.items)}
             className="lux-btn flex-1 rounded-[var(--radius)] bg-[var(--accent)] py-3 font-semibold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] hover:text-[var(--bg)] disabled:opacity-50"
           >
-            إضافة {parsed.items.length > 0 ? parsed.items.length : ""} رد
+            إضافة {parsed.items.length > 0 ? `${parsed.items.length} رد` : "ردود"}
           </button>
           <button
             type="button"

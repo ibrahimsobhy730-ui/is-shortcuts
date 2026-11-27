@@ -10,8 +10,10 @@
    لوحة مفاتيح ممنوع في العرض الجديد.
 
    قواعد صارمة (قرارات المالك):
-   · لا ذكر لأي إضافة متصفح إطلاقًا — الموقع بلا إضافة،
-     والعرض داخل الموقع فقط.
+   · الإضافة: المالك بنى إضافة المتصفح بنفسه (2026-11-27) وأمر
+     بإضافة دليل تثبيتها + زر تحميل الـ ZIP داخل الموقع — شريط
+     التحميل أسفل الشرح يفتح الدليل كحوار، والموقع نفسه يستضيف
+     الملف فقط ولا يعدّل كود الإضافة إطلاقًا.
    · لا شهادات ولا اقتباسات ولا أسماء مختلقة — لا
      إثبات اجتماعي مزيّف إطلاقًا.
    · كل عيّنات العرض أمثلة خيالية موسومة «مثال» بوضوح،
@@ -25,15 +27,18 @@ import { useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
+  Download,
   Folder,
   Image as ImageIcon,
   Plus,
+  Puzzle,
   Search,
   Sparkles,
   X,
   Zap,
 } from "lucide-react";
 import AuthDemo from "./AuthDemo";
+import { ExtensionInstallGuide } from "./ExtensionInstallGuide";
 
 type Lang = "ar" | "en";
 
@@ -62,6 +67,7 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
   const [typed, setTyped] = useState("");
   const [typing, setTyping] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const typeTimer = useRef<number | undefined>(undefined);
   const copyTimer = useRef<number | undefined>(undefined);
 
@@ -72,6 +78,21 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
     },
     [],
   );
+
+  /* حوار دليل الإضافة: Escape يقفله، والصفحة خلفه تتجمد. */
+  useEffect(() => {
+    if (!showGuide) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowGuide(false);
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [showGuide]);
 
   const q = typed.trim();
   const match = EXAMPLES.find((e) => e.trigger === q) ?? null;
@@ -288,6 +309,70 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
           </span>
         ))}
       </div>
+
+      {/* تحميل الإضافة: شريط واحد مدمج أسفل الشرح — تحميل الـ ZIP
+          + زر يفتح دليل التثبيت الكامل كحوار. */}
+      <div className="auth-r8-ext">
+        <span className="auth-r8-ext-icon" aria-hidden="true">
+          <Puzzle size={18} />
+        </span>
+        <div className="auth-r8-ext-text">
+          <p className="auth-r8-ext-title">
+            {en ? "Take IS everywhere" : "خد IS معاك في أي مكان"}
+          </p>
+          <p className="auth-r8-ext-sub">
+            {en
+              ? "Browser extension v3.0 — free download"
+              : "إضافة المتصفح — الإصدار 3.0 — تحميل مجاني"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowGuide(true)}
+          className="lux-btn auth-r8-ext-guide"
+        >
+          {en ? "Install guide" : "شرح التثبيت"}
+        </button>
+        <a
+          href="/is-shortcuts-extension.zip"
+          download="is-shortcuts-extension.zip"
+          className="lux-btn btn-lux auth-r8-ext-dl"
+        >
+          <Download size={15} />
+          {en ? "Download" : "تحميل"}
+        </a>
+      </div>
+
+      {/* حوار دليل التثبيت: دوسة على الخلفية تقفله. */}
+      {showGuide && (
+        <div
+          className="auth-r8-guide-dialog"
+          onClick={() => setShowGuide(false)}
+        >
+          <div
+            className="auth-r8-guide-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={en ? "Extension install guide" : "دليل تثبيت الإضافة"}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="auth-r8-guide-head">
+              <span className="auth-r8-guide-head-title">
+                {en ? "Extension install guide" : "دليل تثبيت الإضافة"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowGuide(false)}
+                aria-label={en ? "Close the guide" : "إغلاق الدليل"}
+                className="lux-btn auth-r8-guide-close"
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <ExtensionInstallGuide lang={lang} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

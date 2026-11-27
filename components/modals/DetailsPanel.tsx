@@ -162,7 +162,7 @@ export function DetailsPanel({
       </div>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-[var(--faint)]">{item.category}</p>
+          <p className="text-[12px] font-semibold text-[var(--faint)]">{item.category}</p>
           <h2 className="mt-0.5 text-lg font-bold leading-snug">{item.title}</h2>
         </div>
         <button
@@ -177,49 +177,63 @@ export function DetailsPanel({
         </button>
       </div>
 
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
-        <dt className="font-semibold text-[var(--faint)]">المجلد</dt>
-        <dd className="font-semibold">{folderPath}</dd>
-        <dt className="font-semibold text-[var(--faint)]">الحالة</dt>
-        <dd className="font-semibold">
-          {[
-            item.pinned ? "مثبّت في الأعلى" : null,
-            item.favorite ? "في المفضلة" : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "عادي"}
-        </dd>
+      <dl className="mt-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1 text-[13px] shadow-[var(--shadow-1)]">
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">المجلد</dt>
+          <dd className="text-end font-semibold">{folderPath}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">الحالة</dt>
+          <dd className="text-end font-semibold">
+            {[
+              item.pinned ? "مثبّت في الأعلى" : null,
+              item.favorite ? "في المفضلة" : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "عادي"}
+          </dd>
+        </div>
         {item.extShortcut && (
-          <>
-            <dt className="font-semibold text-[var(--faint)]">الاختصار الخارجي</dt>
+          <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+            <dt className="shrink-0 font-semibold text-[var(--faint)]">الاختصار الخارجي</dt>
             <dd className="font-semibold">
               <span dir="ltr" className="font-mono">{item.extShortcut}</span>
             </dd>
-          </>
+          </div>
         )}
-        <dt className="font-semibold text-[var(--faint)]">الاختصار</dt>
-        <dd className="font-semibold">
-          <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
-        </dd>
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">الاختصار</dt>
+          <dd className="font-semibold">
+            <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
+          </dd>
+        </div>
         {item.source && (
-          <>
-            <dt className="font-semibold text-[var(--faint)]">المصدر</dt>
+          <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+            <dt className="shrink-0 font-semibold text-[var(--faint)]">المصدر</dt>
             <dd className="font-semibold">
               <span className="flex items-center gap-1.5">
                 <SourceMark source={item.source} size={15} />
                 <span dir="ltr">{item.source}</span>
               </span>
             </dd>
-          </>
+          </div>
         )}
-        <dt className="font-semibold text-[var(--faint)]">مرات النسخ</dt>
-        <dd>{item.usageCount} مرة</dd>
-        <dt className="font-semibold text-[var(--faint)]">آخر استخدام</dt>
-        <dd>{fmt(item.lastUsedAt)}</dd>
-        <dt className="font-semibold text-[var(--faint)]">اتعمل</dt>
-        <dd>{fmt(item.createdAt)}</dd>
-        <dt className="font-semibold text-[var(--faint)]">آخر تعديل</dt>
-        <dd>{fmt(item.updatedAt)}</dd>
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">مرات النسخ</dt>
+          <dd>{item.usageCount} مرة</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">آخر استخدام</dt>
+          <dd className="text-end">{fmt(item.lastUsedAt)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">اتعمل</dt>
+          <dd className="text-end">{fmt(item.createdAt)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 border-b border-[var(--border)] py-2.5 last:border-b-0">
+          <dt className="shrink-0 font-semibold text-[var(--faint)]">آخر تعديل</dt>
+          <dd className="text-end">{fmt(item.updatedAt)}</dd>
+        </div>
       </dl>
 
       {tags.length > 0 && (

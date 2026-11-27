@@ -95,7 +95,7 @@ check(
 );
 check(
   "editor trigger label renders I.shortcut",
-  /labelWithIcon\(I\.shortcut,/.test(editor),
+  /labelWithIcon\(\s*I\.shortcut,/.test(editor),
 );
 check(
   "folder-colour pill is gone: no triggerPillFolder / trig-folder in TSX or CSS",

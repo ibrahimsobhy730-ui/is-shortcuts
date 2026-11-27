@@ -17,8 +17,9 @@
        static frame, popup re-opens in the montage so the new
        shortcut shows, sent bubble only in the success window;
    (3) the static figure is gone (animated demo replaces it) and
-       its image file is deleted; no extension mention, no
-       testimonial, fictional examples only;
+       its image file is deleted; extension download card + guide
+       present (owner override 2026-11-27 22:36), no testimonial,
+       fictional examples only;
    (4) form: verse REMOVED from the auth form (home verse stays,
        Amiri, exact string), title 32/800, logo medallion +
        product name, deep submit gradient in both themes, mode swap
@@ -172,7 +173,7 @@ check(
     /top: 60px;/.test(tokens),
 );
 
-/* ---- (3) Static figure gone, image deleted, no extension/testimonial ---- */
+/* ---- (3) Static figure gone, image deleted, extension card + guide present, no testimonial ---- */
 check(
   "static figure gone from the explainer (animated demo replaces it)",
   !/auth-explainer-figure/.test(explainer) &&
@@ -180,10 +181,10 @@ check(
     !existsSync(join(root, "public", "images", "explainer-popup-action.png")),
 );
 check(
-  "no extension mention in the explainer's rendered text (comments excluded)",
-  !/extension|إضافة متصفح|اكستنشن/.test(
-    explainer.replace(/\/\*[\s\S]*?\*\//g, ""),
-  ),
+  "extension download card in the explainer (owner override 2026-11-27 22:36: ZIP + install guide ON the site — the old no-extension rule is superseded by his explicit order)",
+  /auth-r8-ext/.test(explainer) &&
+    /is-shortcuts-extension\.zip/.test(explainer) &&
+    /<ExtensionInstallGuide/.test(explainer),
 );
 check(
   "fictional examples only, labeled as examples",
