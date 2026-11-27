@@ -1,24 +1,30 @@
-/* Static regression audit for Round 8 (2026-11-27) — the login /
-   sign-up page redesign, landing-grade (Linear/Vercel/Raycast
-   level), ONE strong idea: the animated product demo.
+/* Static regression audit for Round 8 Rev1 (2026-11-27) — the login
+   revision at the owner's call «طور واجهة تسجيل الدخول بشكل عام
+   اكتر بكتير»: physical panel order (form right, demo left, AR and
+   EN), demo developed much more, verse REMOVED from the auth form
+   (home verse untouched), form look developed much more.
    Checks:
-   (1) layout: two balanced panels (440px form + demo hero) in a
-       1200px container at >=1100px; stacked below; desktop
-       top-aligned so the submit button fits above the fold at
-       1440x900; no mobile/tablet-specific design (scope cut
-       19:13) — only basic no-breakage rules below 1100px;
+   (1) layout: two balanced panels (480px form track + demo hero) in
+       a 1280px container at >=1100px; form physically right in BOTH
+       languages; stacked below; desktop top-aligned so the submit
+       button fits above the fold at 1440x900; no mobile/tablet-
+       specific design (scope cut 19:13) — only basic no-breakage
+       rules below 1100px;
    (2) the animated demo: AuthDemo state machine (16s loop,
        typing/popup/cursor/press/sent/success/montage/fade),
-       step indicator + play/pause + reduced-motion static frame,
-       popup re-opens in the montage so the new shortcut shows,
-       sent bubble only in the success window;
+       customer question filling the early chat, step cards with
+       their own text, step indicator + play/pause + reduced-motion
+       static frame, popup re-opens in the montage so the new
+       shortcut shows, sent bubble only in the success window;
    (3) the static figure is gone (animated demo replaces it) and
        its image file is deleted; no extension mention, no
        testimonial, fictional examples only;
-   (4) form: verse framed (Amiri, exact string), title 30/700,
-       mode swap via grid-rows + data-open (no key={mode}),
-       noValidate (hidden required fields must not trip native
-       validation), 52px fields, 54px submit, utility glass pill;
+   (4) form: verse REMOVED from the auth form (home verse stays,
+       Amiri, exact string), title 32/800, logo medallion +
+       product name, deep submit gradient in both themes, mode swap
+       via grid-rows + data-open (no key={mode}), noValidate (hidden
+       required fields must not trip native validation), 52px fields,
+       54px submit, utility glass pill;
    (5) auth page ONLY: no changes to home/app logic; font still
        IBM Plex Sans Arabic (no Readex), verse Amiri only.
    Run with: node scripts/verify-round8.mjs */
@@ -49,18 +55,25 @@ function check(name, ok, extra = "") {
 
 /* ---- (1) Layout: two balanced panels, desktop top-aligned ---- */
 check(
-  "desktop split: 440px form + 1fr demo at 1100px, max-width 1200px",
-  /\.auth-r8 \.auth-split \{\n    grid-template-columns: 440px minmax\(0, 1fr\);/.test(tokens) &&
-    /max-width: 1200px;/.test(tokens) &&
+  "desktop split: 480px form track + 1fr demo at 1100px, max-width 1280px",
+  /\.auth-r8 \.auth-split \{\n    grid-template-columns: 480px minmax\(0, 1fr\);/.test(tokens) &&
+    /max-width: 1280px;/.test(tokens) &&
     /@media \(min-width: 1100px\)/.test(tokens),
 );
 check(
-  "desktop top-aligned (submit fits above the fold at 1440x900)",
-  /\.auth-r8 \.auth-split \{\n    grid-template-columns: 440px minmax\(0, 1fr\);\n    align-items: start;/.test(tokens),
+  "physical order: form on the physical right in LTR too (no mirroring)",
+  /html\[dir="ltr"\] \.auth-r8 \.auth-split \{ grid-template-columns: minmax\(0, 1fr\) 480px;/.test(tokens) &&
+    /html\[dir="ltr"\] \.auth-r8 \.auth-split \.auth-form-side \{ grid-column: 2; grid-row: 1;/.test(tokens) &&
+    /html\[dir="ltr"\] \.auth-r8 \.auth-split \.auth-r8-demo \{ grid-column: 1; grid-row: 1;/.test(tokens) &&
+    /html\[dir="ltr"\] \.auth-r8 \.auth-r8-demo \{ border-inline-start: none; border-inline-end: 1px solid var\(--border\);/.test(tokens),
 );
 check(
-  "demo column capped at 600px (stage stays compact)",
-  /max-width: 600px;/.test(tokens) &&
+  "desktop top-aligned (submit fits above the fold at 1440x900)",
+  /\.auth-r8 \.auth-split \{\n    grid-template-columns: 480px minmax\(0, 1fr\);\n    align-items: start;/.test(tokens),
+);
+check(
+  "demo column capped at 680px (stage is bigger than Round 8)",
+  /max-width: 680px;/.test(tokens) &&
     /\.auth-r8 \.auth-r8-demo \{/.test(tokens),
 );
 check(
@@ -106,6 +119,28 @@ check(
 check(
   "sent bubble only in the success window (never behind the open popup, never under the montage)",
   /const bubbleShown = t >= SUCCESS_AT && t < MONTAGE_AT;/.test(demo),
+);
+check(
+  "demo head uses its own title/sub classes (Round 8 defined them but never applied them)",
+  /className="auth-r8-demo-title"/.test(explainer) &&
+    /className="auth-r8-demo-sub"/.test(explainer) &&
+    /\.auth-r8-demo-title \{ font-size: clamp\(32px, 3\.4vw, 38px\); font-weight: 800;/.test(tokens),
+);
+check(
+  "mock customer question fills the early chat (stage is no longer an empty box)",
+  /ممكن أسعار الباقات؟/.test(demo) &&
+    /auth-r8-bubble-q/.test(demo) &&
+    /t >= 1200/.test(demo),
+);
+check(
+  "step cards carry their own text (no separate caption line)",
+  /auth-r8-step-text/.test(demo) &&
+    /auth-r8-step-top/.test(demo) &&
+    !/auth-r8-step-caption/.test(demo),
+);
+check(
+  "try-it framed as one composed card under the demo",
+  /\.auth-r8-try \{\n  margin-top: 16px;\n  padding: 16px 18px 14px;\n  border-radius: 20px;\n  border: 1px solid var\(--border\);\n  background: var\(--surface\);/.test(tokens),
 );
 check(
   "demo controls: play/pause, step jump, tab-hidden + offscreen pause, reduced-motion static frame",
@@ -162,17 +197,31 @@ check(
     /\/سعر/.test(explainer),
 );
 
-/* ---- (4) Form: verse, title, swap, noValidate, sizes, utility pill ---- */
+/* ---- (4) Form: verse REMOVED from auth, title, swap, noValidate, sizes, utility pill ---- */
 check(
-  "verse framed, exact string, Amiri",
-  /نِعْمَةً مِّنْ عِندِنَا/.test(app) &&
-    /\.auth-r8-verse-frame/.test(tokens) &&
+  "verse REMOVED from the auth form (home verse untouched, Amiri, exact string)",
+  !/auth-r8-verse-frame/.test(app) &&
+    !/auth-r8-verse-frame/.test(tokens) &&
+    !/auth-verse/.test(app) &&
+    /نِعْمَةً مِّنْ عِندِنَا/.test(app) &&
+    /cmd-deck-verse/.test(app) &&
     !/نِعْمَةً/.test(tokens),
 );
 check(
-  "title 30px/700, subtitle kept, logo breathing glow",
-  /\.auth-r8 \.auth-title \{\n  font-size: 30px;\n  font-weight: 700;/.test(tokens) &&
+  "title 32px/800, logo medallion + product name, card glow, logo breathing glow",
+  /\.auth-r8 \.auth-title \{ font-size: 32px; font-weight: 800;/.test(tokens) &&
+    /auth-r8-logo-ring/.test(tokens) &&
+    /auth-r8-brandline/.test(app) &&
+    /auth-r8-card-glow/.test(tokens) &&
     /auth-r8-breathe/.test(tokens),
+);
+check(
+  "submit is a deep gradient in both themes (dark-mode pale pill fixed), white label",
+  /\.auth-r8 \.auth-submit \{\n  background: linear-gradient\(165deg, color-mix\(in srgb, var\(--accent\) 72%, black 28%\) 0%, color-mix\(in srgb, var\(--accent\) 60%, black 40%\) 100%\);\n  color: oklch\(0\.99 0\.01 250\);/.test(tokens),
+);
+check(
+  "fields get a focus glow (accent ring + soft halo)",
+  /\.auth-r8 \.auth-input:focus \{\n  border-color: color-mix\(in srgb, var\(--accent\) 55%, transparent\);\n  box-shadow:\n    0 0 0 3px color-mix\(in srgb, var\(--accent\) 16%, transparent\),/.test(tokens),
 );
 check(
   "mode swap via grid-rows + data-open (no key={mode} remount)",
@@ -202,7 +251,7 @@ check(
     /backdrop-filter: blur\(20px\) saturate\(160%\);/.test(tokens),
 );
 check(
-  "champagne gold only as tiny details (step numbers + verse frame hairline)",
+  "champagne gold only as tiny details (step numbers + logo-ring hairline)",
   /--r8-champ/.test(tokens) &&
     !/background: var\(--gold\)|background: var\(--champ\)/.test(tokens),
 );

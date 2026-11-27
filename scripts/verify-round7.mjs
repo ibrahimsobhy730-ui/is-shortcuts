@@ -67,9 +67,9 @@ check(
     /\.verse \{ font-family: var\(--font-amiri\), "Amiri"/.test(tokens),
 );
 check(
-  "verse H1 + auth verse still use the .verse class (Amiri)",
+  "verse H1 still uses the .verse class (Amiri); auth verse REMOVED by owner order Rev1 (2026-11-27)",
   /className="verse cmd-deck-verse/.test(app) &&
-    /className="verse auth-verse text-center"/.test(app),
+    !/auth-verse/.test(app),
 );
 
 /* ---- (2) Home command deck ---- */

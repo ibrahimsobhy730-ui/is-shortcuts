@@ -3025,26 +3025,20 @@ function AuthPage({
           تظل ملغاة — لا بانل جانبي داكن ولا نقاط قيمة. */}
     <main className="auth-form-side">
       <div className="auth-form-card">
-      {/* The bare IS mark alone at the head of the card — mark
-          only, no panel, no verse, no wordmark (the v80 removal
-          of the brand PANEL stands; the owner's logo brief for
-          the new ribbon mark names this page explicitly, and the
-          mark by itself is not the panel he removed). */}
-      <div className="auth-in auth-r8-logo mb-5 flex justify-center" style={{ "--d": "20ms" } as React.CSSProperties}>
-        <Logo size={76} />
+      {/* Rev1 (owner 2026-11-27): the card carries a soft accent
+          glow from above — light from the top, never a fill. */}
+      <span className="auth-r8-card-glow" aria-hidden="true" />
+      {/* The bare IS mark at the head of the card, now in a
+          gradient medallion with the product name under it.
+          Rev1: the verse is REMOVED from the auth form at the
+          owner's explicit order — the home-page verse is a
+          different component and stays Amiri exactly as it is. */}
+      <div className="auth-in auth-r8-logo mb-3 flex justify-center" style={{ "--d": "20ms" } as React.CSSProperties}>
+        <span className="auth-r8-logo-ring">
+          <Logo size={76} />
+        </span>
       </div>
-      {/* Entry-wow (2026-11-26): the verse as ONE quiet line under
-          the logo — the same verse as the home H1, in Amiri, with
-          the thin gradient rule from .auth-verse separating logo
-          from verse. Round 8 frames it as calligraphy: a soft
-          gradient fill behind a champagne-gold hairline (a tiny
-          detail, per the owner's brief) — the verse text itself
-          is exactly as before, Amiri, untouched. */}
-      <div className="auth-in mb-1 flex justify-center" style={{ "--d": "30ms" } as React.CSSProperties}>
-        <div className="auth-r8-verse-frame">
-          <p dir="rtl" lang="ar" className="verse auth-verse text-center">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
-        </div>
-      </div>
+      <p className="auth-in auth-r8-brandline" style={{ "--d": "30ms" } as React.CSSProperties}>IS Shortcuts</p>
       <div className="auth-in auth-greeting" style={{ "--d": "40ms" } as React.CSSProperties}>
         <h1 className="auth-title">
           {mode === "login" ? (lang === "en" ? "Welcome back" : "أهلاً بعودتك") : lang === "en" ? "Your private IS account" : "حسابك الخاص في IS"}

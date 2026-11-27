@@ -260,6 +260,14 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
             <div className="auth-r8-bubble auth-r8-bubble-in">
               {en ? "Hi! How can I help?" : "أهلاً! أقدر أساعدك إزاي؟"}
             </div>
+            {/* Rev1: a customer question fills the early chat — the
+                stage is no longer an empty box in the first 3s of
+                every loop. Mock text only, same fictional examples. */}
+            {t >= 1200 && (
+              <div className="auth-r8-bubble auth-r8-bubble-in auth-r8-bubble-q">
+                {en ? "Can I see the prices?" : "ممكن أسعار الباقات؟"}
+              </div>
+            )}
             {/* تلميح هادئ يملأ فراغ الجسم في أول 3 ثوانٍ (قبل
                 أن تفتح النافذة)، ويختفي مع إرسال الرد. */}
             {!sent && (
@@ -409,10 +417,15 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
             aria-current={i === activeStep ? "step" : undefined}
             aria-label={`${i + 1}. ${stepLabel[i] ?? ""}`}
           >
-            <span className="auth-r8-step-num" aria-hidden="true">
-              {i + 1}
+            <span className="auth-r8-step-top">
+              <span className="auth-r8-step-num" aria-hidden="true">
+                {i + 1}
+              </span>
+              <span className="auth-r8-step-name">{stepLabel[i]}</span>
             </span>
-            <span className="auth-r8-step-name">{stepLabel[i]}</span>
+            {/* Rev1: the step text lives inside its own card — the
+                separate caption line below is gone. */}
+            <span className="auth-r8-step-text">{stepText[i]}</span>
             <span className="auth-r8-step-bar" aria-hidden="true">
               <span
                 className="auth-r8-step-fill"
@@ -444,11 +457,10 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
           {playing ? <Pause size={16} /> : <Play size={16} />}
         </button>
       </div>
-      {/* تعليق حيّ للخطوة النشطة (مرئي + aria-live). */}
-      <p className="auth-r8-step-caption" aria-live="polite">
-        <span className="auth-r8-step-caption-num" aria-hidden="true">
-          {activeStep + 1}
-        </span>
+      {/* Rev1: the step text now lives inside each step card — the
+          visible caption line is gone; the live region stays for
+          screen readers only. */}
+      <p className="sr-only" aria-live="polite">
         {stepText[activeStep]}
       </p>
     </figure>

@@ -136,8 +136,8 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
           <Sparkles size={13} />
           {en ? "See it work" : "شوفه بيشتغل"}
         </span>
-        <h2>{en ? "How IS works" : "إزاي بيشتغل؟"}</h2>
-        <p>
+        <h2 className="auth-r8-demo-title">{en ? "How IS works" : "إزاي بيشتغل؟"}</h2>
+        <p className="auth-r8-demo-sub">
           {en
             ? "Watch a shortcut turn into a full reply — then try it yourself."
             : "شوف الاختصار بيتحوّل لرد كامل قدامك — وبعدين جرّب بنفسك."}
