@@ -43,10 +43,34 @@ const ddl = readFileSync(join(root, "drizzle", "0001_init.sql"), "utf-8");
 await mem.public.none(ddl);
 console.log("DDL applied to pg-mem.");
 
+
 // Same pg-proxy driver setup as scripts/verify-actions.mjs (see its
 // header for the two pg-mem quirks this works around).
 const { Pool } = mem.adapters.createPg();
 const pool = new Pool();
+
+// The init file no longer creates shortcuts_user_trigger_idx (Round 4
+// deploy fix: it is applied as one multi-statement query before the
+// guarded step, so an index there would abort the whole Vercel build
+// on live duplicate triggers). The guarded step in scripts/setup-db.ts
+// creates it — run the same step here (verbatim queries) so the DB
+// under test matches what the production build creates.
+const { rows: dupTriggers } = await pool.query(`
+    SELECT user_id, t, n FROM (
+      SELECT user_id, lower(trigger) AS t, COUNT(*)::int AS n
+      FROM shortcuts
+      WHERE trigger <> '' AND deleted_at IS NULL
+      GROUP BY user_id, lower(trigger)
+    ) dups WHERE n > 1`);
+if (dupTriggers.length > 0) {
+  throw new Error(`guarded trigger-index step skipped in test setup: ${JSON.stringify(dupTriggers)}`);
+}
+await pool.query(`DROP INDEX IF EXISTS shortcuts_user_trigger_idx`);
+await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx
+        ON shortcuts(user_id, lower(trigger))
+        WHERE trigger <> '' AND deleted_at IS NULL`);
+console.log("Guarded trigger-index step applied (as in scripts/setup-db.ts).");
 const db = drizzle(
   async (sql, params) => {
     const res = await pool.query(sql, params);

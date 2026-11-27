@@ -98,11 +98,15 @@ CREATE TABLE IF NOT EXISTS shortcuts (
 );
 CREATE INDEX IF NOT EXISTS shortcuts_user_id_idx ON shortcuts(user_id);
 CREATE INDEX IF NOT EXISTS shortcuts_folder_id_idx ON shortcuts(folder_id);
--- Per-user trigger uniqueness, case-insensitive on the trimmed text
--- (the server check in assertTriggerAvailable is the first line of
--- defence; this index is the second). The WHERE keeps trigger-less
--- replies out of the index entirely.
-CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '' AND deleted_at IS NULL;
+-- Per-user trigger uniqueness (case-insensitive) is NOT created here.
+-- This file is applied by scripts/setup-db.ts as ONE multi-statement
+-- query BEFORE its guarded post-init step runs, so a CREATE UNIQUE
+-- INDEX here would abort the whole build on live duplicate triggers
+-- instead of warning and skipping. The guarded step in
+-- scripts/setup-db.ts creates shortcuts_user_trigger_idx with
+-- predicate WHERE trigger <> '' AND deleted_at IS NULL for fresh and
+-- live databases alike (the server check in assertTriggerAvailable
+-- is the first line of defence; the index is the second).
 
 -- Reply media: up to 3 images attached to a reply (owner's call
 -- 2026-11-27 — one image is not enough). The bytes live in Vercel
