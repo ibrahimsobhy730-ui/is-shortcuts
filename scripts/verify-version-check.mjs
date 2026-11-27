@@ -192,6 +192,23 @@ check(
     /\.pop-glass \{\s*border-color: color-mix\(in srgb, var\(--accent\) 22%, var\(--glass-border\)\);/.test(tokens) &&
     /color-mix\(in srgb, var\(--accent\) 14%, transparent\), transparent 70%\),\s*var\(--surface\);/.test(tokens),
 );
+check(
+  "AutoHotkey section fully gone from the UI, backup & import kept",
+  !/buildAhk/.test(app) &&
+    !/ahkEscape/.test(app) &&
+    !/winOpen/.test(app) &&
+    !/guideOpen/.test(app) &&
+    !/استخدام الاختصارات على ويندوز/.test(app) &&
+    !/تنزيل ملف AutoHotkey/.test(app) &&
+    !/is-shortcuts\.ahk/.test(app) &&
+    !/autohotkey\.com/.test(app) &&
+    !/خطوات التشغيل على ويندوز/.test(app) &&
+    /id="home-tools"/.test(app) &&
+    /النسخ الاحتياطي والاستيراد/.test(app) &&
+    /is-shortcuts-backup\.json/.test(app) &&
+    /scrollToTools/.test(app) &&
+    /"النسخ الاحتياطي": "Backup"/.test(app),
+);
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);
 process.exit(fail === 0 ? 0 : 1);

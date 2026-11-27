@@ -2122,42 +2122,6 @@ function customToneOf(v: string): string | null {
     : null;
 }
 
-function ahkEscape(body: string): string {
-  return body
-    .replace(/%/g, "`%")
-    .replace(/`/g, "``")
-    .replace(/#/g, "`#")
-    .replace(/!/g, "`!")
-    .replace(/\^/g, "`^")
-    .replace(/\+/g, "`+")
-    .replace(/\{/g, "`{")
-    .replace(/\}/g, "`}")
-    .replace(/\r?\n/g, "`n");
-}
-
-function buildAhk(shortcuts: Shortcut[]): string {
-  const lines = [
-    "#Requires AutoHotkey v2.0",
-    "#SingleInstance Force",
-    "; ردود IS — اتولّدت من موقع IS",
-    "; دوس Win + Shift + S في أي برنامج (Chatwoot / واتساب / فيسبوك) واختار الرد من القائمة وهيتكتب كامل فوراً",
-    "",
-  ];
-  const menuItems = shortcuts
-    .map(
-      (s) =>
-        `  m.Add("${s.title.replace(/"/g, "")}", (*) => SendText("${ahkEscape(s.body).replace(/"/g, '`"')}"))`,
-    )
-    .join("\n");
-  lines.push("+#s:: {");
-  lines.push("  m := Menu()");
-  lines.push(menuItems);
-  lines.push("  m.Show()");
-  lines.push("}");
-  return lines.join("\n");
-}
-
-
 /* Theme preference: light / dark / system. The stored value is the
    MODE (the same key the binary toggle used — "light"/"dark" values
    carry over untouched, "system" is simply a third value). The
@@ -2427,11 +2391,11 @@ const EN: Record<string, string> = {
   "سجل النسخ": "Copy history",
   "الكل": "All",
   "إضافة جماعية": "Bulk add",
-  "ويندوز والنسخ الاحتياطي": "Windows & backup",
+  "النسخ الاحتياطي": "Backup",
   "المكتبة — الرئيسية وكل مجلداتك وردودك، اسحب أي عنصر عشان تنقله أو ترتبه": "The library — home, all your folders and replies; drag any item to move or reorder it",
   "الأدوات — البحث وكل الأدوات في مكان واحد": "Tools — search and every tool in one place",
   "الرئيسية — كل ردودك مرتبة في مجلداتها، والمفضلة والمستخدمة مؤخراً والأكثر استخداماً من أزرار العرض فوق القائمة": "Home — all your replies arranged in their folders; favorites, recently used and most used are view buttons above the list",
-  "ملف AutoHotkey والنسخ الاحتياطية والاستيراد — في آخر الرئيسية": "The AutoHotkey file, backups and import — at the end of Home",
+  "النسخ الاحتياطية والاستيراد — في آخر الرئيسية": "Backups and import — at the end of Home",
   "الرئيسية — كل ردودك ومجلداتك والمفضلة في مكان واحد": "Home — all your replies, folders and favorites in one place",
   // home toolbar & views
   "إضافة اختصار جديد": "Add a new reply",
@@ -3556,10 +3520,6 @@ function Workspace({
     open: false,
     item: null,
   });
-  const [guideOpen, setGuideOpen] = useState(false);
-  /* The Windows/AutoHotkey block starts collapsed behind one
-     line — the download stays one tap away in that line. */
-  const [winOpen, setWinOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [barOpen, setBarOpen] = useState(false);
@@ -5438,7 +5398,7 @@ function Workspace({
       depth: 0,
       children: [
         pageNode("p:bulk", "إضافة جماعية", I.upload, "إضافة مجموعة ردود مرة واحدة باللصق", false, null, () => setBulkOpen(true)),
-        pageNode("p:home-tools", "ويندوز والنسخ الاحتياطي", I.archive, "ملف AutoHotkey والنسخ الاحتياطية والاستيراد — في آخر الرئيسية", false, null, scrollToTools),
+        pageNode("p:home-tools", "النسخ الاحتياطي", I.archive, "النسخ الاحتياطية والاستيراد — في آخر الرئيسية", false, null, scrollToTools),
       ],
     },
     {
@@ -8636,109 +8596,24 @@ function Workspace({
           )}
         </section>
 
-        {/* Tools — one tidy card holding two side-by-side panels:
-            running on Windows, and backup & import. Each panel has
-            its own icon tile, title and hint chip, a short
-            description, and its actions in one aligned row, so the
-            whole place reads at a glance instead of sprawling. */}
+        {/* Tools — one tidy card: backup & import. (The Windows /
+            AutoHotkey panel that sat beside it was removed
+            entirely 2026-11-27 at the owner's call — «مش
+            محتاجينها» — his standalone .ahk file is untouched.) */}
         <section id="home-tools" className="elev-card mt-6 scroll-mt-24 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <span className="folder-bar-icon">
-              <Icon d={I.keyboard} size={20} />
+              <Icon d={I.archive} size={20} />
             </span>
             <div className="min-w-0">
               <h2 className="text-lg font-bold leading-snug">أدوات المكتبة</h2>
               <p className="text-[13px] leading-relaxed text-[var(--dim)]">
-                التشغيل على ويندوز والنسخ الاحتياطي — كل أداة في لوحتها الخاصة.
+                النسخ الاحتياطي والاستيراد — نسخة من مكتبتك محفوظة عندك.
               </p>
             </div>
           </div>
 
-          <div className="mt-5 grid items-start gap-4 lg:grid-cols-2">
-          <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-4 sm:p-5">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface)] text-[var(--accent)] shadow-[var(--shadow-card)]">
-                <Icon d={I.devices} size={18} />
-              </span>
-              <button
-                type="button"
-                aria-label={lang === "en" ? "Use shortcuts on Windows" : "استخدام الاختصارات على ويندوز"}
-                aria-expanded={winOpen}
-                data-tip={winOpen ? (lang === "en" ? "Collapse the Windows section" : "طي قسم ويندوز") : (lang === "en" ? "Expand the Windows section" : "فتح قسم ويندوز")}
-                onClick={() => setWinOpen((v) => !v)}
-                className="lux-btn flex min-w-0 flex-1 items-center gap-2 text-start"
-              >
-                <span className="min-w-0 flex-1 truncate text-[15px] font-bold leading-snug">{lang === "en" ? "Use shortcuts on Windows" : "استخدام الاختصارات على ويندوز"}</span>
-                <span className={winOpen ? "rotate-180 transition-transform" : "transition-transform"}>
-                  <Icon d={I.chevron} size={16} />
-                </span>
-              </button>
-              <span dir="ltr" className="shrink-0 rounded-full bg-[var(--surface)] px-2.5 py-1 font-mono text-[11px] font-semibold text-[var(--dim)] shadow-[var(--shadow-card)]">AutoHotkey</span>
-              <button
-                type="button"
-                aria-label="تنزيل ملف AutoHotkey بكل الردود" data-tip="ملف بيخلي ردودك تتكتب في أي برنامج على ويندوز من قائمة سريعة"
-                onClick={() => downloadText("is-shortcuts.ahk", buildAhk(shortcuts), "text/plain;charset=utf-8")}
-                className="lux-btn flex shrink-0 items-center gap-1.5 rounded-[var(--radius)] bg-[var(--accent)] px-3 py-2 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] hover:text-[var(--bg)]"
-              >
-                <Icon d={I.download} size={16} />
-                {lang === "en" ? "Download" : "تنزيل"}
-              </button>
-            </div>
-            {winOpen && (
-              <>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--dim)]">
-              نزّل ملف AutoHotkey وشغّله على ويندوز، وبعدها في أي برنامج (Chatwoot أو
-              واتساب أو فيسبوك) دوس{" "}
-              <span dir="ltr" className="font-mono font-bold">Win + Shift + S</span> واختار
-              الرد من القائمة — هيتكتب كامل في لحظتها. الملف بيتصدّر من مكتبتك انت بس.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                aria-label="تنزيل ملف AutoHotkey بكل الردود" data-tip="ملف بيخلي ردودك تتكتب في أي برنامج على ويندوز من قائمة سريعة"
-                onClick={() => downloadText("is-shortcuts.ahk", buildAhk(shortcuts), "text/plain;charset=utf-8")}
-                className="lux-btn flex items-center gap-1.5 rounded-[var(--radius)] bg-[var(--accent)] px-4 py-2.5 font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] hover:text-[var(--bg)]"
-              >
-                <Icon d={I.download} size={18} />
-                تنزيل ملف AutoHotkey
-              </button>
-            </div>
-            <button
-              type="button"
-              aria-label="خطوات تشغيل AutoHotkey على ويندوز" data-tip="عرض أو إخفاء خطوات التشغيل على ويندوز"
-              aria-expanded={guideOpen}
-              onClick={() => setGuideOpen((v) => !v)}
-              className="lux-btn mt-3 flex items-center gap-1.5 font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)]"
-            >
-              خطوات التشغيل على ويندوز
-              <span className={guideOpen ? "rotate-180 transition-transform" : "transition-transform"}>
-                <Icon d={I.chevron} size={16} />
-              </span>
-            </button>
-            {guideOpen && (
-              <ol className="animate-rise mt-3 list-decimal space-y-1.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] py-3 pe-4 ps-9 text-sm leading-relaxed text-[var(--dim)]">
-                <li>
-                  ثبّت برنامج AutoHotkey v2 من موقعه الرسمي{" "}
-                  <a
-                    href="https://www.autohotkey.com/"
-                    target="_blank"
-                    rel="noreferrer"
-                    data-tip="الموقع الرسمي لبرنامج AutoHotkey" className="font-semibold text-[var(--accent)] underline"
-                  >
-                    autohotkey.com
-                  </a>
-                </li>
-                <li>نزّل ملف الردود من الزرار اللي فوق.</li>
-                <li>دبل كليك على الملف — هتظهر أيقونة خضرا جنب الساعة، وكده القائمة شغالة في كل البرامج.</li>
-                <li>عشان يشتغل مع كل مرة تفتح الجهاز: حط الملف في فولدر Startup (دوس Win + R واكتب shell:startup).</li>
-                <li>كل ما تعدّل رد هنا، نزّل الملف من جديد وشغّله بدل القديم.</li>
-              </ol>
-            )}
-              </>
-            )}
-          </div>
-
-          <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-4 sm:p-5">
+          <div className="mt-5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-4 sm:p-5">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface)] text-[var(--accent)] shadow-[var(--shadow-card)]">
                 <Icon d={I.archive} size={18} />
@@ -8864,7 +8739,6 @@ function Workspace({
                 الاستيراد بيوريك معاينة الأول — إيه اللي هيتضاف وإيه المكرر — وبتختار الدمج أو الاستبدال قبل ما أي حاجة تتكتب. ملف CSV بيحتفظ بالردود والتصنيفات بس، والـ JSON بيحتفظ بكل حاجة بما فيها المجلدات الفرعية.
               </p>
             </div>
-          </div>
           </div>
         </section>
 
@@ -12514,7 +12388,7 @@ export const ShortcutCard = memo(function ShortcutCard({
    selection in markers (**عريض**, *مائل*, __تحته خط__), list buttons
    prefix lines, and variable chips insert dynamic placeholders at the
    cursor. A live preview renders exactly what the markers mean. The
-   stored body stays plain text, so copy / AutoHotkey keep
+   stored body stays plain text, so copy keeps
    working unchanged. */
 export function RichTextEditor({
   value,
