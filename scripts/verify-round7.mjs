@@ -115,19 +115,20 @@ check(
 /* ---- (3) Auth split: explainer inside .auth-split ---- */
 check(
   "AuthExplainer mounted inside .auth-split, right after </main>",
-  /<\/main>\n    \{\/\* Round 7 — الشرح التوضيحي التفاعلي داخل \.auth-split/.test(app) &&
+  /<\/main>\n    \{\/\* Round 8 — لوحة العرض/.test(app) &&
     /<AuthExplainer lang=\{lang\} \/>\n    <\/div>\n    <\/div>\n  \);/.test(app),
 );
 check(
-  "auth split CSS: desktop two columns, mobile demo first",
-  /@media \(min-width: 1024px\) \{\n  \.auth-v78 \.auth-split \{\n    grid-template-columns: minmax\(0, 470px\) minmax\(0, 1fr\);/.test(tokens) &&
-    /\.auth-split \.auth-explainer \{\n  order: -1;/.test(tokens) &&
-    /\.auth-split \.auth-explainer \{\n    order: 0;/.test(tokens),
+  "auth split CSS (Round 8): desktop two balanced panels 440px + 1fr at 1100px, top-aligned; no tablet/mobile-specific order (scope cut 19:13)",
+  /@media \(min-width: 1100px\) \{\n  \.auth-r8 \.auth-split \{\n    grid-template-columns: 440px minmax\(0, 1fr\);\n    align-items: start;/.test(tokens) &&
+    !/\.auth-r8 \.auth-r8-demo \{\n    order: -1;/.test(tokens) &&
+    !/\.auth-split \.auth-explainer \{\n  order: -1;/.test(tokens),
 );
 check(
-  "explainer demo + picture still present (fictional examples only)",
+  "explainer demo present, static picture gone (Round 8: animated demo replaces it)",
   /\/شكرا/.test(explainer) &&
-    /explainer-popup-action\.png/.test(explainer) &&
+    !/explainer-popup-action/.test(explainer) &&
+    !/auth-explainer-figure/.test(explainer) &&
     /مثال/.test(explainer) &&
     !/testimonial|شهادة/.test(explainer),
 );

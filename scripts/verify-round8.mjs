@@ -1,0 +1,230 @@
+/* Static regression audit for Round 8 (2026-11-27) — the login /
+   sign-up page redesign, landing-grade (Linear/Vercel/Raycast
+   level), ONE strong idea: the animated product demo.
+   Checks:
+   (1) layout: two balanced panels (440px form + demo hero) in a
+       1200px container at >=1100px; stacked below; desktop
+       top-aligned so the submit button fits above the fold at
+       1440x900; no mobile/tablet-specific design (scope cut
+       19:13) — only basic no-breakage rules below 1100px;
+   (2) the animated demo: AuthDemo state machine (16s loop,
+       typing/popup/cursor/press/sent/success/montage/fade),
+       step indicator + play/pause + reduced-motion static frame,
+       popup re-opens in the montage so the new shortcut shows,
+       sent bubble only in the success window;
+   (3) the static figure is gone (animated demo replaces it) and
+       its image file is deleted; no extension mention, no
+       testimonial, fictional examples only;
+   (4) form: verse framed (Amiri, exact string), title 30/700,
+       mode swap via grid-rows + data-open (no key={mode}),
+       noValidate (hidden required fields must not trip native
+       validation), 52px fields, 54px submit, utility glass pill;
+   (5) auth page ONLY: no changes to home/app logic; font still
+       IBM Plex Sans Arabic (no Readex), verse Amiri only.
+   Run with: node scripts/verify-round8.mjs */
+
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const read = (p) => readFileSync(join(root, p), "utf8");
+const app = read("components/App.tsx");
+const tokens = read("app/tokens.css");
+const explainer = read("components/AuthExplainer.tsx");
+const demo = read("components/AuthDemo.tsx");
+const layout = read("app/layout.tsx");
+
+let pass = 0;
+let fail = 0;
+function check(name, ok, extra = "") {
+  if (ok) {
+    pass++;
+    console.log(`PASS  ${name}`);
+  } else {
+    fail++;
+    console.log(`FAIL  ${name}${extra ? ` — ${extra}` : ""}`);
+  }
+}
+
+/* ---- (1) Layout: two balanced panels, desktop top-aligned ---- */
+check(
+  "desktop split: 440px form + 1fr demo at 1100px, max-width 1200px",
+  /\.auth-r8 \.auth-split \{\n    grid-template-columns: 440px minmax\(0, 1fr\);/.test(tokens) &&
+    /max-width: 1200px;/.test(tokens) &&
+    /@media \(min-width: 1100px\)/.test(tokens),
+);
+check(
+  "desktop top-aligned (submit fits above the fold at 1440x900)",
+  /\.auth-r8 \.auth-split \{\n    grid-template-columns: 440px minmax\(0, 1fr\);\n    align-items: start;/.test(tokens),
+);
+check(
+  "demo column capped at 600px (stage stays compact)",
+  /max-width: 600px;/.test(tokens) &&
+    /\.auth-r8 \.auth-r8-demo \{/.test(tokens),
+);
+check(
+  "stacked below 1100px with min-width: 0 (no grid blowout)",
+  /@media \(max-width: 1099px\)/.test(tokens) &&
+    /\.auth-r8 \.auth-r8-demo \{[^}]*min-width: 0;/.test(tokens),
+);
+check(
+  "scope cut 19:13: no tablet demo-first order, no tablet 16/9 stage, no mobile brand header",
+  !/\.auth-r8 \.auth-r8-demo \{\n    order: -1;/.test(tokens) &&
+    !/aspect-ratio: 16 \/ 9;/.test(tokens) &&
+    !/auth-r8-topbrand/.test(tokens) &&
+    !/auth-r8-topbrand/.test(app),
+);
+check(
+  "narrow widths: only basic no-breakage (stage 4/3 so the popup is never clipped)",
+  /@media \(max-width: 767px\) \{\n  \.auth-r8 \.auth-topbar \{/.test(tokens) &&
+    /\.auth-r8-stage \{\n    aspect-ratio: 4 \/ 3;/.test(tokens) &&
+    !/\.auth-r8-montage \{\n    display: none;/.test(tokens),
+);
+
+/* ---- (2) Animated demo: state machine + controls ---- */
+check(
+  "demo loop constants: 16s, typing/popup/cursor/press/sent/success/montage/fade",
+  /LOOP_MS = 16000/.test(demo) &&
+    /TYPE_AT/.test(demo) &&
+    /POPUP_AT/.test(demo) &&
+    /CURSOR_AT/.test(demo) &&
+    /PRESS_AT/.test(demo) &&
+    /SENT_AT/.test(demo) &&
+    /SUCCESS_AT/.test(demo) &&
+    /MONTAGE_AT/.test(demo) &&
+    /FADE_AT/.test(demo),
+);
+check(
+  "step-jump resets the interval origin (jump works while playing)",
+  /startRef\.current = performance\.now\(\) - ms;/.test(demo),
+);
+check(
+  "popup re-opens in the montage so the new shortcut is visible",
+  /const popupOpen = \(t >= POPUP_AT && t < 9000\) \|\| t >= MONTAGE_AT;/.test(demo),
+);
+check(
+  "sent bubble only in the success window (never behind the open popup, never under the montage)",
+  /const bubbleShown = t >= SUCCESS_AT && t < MONTAGE_AT;/.test(demo),
+);
+check(
+  "demo controls: play/pause, step jump, tab-hidden + offscreen pause, reduced-motion static frame",
+  /aria-label=\{[^}]*تشغيل|إيقاف/.test(demo) &&
+    /document\.hidden/.test(demo) &&
+    /IntersectionObserver/.test(demo) &&
+    /prefers-reduced-motion/.test(demo) &&
+    /const t = reduced \? SUCCESS_AT \+ 100 : elapsed;/.test(demo),
+);
+check(
+  "demo exposes phase + playing state for tests",
+  /data-phase=\{activeStep\}/.test(demo) &&
+    /data-playing=\{running \? "1" : "0"\}/.test(demo),
+);
+check(
+  "demo mock data only (fictional examples, no real replies)",
+  /\/شكرا/.test(demo) &&
+    /RESULTS = \[/.test(demo) &&
+    !/1472955|1472977/.test(demo),
+);
+check(
+  "popup glass is near-opaque (no bleed-through of the chat behind it)",
+  /\.auth-r8-popup \{[^}]*background: color-mix\(in srgb, var\(--surface-elevated\) 94%, transparent\);/.test(tokens) &&
+    /\.auth-r8-montage-chip \{[^}]*background: color-mix\(in srgb, var\(--surface-elevated\) 94%, transparent\);/.test(tokens),
+);
+check(
+  "cursor lives inside the popup, on the first row (top 60px)",
+  /\.auth-r8-cursor \{\n  position: absolute;\n  z-index: 4;\n  \/\* داخل النافذة/.test(tokens) &&
+    /top: 60px;/.test(tokens),
+);
+
+/* ---- (3) Static figure gone, image deleted, no extension/testimonial ---- */
+check(
+  "static figure gone from the explainer (animated demo replaces it)",
+  !/auth-explainer-figure/.test(explainer) &&
+    !/explainer-popup-action/.test(explainer) &&
+    !existsSync(join(root, "public", "images", "explainer-popup-action.png")),
+);
+check(
+  "no extension mention in the explainer's rendered text (comments excluded)",
+  !/extension|إضافة متصفح|اكستنشن/.test(
+    explainer.replace(/\/\*[\s\S]*?\*\//g, ""),
+  ),
+);
+check(
+  "fictional examples only, labeled as examples",
+  /مثال/.test(explainer) &&
+    !/testimonial|شهادة/.test(explainer),
+);
+check(
+  "try-it box kept under the demo with example pills",
+  /جرّب بنفسك/.test(explainer) &&
+    /\/مواعيد/.test(explainer) &&
+    /\/سعر/.test(explainer),
+);
+
+/* ---- (4) Form: verse, title, swap, noValidate, sizes, utility pill ---- */
+check(
+  "verse framed, exact string, Amiri",
+  /نِعْمَةً مِّنْ عِندِنَا/.test(app) &&
+    /\.auth-r8-verse-frame/.test(tokens) &&
+    !/نِعْمَةً/.test(tokens),
+);
+check(
+  "title 30px/700, subtitle kept, logo breathing glow",
+  /\.auth-r8 \.auth-title \{\n  font-size: 30px;\n  font-weight: 700;/.test(tokens) &&
+    /auth-r8-breathe/.test(tokens),
+);
+check(
+  "mode swap via grid-rows + data-open (no key={mode} remount)",
+  /className="auth-r8-swap"/.test(app) &&
+    /data-open=\{mode === "register"\}/.test(app) &&
+    !/key=\{mode\}/.test(app) &&
+    /\.auth-r8-swap\[data-open="false"\] \{\n  grid-template-rows: 0fr;/.test(tokens),
+);
+check(
+  "closed swap cancels the flex gap (margin-block = -gap)",
+  /\.auth-r8-swap\[data-open="false"\] \{[^}]*margin-block: -16px;/.test(tokens),
+);
+check(
+  "form has noValidate (hidden required fields must not trip native validation)",
+  /<form[^>]*noValidate/.test(app),
+);
+check(
+  "fields 52px, submit 54px/16/600, show/hide 48px target, remember row 48px",
+  /\.auth-r8 \.auth-input \{\n  min-height: 52px;/.test(tokens) &&
+    /\.auth-r8 \.auth-submit \{\n  min-height: 54px;\n  border-radius: 18px;\n  font-size: 16px;\n  font-weight: 600;/.test(tokens) &&
+    /width: 48px;\n  height: 48px;/.test(tokens),
+);
+check(
+  "utility pill: one glass pill, LangToggle + theme, 48px targets",
+  /className="auth-r8-util"/.test(app) &&
+    /className="auth-r8-util-lang"/.test(app) &&
+    /backdrop-filter: blur\(20px\) saturate\(160%\);/.test(tokens),
+);
+check(
+  "champagne gold only as tiny details (step numbers + verse frame hairline)",
+  /--r8-champ/.test(tokens) &&
+    !/background: var\(--gold\)|background: var\(--champ\)/.test(tokens),
+);
+
+/* ---- (5) Auth page ONLY + font still Plex ---- */
+check(
+  "font: IBM Plex Sans Arabic kept, zero Readex strings",
+  /IBM Plex Sans Arabic/.test(layout) &&
+    !/Readex/.test(app) &&
+    !/Readex/.test(tokens) &&
+    !/Readex/.test(layout),
+);
+check(
+  "Amiri in exactly one font-family rule (the verse)",
+  (tokens.match(/font-family:[^;]*Amiri/g) || []).length === 1,
+);
+check(
+  "no new heavy dependency for the demo (HTML/CSS/SVG/JS only)",
+  !/from ["'](lottie[^"']*|@lottiefiles|rives?|framer-motion|@rive-app)["']/.test(demo) &&
+    !/from ["'](lottie[^"']*|@lottiefiles|rives?|framer-motion|@rive-app)["']/.test(app) &&
+    !/["'](lottie[^"']*|framer-motion)["']\s*:/.test(read("package.json")),
+);
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

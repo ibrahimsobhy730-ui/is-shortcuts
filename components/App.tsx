@@ -2972,7 +2972,7 @@ function AuthPage({
     "auth-field-icon pointer-events-none absolute start-3.5 top-1/2 -translate-y-1/2 text-[var(--dim)]";
 
   return (
-    <div className="auth-modern auth-v78 auth-v79 auth-v81 relative min-h-screen w-full">
+    <div className="auth-modern auth-v78 auth-v79 auth-v81 auth-r8 relative min-h-screen w-full">
       {/* v78/v79 shaped this page (light segmented control
           with a sliding thumb, 52px fields, remember-me
           explanation in an info popover, one quiet privacy
@@ -2987,32 +2987,41 @@ function AuthPage({
           a watermark bearing his name across the foot of
           THIS page only (the .auth-watermark layer in
           tokens.css) — decorative, aria-hidden, behind the
-          form, never anywhere else in the app. */}
+          form, never anywhere else in the app.
+          Round 8 (owner's brief 2026-11-27): landing-grade
+          redesign of THIS page only — two balanced panels
+          (440px form + animated demo hero), one glass
+          utility pill, form-first on mobile, the animated
+          demo as the centerpiece. Auth logic, validation,
+          session and API calls are untouched. */}
       <span className="auth-watermark" aria-hidden="true">
         Ibrahim SOBHY
       </span>
     <header className="auth-topbar auth-in" style={{ "--d": "0ms" } as React.CSSProperties}>
-      <div className="flex items-center justify-end px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-1.5">
-          <LangToggle />
-          <button
-            type="button"
-            aria-label={dark ? t("تفعيل الوضع النهاري") : t("تفعيل الوضع الليلي")}
-            aria-pressed={dark}
-            onClick={onToggleDark}
-            className="lux-btn rounded-full p-2.5 text-[var(--dim)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]" data-tip={dark ? t("التبديل إلى الوضع النهاري") : t("التبديل إلى الوضع الليلي")} data-tip-pos="below" data-tip-align="start"
-          >
-            <Icon d={dark ? I.sun : I.moon} size={18} />
-          </button>
-        </div>
+      {/* Round 8: ONE compact glass pill for the utilities —
+          EN/AR segmented control + theme toggle together.
+          Tooltips sit below the pill (never clipped). */}
+      <div className="auth-r8-util">
+        <LangToggle className="auth-r8-util-lang" />
+        <span className="auth-r8-util-sep" aria-hidden="true" />
+        <button
+          type="button"
+          aria-label={dark ? t("تفعيل الوضع النهاري") : t("تفعيل الوضع الليلي")}
+          aria-pressed={dark}
+          onClick={onToggleDark}
+          className="lux-btn auth-r8-util-theme" data-tip={dark ? t("التبديل إلى الوضع النهاري") : t("التبديل إلى الوضع الليلي")} data-tip-pos="below" data-tip-align="end"
+        >
+          <Icon d={dark ? I.sun : I.moon} size={18} />
+        </button>
       </div>
     </header>
     <div className="auth-split">
-      {/* Round 7 (طلب المالك 2026-11-27): صفحة الدخول منقسمة —
-          النموذج في عمود والشرح التوضيحي الحيّ في عمود، فوق
-          الطيّة من غير سكرول على سطح المكتب؛ وعلى الموبايل
-          العرض الحيّ أولًا ثم النموذج تحته (ترتيب CSS فقط،
-          والـ DOM نفسه: النموذج ثم الشرح). لوحة العلامة v80
+      {/* Round 8 (طلب المالك 2026-11-27): صفحة الدخول منقسمة —
+          لوحتان متوازنتان في حاوية 1200px: النموذج 440px في
+          عمود والعرض المتحرك الحيّ في عمود، فوق الطيّة من
+          غير سكرول على سطح المكتب؛ على التابلت العرض أولًا،
+          وعلى الموبايل النموذج أولًا ثم العرض تحته (ترتيب
+          الـ DOM نفسه: النموذج ثم الشرح). لوحة العلامة v80
           تظل ملغاة — لا بانل جانبي داكن ولا نقاط قيمة. */}
     <main className="auth-form-side">
       <div className="auth-form-card">
@@ -3021,15 +3030,20 @@ function AuthPage({
           of the brand PANEL stands; the owner's logo brief for
           the new ribbon mark names this page explicitly, and the
           mark by itself is not the panel he removed). */}
-      <div className="auth-in mb-5 flex justify-center" style={{ "--d": "20ms" } as React.CSSProperties}>
-        <Logo size={64} />
+      <div className="auth-in auth-r8-logo mb-5 flex justify-center" style={{ "--d": "20ms" } as React.CSSProperties}>
+        <Logo size={76} />
       </div>
       {/* Entry-wow (2026-11-26): the verse as ONE quiet line under
           the logo — the same verse as the home H1, in Amiri, with
           the thin gradient rule from .auth-verse separating logo
-          from verse. No panel, no block: the form stays the hero. */}
+          from verse. Round 8 frames it as calligraphy: a soft
+          gradient fill behind a champagne-gold hairline (a tiny
+          detail, per the owner's brief) — the verse text itself
+          is exactly as before, Amiri, untouched. */}
       <div className="auth-in mb-1 flex justify-center" style={{ "--d": "30ms" } as React.CSSProperties}>
-        <p dir="rtl" lang="ar" className="verse auth-verse text-center">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
+        <div className="auth-r8-verse-frame">
+          <p dir="rtl" lang="ar" className="verse auth-verse text-center">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
+        </div>
       </div>
       <div className="auth-in auth-greeting" style={{ "--d": "40ms" } as React.CSSProperties}>
         <h1 className="auth-title">
@@ -3040,19 +3054,6 @@ function AuthPage({
             ? lang === "en" ? "Type a shortcut — get the reply instantly." : "اكتب اختصار — وخد الرد فورًا"
             : lang === "en" ? "Create your account and keep your shortcuts private to you." : "اعمل حسابك واحفظ اختصاراتك الخاصة بيك"}
         </p>
-        {/* One static, non-interactive sample pill under the promise
-            (login mode only): a visual hint of what a shortcut looks
-            like. Not a button, no navigation, no input. */}
-        {mode === "login" && (
-          <div className="mt-3 flex justify-center" aria-hidden="true">
-            <span className="trig-chip">
-              <ShortcutBolt />
-              <span dir="auto">عربي</span>
-              <span className="text-[var(--faint)]">→</span>
-              <span className="font-semibold text-[var(--dim)]">أسعار…</span>
-            </span>
-          </div>
-        )}
       </div>
 
       <div
@@ -3108,15 +3109,32 @@ function AuthPage({
         </div>
       ) : (
       <form
-        key={mode}
-        className={`auth-in auth-form auth-mode-swap${error ? " auth-shake" : ""}`}
+        className={`auth-in auth-form${error ? " auth-shake" : ""}`}
         style={{ "--d": "180ms" } as React.CSSProperties}
+        /* Round 8: noValidate — the mode-specific field groups stay
+            mounted (inert) inside the grid-rows swap containers, so
+            the browser's native validation would flag the hidden
+            required fields ("invalid form control not focusable") on
+            every login submit. All validation is the app's own
+            (existing messages, unchanged). */
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        {mode === "register" && (
+        {/* Round 8: mode-specific field groups stay mounted inside
+            grid-rows containers (0fr↔1fr + opacity) — the login/
+            sign-up switch animates height instead of jumping.
+            The closed group is inert + aria-hidden. Validation,
+            submit and auto sign-in logic are untouched. */}
+        <div
+          className="auth-r8-swap"
+          data-open={mode === "register"}
+          inert={mode !== "register"}
+          aria-hidden={mode !== "register"}
+        >
+          <div className="auth-r8-swap-inner">
           <label className="block" data-tip={lang === "en" ? "Your full name — it appears in your account" : "اسمك الكامل — بيظهر في الترحيب وفي حسابك"}>
             <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Full name" : "الاسم الكامل"}</span>
             <span className="relative block">
@@ -3134,9 +3152,15 @@ function AuthPage({
               />
             </span>
           </label>
-        )}
-        {mode === "register" ? (
-          <>
+          </div>
+        </div>
+        <div
+          className="auth-r8-swap"
+          data-open={mode === "register"}
+          inert={mode !== "register"}
+          aria-hidden={mode !== "register"}
+        >
+          <div className="auth-r8-swap-inner">
             <label className="block" data-tip={lang === "en" ? "Your email — you'll sign in with it" : "بريدك الإلكتروني — هتسجّل دخولك بيه"}>
               <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Email" : "البريد الإلكتروني"}</span>
               <span className="relative block">
@@ -3181,8 +3205,15 @@ function AuthPage({
                 {lang === "en" ? "If you add it, you can also sign in with it alongside your email." : "لو كتبته، هتقدر تسجّل دخولك بيه كمان جنب البريد."}
               </span>
             </label>
-          </>
-        ) : (
+          </div>
+        </div>
+        <div
+          className="auth-r8-swap"
+          data-open={mode === "login"}
+          inert={mode !== "login"}
+          aria-hidden={mode !== "login"}
+        >
+          <div className="auth-r8-swap-inner">
           <label className="block" data-tip={lang === "en" ? "Your email or your mobile number — both work" : "بريدك الإلكتروني أو رقم موبايلك — الاتنين شغالين"}>
             <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Email or mobile number" : "البريد الإلكتروني أو رقم الموبايل"}</span>
             <span className="relative block">
@@ -3204,7 +3235,8 @@ function AuthPage({
               {lang === "en" ? "Your old mobile account works as it is." : "حسابك القديم برقم الموبايل شغال زي ما هو."}
             </span>
           </label>
-        )}
+          </div>
+        </div>
         <label className="block" data-tip={lang === "en" ? "Your password — nobody knows it but you" : "كلمة المرور بتاعتك — محدش يعرفها غيرك"}>
           <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Password" : "كلمة المرور"}</span>
           <span className="relative block">
@@ -3269,7 +3301,13 @@ function AuthPage({
           )}
         </label>
 
-        {mode === "register" && (
+        <div
+          className="auth-r8-swap"
+          data-open={mode === "register"}
+          inert={mode !== "register"}
+          aria-hidden={mode !== "register"}
+        >
+          <div className="auth-r8-swap-inner">
           <label className="block" data-tip={lang === "en" ? "Type the password again to confirm" : "اكتب كلمة المرور تاني للتأكيد"}>
             <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Confirm password" : "تأكيد كلمة المرور"}</span>
             <span className="relative block">
@@ -3304,9 +3342,16 @@ function AuthPage({
               </span>
             )}
           </label>
-        )}
+          </div>
+        </div>
 
-        {mode === "login" ? (
+        <div
+          className="auth-r8-swap"
+          data-open={mode === "login"}
+          inert={mode !== "login"}
+          aria-hidden={mode !== "login"}
+        >
+          <div className="auth-r8-swap-inner">
           <div className="auth-remember-wrap">
             <div className="auth-remember-row">
               <span className="auth-remember-main">
@@ -3355,7 +3400,15 @@ function AuthPage({
               </p>
             )}
           </div>
-        ) : (
+          </div>
+        </div>
+        <div
+          className="auth-r8-swap"
+          data-open={mode === "register"}
+          inert={mode !== "register"}
+          aria-hidden={mode !== "register"}
+        >
+          <div className="auth-r8-swap-inner">
           <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed" data-tip={lang === "en" ? "Agree to the terms of use" : "الموافقة على شروط الاستخدام"}>
             <input
               type="checkbox"
@@ -3370,7 +3423,8 @@ function AuthPage({
                 : "أوافق على شروط الاستخدام — اختصاراتي خاصة بيا ومحفوظة في حسابي، ومفيش أي حساب تاني يقدر يوصل لها."}
             </span>
           </label>
-        )}
+          </div>
+        </div>
 
         {error && (
           <p role="alert" aria-live="assertive" className="auth-error">
@@ -3410,11 +3464,12 @@ function AuthPage({
       </p>
       </div>
     </main>
-    {/* Round 7 — الشرح التوضيحي التفاعلي داخل .auth-split
-        نفسه (بعد النموذج في الـ DOM): على سطح المكتب عمود
-        مستقل جنب النموذج فوق الطيّة، وعلى الموبايل يظهر
-        أولًا بترتيب CSS (order) ثم النموذج تحته. النموذج
-        يبقى نظيفًا وقابلًا للاستخدام؛ الشرح لا يخفيه. */}
+    {/* Round 8 — لوحة العرض (العرض المتحرك + جرّب بنفسك) داخل
+        .auth-split نفسه (بعد النموذج في الـ DOM): على سطح
+        المكتب عمود مستقل جنب النموذج فوق الطيّة؛ تحت 1100px
+        مكدّس عادي بترتيب الـ DOM (بلا إعادة ترتيب — لا شغل
+        تابلت/موبايل بقرار المالك 19:13). النموذج يبقى نظيفًا
+        وقابلًا للاستخدام؛ الشرح لا يخفيه. */}
     <AuthExplainer lang={lang} />
     </div>
     </div>

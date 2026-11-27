@@ -1,12 +1,13 @@
-/* AuthExplainer — الشرح التوضيحي التفاعلي على صفحتي
-   تسجيل الدخول وإنشاء حساب جديد (طلب المالك 2026-11-27).
-   يجلس تحت نموذج الدخول مباشرة، في نفس العمود، ولا
-   يخفي النموذج أبدًا — النموذج هو البطل، والشرح تحته.
+/* AuthExplainer — لوحة العرض في صفحتي تسجيل الدخول وإنشاء
+   حساب جديد (الجولة 8: التصميم كصفحة هبوط).
 
-   المركز: عرض حيّ حقيقي (مش صورة): الزائر يكتب اختصارًا
-   في صندوق العرض فيظهر الرد الكامل مكانه بتمدّد متحرك،
-   أو يدوس شريحة مثال فيُكتب الاختصار حرفًا حرفًا
-   (مؤشر «بيكتب…») ثم ينكشف الرد، وزر النسخ ينسخ فعلًا.
+   فكرة واحدة قوية: العرض المتحرك (AuthDemo) هو البطل؛ تحته
+   صندوق التجربة التفاعلي "جرّب بنفسك" كما هو تمامًا (يكتب
+   الزائر اختصارًا فيظهر الرد الكامل، أو يدوس شريحة مثال
+   فتُكتب حرفًا حرفًا، وزر النسخ ينسخ فعلًا)، ثم سطر إضافة
+   الاختصار، ثم المزايا الأربع. الصورة الثابتة أُلغيت: العرض
+   المتحرك حلّ محلّها، ونصّها "Tab أو Enter للإدراج" تلميح
+   لوحة مفاتيح ممنوع في العرض الجديد.
 
    قواعد صارمة (قرارات المالك):
    · لا ذكر لأي إضافة متصفح إطلاقًا — الموقع بلا إضافة،
@@ -26,13 +27,13 @@ import {
   Copy,
   Folder,
   Image as ImageIcon,
-  MousePointerClick,
   Plus,
   Search,
   Sparkles,
   X,
   Zap,
 } from "lucide-react";
+import AuthDemo from "./AuthDemo";
 
 type Lang = "ar" | "en";
 
@@ -126,25 +127,32 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
 
   return (
     <section
-      className="auth-explainer"
+      className="auth-r8-demo"
       aria-label={en ? "How IS works" : "إزاي بيشتغل؟"}
     >
-      {/* العنوان: شرح لا وعود — ماذا يفعل الموقع في سطرين. */}
-      <div className="auth-explainer-head">
-        <span className="auth-explainer-eyebrow">
+      {/* العنوان: سطر واحد، ثم العرض المتحرك هو البطل. */}
+      <div className="auth-r8-demo-head">
+        <span className="auth-r8-eyebrow">
           <Sparkles size={13} />
           {en ? "See it work" : "شوفه بيشتغل"}
         </span>
         <h2>{en ? "How IS works" : "إزاي بيشتغل؟"}</h2>
         <p>
           {en
-            ? "Type a shortcut — get the full reply instantly, and copy it in one tap. Try it yourself, right here:"
-            : "اكتب اختصار — وخد الرد الكامل فورًا، وانسخه بضغطة واحدة. جرّب بنفسك هنا دلوقتي:"}
+            ? "Watch a shortcut turn into a full reply — then try it yourself."
+            : "شوف الاختصار بيتحوّل لرد كامل قدامك — وبعدين جرّب بنفسك."}
         </p>
       </div>
 
-      {/* العرض الحيّ: صندوق كتابة + انكشاف الرد مكانه. */}
-      <div className="auth-demo">
+      {/* العرض المتحرك: محادثة وهمية + نافذة IS Shortcuts. */}
+      <AuthDemo lang={lang} />
+
+      {/* جرّب بنفسك: صندوق التجربة كما هو — كتابة حقيقية،
+          انكشاف الرد، نسخ حقيقي، شرائح أمثلة. */}
+      <div className="auth-r8-try">
+        <p className="auth-r8-try-label">
+          {en ? "Try it yourself" : "جرّب بنفسك"}
+        </p>
         <div className="auth-demo-box">
           <span className="auth-demo-icon" aria-hidden="true">
             <Search size={18} />
@@ -249,97 +257,32 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
         </p>
       </div>
 
-      {/* الصورة الواضحة التي أرسلها المالك (نافذة
-          الاختصارات أثناء الكتابة) — تُعرض كما أرسلها،
-          بنفس الإطار النظيف، وهي الصورة الوحيدة المضمّنة
-          في الشرح. (الصورة الخضراء الداكنة لصفحة المعاينة
-          الحيّة مرجع للأسلوب فقط ولا تُضمَّن.) التسمية
-          محايدة وتصف ما في الصورة فقط: اختصار يتحوّل لرده
-          الكامل أثناء الكتابة. */}
-      <figure className="auth-explainer-figure">
-        <img
-          src="/images/explainer-popup-action.png"
-          alt={
-            en
-              ? "While typing — the shortcut turns into its full reply"
-              : "أثناء الكتابة — الاختصار يتحوّل لرده الكامل"
-          }
-          loading="lazy"
-        />
-        <figcaption>
-          {en
-            ? "While typing — the shortcut turns into its full reply."
-            : "أثناء الكتابة — الاختصار يتحوّل لرده الكامل."}
-        </figcaption>
-      </figure>
-
-      {/* الخطوات الثلاث: اكتب ← يظهر ← انسخ. */}
-      <ol className="auth-steps">
-        {[
-          {
-            n: "١",
-            icon: Zap,
-            title: en ? "Type the shortcut" : "اكتب الاختصار",
-            text: en
-              ? "Any word, number or symbol — it is yours."
-              : "أي كلمة أو رقم أو رمز — اختصارك انت.",
-          },
-          {
-            n: "٢",
-            icon: Search,
-            title: en ? "The reply appears" : "الرد يظهر فورًا",
-            text: en
-              ? "The full reply, right in the search box."
-              : "الرد الكامل، جوه بوكس البحث نفسه.",
-          },
-          {
-            n: "٣",
-            icon: MousePointerClick,
-            title: en ? "Copy in one tap" : "انسخه بضغطة",
-            text: en
-              ? "Text — and images with it — in one copy."
-              : "النص — والصور معاه — في نسخة واحدة.",
-          },
-        ].map((s) => (
-          <li key={s.n} className="auth-step">
-            <span className="auth-step-num" aria-hidden="true">
-              {s.n}
-            </span>
-            <span className="auth-step-icon" aria-hidden="true">
-              <s.icon size={16} />
-            </span>
-            <p className="auth-step-title">{s.title}</p>
-            <p className="auth-step-text">{s.text}</p>
-          </li>
-        ))}
-      </ol>
-
-      {/* إضافة اختصار: سطر واحد واضح + لمحة شكلية. */}
-      <div className="auth-add">
-        <span className="auth-add-icon" aria-hidden="true">
+      {/* إضافة اختصار: سطر واحد واضح (نفس المعنى، أقصر). */}
+      <div className="auth-r8-add">
+        <span className="auth-r8-add-icon" aria-hidden="true">
           <Plus size={16} />
         </span>
         <div>
-          <p className="auth-add-title">
+          <p className="auth-r8-add-title">
             {en ? "Adding a shortcut takes seconds" : "إضافة اختصار بتاخد ثواني"}
           </p>
-          <p className="auth-add-text">
+          <p className="auth-r8-add-text">
             {en
-              ? "From «New», write the reply, give it any shortcut, and the site suggests the easiest free ones for you — one tap to accept."
-              : "من زر «جديد» اكتب الرد، وحطّ له أي اختصار، والموقع بيقترح عليك أسهل الاختصارات الفاضية — دوسة واحدة توافق."}
+              ? "From «New», write the reply, give it any shortcut — the site suggests the easiest free ones, one tap to accept."
+              : "من «جديد» اكتب الرد وحطّ له أي اختصار — والموقع يقترح أسهل الفاضي، دوسة واحدة توافق."}
           </p>
         </div>
       </div>
 
       {/* المزايا الأساسية: أربع حبوب بأيقونات — بلا زحمة. */}
-      <div className="auth-features">
+      <div className="auth-r8-features">
         {[
           { icon: Search, label: en ? "Instant Arabic-aware search" : "بحث فوري يفهم العربي" },
           { icon: Copy, label: en ? "One-tap copy" : "نسخ بضغطة واحدة" },
           { icon: Folder, label: en ? "Organised folders" : "مجلدات منظمة" },
           { icon: ImageIcon, label: en ? "Images with the reply" : "صور مع الرد" },
         ].map((f) => (
-          <span key={f.label} className="auth-feature">
+          <span key={f.label} className="auth-r8-feature">
             <f.icon size={14} />
             {f.label}
           </span>

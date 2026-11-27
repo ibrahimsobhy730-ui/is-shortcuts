@@ -124,6 +124,7 @@ check(
 // no extension mention, no invented testimonial, demo
 // samples clearly labeled as examples, form stays first.
 const explainer = read("components/AuthExplainer.tsx");
+const demo = read("components/AuthDemo.tsx");
 check(
   "explainer renders in the auth split on both modes",
   /import AuthExplainer from "\.\/AuthExplainer";/.test(app) &&
@@ -154,21 +155,21 @@ check(
 );
 check(
   "explainer covers steps, adding a shortcut, and core features",
-  /اكتب الاختصار/.test(explainer) &&
+  /* The 3 step titles live in the demo component (Round 8: the
+     steps ARE the demo's indicator); the add line + feature
+     pills live in the explainer. */
+  /اكتب الاختصار/.test(demo) &&
     /إضافة اختصار بتاخد ثواني/.test(explainer) &&
     /بحث فوري يفهم العربي/.test(explainer) &&
     /صور مع الرد/.test(explainer) &&
-    /\.auth-explainer \{/.test(tokens),
+    /\.auth-r8-demo \{/.test(tokens),
 );
 check(
-  "ONLY the clear popup picture is embedded (dark-green page is style reference only)",
-  existsSync(join(root, "public", "images", "explainer-popup-action.png")) &&
-    !existsSync(join(root, "public", "images", "explainer-live-preview.png")) &&
-    /src="\/images\/explainer-popup-action\.png"/.test(explainer) &&
+  "no static picture embedded (Round 8: the animated demo replaces the figure)",
+  !existsSync(join(root, "public", "images", "explainer-popup-action.png")) &&
     !/explainer-live-preview/.test(explainer) &&
-    /auth-explainer-figure/.test(explainer) &&
-    /\.auth-explainer-figure \{/.test(tokens) &&
-    /\.auth-explainer-figure img \{/.test(tokens),
+    !/auth-explainer-figure/.test(explainer) &&
+    !/\.auth-explainer-figure \{/.test(tokens),
 );
 check(
   "starter-library pill is gone from home AND Shortcuts top",
