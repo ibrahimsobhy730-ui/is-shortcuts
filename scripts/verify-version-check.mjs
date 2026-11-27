@@ -4,7 +4,7 @@
    newer deploy exists (the stale-tab root cause: the user
    photographed an OLD build's error wording minutes after a
    deploy because the open tab never reloaded);
-   (2) service worker cache bumped to is-cache-v7 so old chunk
+   (2) service worker cache bumped to is-cache-v8 so old chunk
    caches are purged when the new worker activates.
    Run with: node scripts/verify-version-check.mjs */
 
@@ -74,14 +74,46 @@ check(
     /\{newBuild\.show && \(/.test(app),
 );
 check(
-  "service worker cache is v7 (old chunk caches purge on activate)",
-  /const CACHE = "is-cache-v7";/.test(sw) && !/is-cache-v6/.test(sw),
+  "service worker cache is v8 (old chunk caches purge on activate)",
+  /const CACHE = "is-cache-v8";/.test(sw) && !/is-cache-v7/.test(sw),
 );
 check(
   "login form never flashes during session restore (Round 5)",
   /const \[restored, setRestored\] = useState\(false\);/.test(app) &&
     /setRestored\(true\);/.test(app) &&
     /\(!restored \|\| \(token && meQuery\.isPending\)\)/.test(app),
+);
+// ---- first screen is visibly new (Round 5b, 2026-11-27): the
+// owner felt NO development from the subtle polish, so the home
+// first screen must read different at a glance — bigger verse,
+// glass stat pills instead of the plain counter line, a taller
+// blue-ringed search, and a gradient «جديد» button. These
+// checks pin the visible markers so a later round cannot
+// silently shrink the home back.
+const tokens = read("app/tokens.css");
+check(
+  "hero verse is bigger (clamp to 54px) with stat pills",
+  /text-\[clamp\(32px,5\.4vw,54px\)\]/.test(app) &&
+    /className="hero-stat"/.test(app) &&
+    /\.hero-stat \{/.test(tokens) &&
+    /\.hero-stat b \{/.test(tokens),
+);
+check(
+  "hero stat pills show replies, folders and shortcuts counts",
+  /<b>\{shortcuts\.length\}<\/b>/.test(app) &&
+    /<b>\{folderCount\}<\/b>/.test(app) &&
+    /<b>\{withTriggerCountHome\}<\/b>/.test(app),
+);
+check(
+  "search is hero-sized with a permanent accent ring",
+  /h-14 w-full rounded-full/.test(app) &&
+    /sm:h-\[60px\]/.test(app) &&
+    /border-\[color-mix\(in_srgb,var\(--accent\)_38%,var\(--border\)\)\]/.test(app),
+);
+check(
+  "«جديد» is a gradient hero button, chips are bigger",
+  /lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3\.5 text-\[15px\] font-bold/.test(app) &&
+    /\.trig-chip \{\s*padding: 7px 14px;\s*font-size: 14px;/.test(tokens),
 );
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);

@@ -5362,3 +5362,85 @@ summary:focus-visible {
   .toast-card { animation: none; }
   .btn-lux.auth-submit:hover { transform: none; }
 }
+
+/* ============================================================
+   Round 5b «FIRST SCREEN» (2026-11-27) — معايرة بعد قول
+   المالك «مش حاسس ان في تطوير حصل»: التطوير لازم يتقري
+   من أول نظرة على الشاشة الأولى، مش من طبقات زجاجية
+   خافتة. نفس الهوية ونفس العناصر ونفس البيانات — لكن
+   أكبر وأوضح وأجرأ: آية أكبر، لوح هيرو أعمق لونًا وحدًّا،
+   عدّادات حبوب زجاجية بدل سطر نص، بحث أطول بحلقة زرقاء
+   دائمة، شرائح اختصارات أكبر، وزر «جديد» متدرج مضيء.
+   لا أقسام جديدة، لا بيانات جديدة، لا سلوك جديد.
+   ============================================================ */
+
+/* ١) لوح الهيرو: حشوة أكبر، زوايا أوسع، غسلة لونية
+   أقوى، حدّ متدرج أشدّ، وتوهّج أعمق — اللوح نفسه يبان
+   مختلفًا في لقطة واحدة. */
+.verse-hero {
+  padding: 36px 34px 30px;
+  border-radius: 30px;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--accent) 14%, var(--surface-elevated)), color-mix(in srgb, var(--surface-elevated) 96%, transparent) 52%, color-mix(in srgb, var(--cyan) 12%, var(--surface-elevated))) padding-box,
+    linear-gradient(130deg, color-mix(in srgb, var(--accent) 85%, transparent), var(--border) 42%, color-mix(in srgb, var(--grad-end, var(--cyan)) 75%, transparent)) border-box;
+  /* الاختصار background أعلاه يصفّر background-size، فأعيد
+     قيم طبقة v91 (الحافة المتدرجة تتنفس) كما هي. */
+  background-size: 100% 100%, 230% 230%;
+  box-shadow:
+    var(--shadow-3),
+    0 32px 72px -26px color-mix(in srgb, var(--accent) 48%, transparent);
+}
+@media (max-width: 640px) {
+  .verse-hero { padding: 28px 20px 24px; border-radius: 26px; }
+}
+.verse-hero::before {
+  background:
+    radial-gradient(480px 190px at 18% -30px, color-mix(in srgb, var(--accent) 26%, transparent), transparent 70%),
+    radial-gradient(420px 170px at 88% -20px, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 70%);
+}
+
+/* ٢) حبوب إحصائيات الهيرو: رقم عريض بلون التمييز +
+   تسمية خافتة، في حبة زجاجية — نفس الأرقام التي كان
+   يحملها سطر العدّاد، ببنية تُقرأ فورًا. */
+.hero-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-line);
+  color: var(--dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+.hero-stat b {
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ٣) شرائح الاختصارات: أكبر وأوضح — الشريط نفسه يبان
+   طبقة جديدة مش مجرد حبوب صغيرة. */
+.trig-chip {
+  padding: 7px 14px;
+  font-size: 14px;
+  gap: 5px;
+  border-color: color-mix(in srgb, var(--trig) 55%, transparent);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--trig) 45%, transparent);
+}
+
+/* ٤) الكبسولة العلوية: خط ضوء علوي خفيف يفصلها عن
+   الأرض — الهيدر نفسه يبان أغلى من أول نظرة. */
+.float-header {
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 var(--glass-line);
+}
+
+/* ٥) تقليل الحركة: لمسات الطبقة الجديدة ساكنة. */
+@media (prefers-reduced-motion: reduce) {
+  .verse-hero { animation: none; }
+}

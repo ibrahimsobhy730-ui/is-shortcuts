@@ -2732,8 +2732,17 @@ export function App() {
   }, []);
   const isPreview = pvHash.startsWith("#/preview");
   /* Server renders with no session (the login shell); the stored
-     token is restored after mount, then the me query fires. */
+     token is restored after mount, then the me query fires.
+     Round 5 fix — the login form used to flash for a beat on
+     every reload while the token was being restored (the first
+     render had token "" so AuthPage painted, then the effect
+     swapped it away). `restored` stays false until that restore
+     has run, and until then the same quiet «بنفتح حسابك…»
+     splash paints instead of the login form — server and client
+     render the identical splash first, so there is no flash and
+     no hydration mismatch. */
   const [token, setToken] = useState<string>("");
+  const [restored, setRestored] = useState(false);
   useEffect(() => {
     try {
       // "Remember me" sessions live in localStorage (permanent, sliding
@@ -2745,6 +2754,7 @@ export function App() {
           "",
       );
     } catch { /* ignore */ }
+    setRestored(true);
   }, []);
 
   const meQuery = useQuery({
@@ -2790,7 +2800,7 @@ export function App() {
     <LangCtx.Provider value={langState}>
       <div dir={langState.lang === "ar" ? "rtl" : "ltr"} className="app-shell min-h-screen bg-[var(--bg)] text-[var(--text)]">
         <SafeAreaTopScrim backgroundColor="var(--bg)" />
-        {token && meQuery.isPending ? (
+        {(!restored || (token && meQuery.isPending)) ? (
           <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 px-4">
             <Brand />
             <span className="spinner" aria-hidden="true" />
@@ -6918,7 +6928,7 @@ function Workspace({
           </button>
           <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-3xl flex-1 focus-within:max-w-[48rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
             <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
-              <Icon d={I.search} size={19} />
+              <Icon d={I.search} size={21} />
             </span>
             <input
               ref={searchRef}
@@ -6941,7 +6951,7 @@ function Workspace({
                 }
               }}
               placeholder={t("اكتب اختصار أو كلمة من الرد…")}
-              className={`h-12 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-base outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[52px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[var(--border)] shadow-[0_6px_20px_-8px_rgba(13,42,82,0.18)]"}`}
+              className={`h-14 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[17px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[60px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] shadow-[0_12px_30px_-10px_rgba(22,104,196,0.40)]"}`}
             />
             {search && (
               <button
@@ -7390,14 +7400,32 @@ function Workspace({
           <h1
             dir="rtl"
             lang="ar"
-            className="verse w-full text-[clamp(28px,4.6vw,44px)]"
+            className="verse w-full text-[clamp(32px,5.4vw,54px)]"
           >
             نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ
           </h1>
-          <p className="hero-counter mt-3">
+          {/* Round 5b — the counter line is now three glass stat
+              pills (replies / folders / shortcuts) so the first
+              screen reads unmistakably new at a glance; the same
+              counts, the same hint line underneath, no new data. */}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <span className="hero-stat">
+              <b>{shortcuts.length}</b>
+              {lang === "en" ? "replies" : "رد"}
+            </span>
+            <span className="hero-stat">
+              <b>{folderCount}</b>
+              {lang === "en" ? "folders" : "مجلد"}
+            </span>
+            <span className="hero-stat">
+              <b>{withTriggerCountHome}</b>
+              {lang === "en" ? "shortcuts" : "اختصار"}
+            </span>
+          </div>
+          <p className="mt-3 text-[13.5px] font-medium text-[var(--dim)]">
             {lang === "en"
-              ? `${shortcuts.length} replies in ${folderCount} folders — search from the top, and copy any reply in one click.`
-              : `${shortcuts.length} رد في ${folderCount} مجلد — دوّر من فوق، وانسخ أي رد بضغطة واحدة.`}
+              ? "Search from the top, and copy any reply in one click."
+              : "دوّر من فوق، وانسخ أي رد بضغطة واحدة."}
           </p>
         </section>
         )}
@@ -7409,8 +7437,8 @@ function Workspace({
             bottom of the long Shortcuts view. */}
         {homeTriggers.length > 0 && (
           <div className="animate-rise mt-6 flex flex-wrap items-center gap-2" style={{ animationDelay: "90ms" }}>
-            <span className="flex items-center gap-1.5 text-[13px] font-extrabold text-[var(--faint)]">
-              <Icon d={I.shortcut} size={14} />
+            <span className="flex items-center gap-1.5 text-sm font-extrabold text-[var(--faint)]">
+              <Icon d={I.shortcut} size={15} />
               {t("اختصاراتك:")}
             </span>
             {homeTriggers.map((s) => (
@@ -7439,9 +7467,9 @@ function Workspace({
                     200,
                   );
                 }}
-                className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-[13px] font-bold hover:border-[var(--border-strong)]"
+                className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
               >
-                <Icon d={Library} size={15} />
+                <Icon d={Library} size={16} />
                 {t("مكتبة بداية")}
                 <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
                   {lang === "en"
@@ -7479,9 +7507,9 @@ function Workspace({
               type="button"
               aria-label={t("إضافة اختصار جديد")} data-tip={t("إضافة اختصار جديد إلى مكتبتك")}
               onClick={() => setEditor({ open: true, item: null })}
-              className="lux-btn flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--accent)] px-6 py-3 font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
+              className="lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3.5 text-[15px] font-bold"
             >
-              <Icon d={I.plus} size={18} />
+              <Icon d={I.plus} size={19} />
               {t("جديد")}
             </button>
             {/* Bulk add lives in the sidebar («إضافة جماعية») — no
