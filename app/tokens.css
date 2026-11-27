@@ -32,9 +32,9 @@
   --space-12: 48px; --space-16: 64px;
 
   /* ---- Radius — مقياس واسع انسيابي (زجاج المستقبل) ---- */
-  --r-xs: 10px; --r-sm: 14px; --r-md: 18px; --r-lg: 24px; --r-xl: 30px; --r-full: 999px;
-  --radius: 20px;
-  --radius-sm: 12px; --radius-md: 20px; --radius-lg: 28px; --radius-full: 999px;
+  --r-xs: 10px; --r-sm: 14px; --r-md: 20px; --r-lg: 26px; --r-xl: 32px; --r-full: 999px;
+  --radius: 22px;
+  --radius-sm: 12px; --radius-md: 22px; --radius-lg: 30px; --radius-full: 999px;
 
   /* ---- Fluid type ---- */
   --fs-display: clamp(21px, 1.15rem + 0.7vw, 26px);
@@ -490,7 +490,7 @@
    الأساس: الخط والإيقاع والتركيز
    ============================================================ */
 body {
-  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-plex), "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
   font-size: var(--fs-body);
   line-height: 1.7;
   font-feature-settings: "liga" 1, "calt" 1, "kern" 1;
@@ -498,7 +498,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 h1, h2, h3, .font-display, .folder-bar-title {
-  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-plex), "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
   letter-spacing: 0;
 }
 .verse { font-family: var(--font-amiri), "Amiri", system-ui, sans-serif; }
@@ -2747,7 +2747,7 @@ label:focus-within .auth-field-icon {
 }
 /* The login promise, made the visual anchor: larger, bolder, and
    in the site's accent→cyan gradient (the verse above it stays
-   Amiri; this line is interface text, so it stays Readex). */
+   Amiri; this line is interface text, so it stays Plex). */
 .auth-subtitle.auth-promise {
   font-size: 17px;
   font-weight: 800;
@@ -3554,7 +3554,7 @@ summary svg.lucide {
   bottom: 3.5vh;
   z-index: 0;
   text-align: center;
-  font-family: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  font-family: var(--font-plex), "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
   font-weight: 700;
   font-size: clamp(42px, 8.5vw, 118px);
   line-height: 1.02;
@@ -5785,4 +5785,177 @@ summary:focus-visible {
   background:
     radial-gradient(420px 150px at 50% -40px, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
     var(--surface);
+}
+
+/* ============================================================
+   Round 7 — visual redesign (2026-11-27, owner's verdict:
+   «مفيش تعديل واضح حصل» on Round 5). Polish alone does not
+   read as change, so this round is STRUCTURAL, not polish:
+   · Home first screen is ONE command deck (verse + stats /
+     giant search / triggers + «جديد») instead of a plaque +
+     a header search + a chips row. The search moved out of
+     the header into the deck — same input, same preview.
+   · Auth pages are a real split: form in one column, the
+     live demo + explainer in the other, above the fold on
+     desktop; on mobile the demo comes FIRST.
+   · Font: IBM Plex Sans Arabic everywhere (see layout.tsx);
+     Amiri stays on the verse only.
+   · Radius scale bumped 2px everywhere (see :root) and
+     reply cards get a lift + a trigger-first top row.
+   Nothing here touches data, triggers, or the removals
+   (AHK / starter pill / home completion panel / video).
+   ============================================================ */
+
+/* ---- Command deck ---- */
+.cmd-deck {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 28px;
+  padding: 20px 22px 18px;
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--accent) 10%, var(--surface-elevated)), color-mix(in srgb, var(--surface-elevated) 96%, transparent) 52%, color-mix(in srgb, var(--cyan) 9%, var(--surface-elevated))) padding-box,
+    linear-gradient(130deg, color-mix(in srgb, var(--accent) 68%, transparent), var(--border) 42%, color-mix(in srgb, var(--grad-end, var(--cyan)) 58%, transparent)) border-box;
+  box-shadow:
+    var(--shadow-3),
+    0 28px 64px -26px color-mix(in srgb, var(--accent) 38%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.45);
+  backdrop-filter: blur(18px) saturate(1.45);
+}
+/* The glow lives in its own clipped layer so the deck itself
+   keeps overflow visible — the search preview dropdown must
+   escape the card downward, as before. */
+.cmd-deck-glow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.cmd-deck-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(480px 190px at 18% -30px, color-mix(in srgb, var(--accent) 17%, transparent), transparent 70%),
+    radial-gradient(420px 170px at 88% -20px, color-mix(in srgb, var(--cyan) 13%, transparent), transparent 70%);
+  animation: neb-hero-glow 11s ease-in-out infinite alternate;
+}
+.cmd-deck-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 38%, oklch(1 0 0 / 0.10) 50%, transparent 62%);
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  animation: neb-hero-sheen 9s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+.cmd-deck-top,
+.cmd-deck-search,
+.cmd-deck-bottom {
+  position: relative;
+}
+.cmd-deck-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cmd-deck-verse {
+  font-weight: 700;
+  font-size: clamp(25px, 3.4vw, 38px);
+  line-height: 1.85;
+  text-wrap: balance;
+  color: var(--ink);
+}
+.cmd-deck-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cmd-deck-search {
+  margin-top: 16px;
+}
+.cmd-deck-bottom {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+@media (max-width: 640px) {
+  .cmd-deck { padding: 16px 16px 14px; border-radius: 24px; }
+  .cmd-deck-top { flex-direction: column; align-items: stretch; gap: 10px; }
+  .cmd-deck-verse { padding-inline-end: 44px; font-size: clamp(23px, 6.4vw, 28px); }
+  .cmd-deck-top .hero-hide-btn { position: absolute; top: 0; inset-inline-end: 0; }
+  .cmd-deck-stats { justify-content: flex-start; }
+  .cmd-deck-search { margin-top: 14px; }
+}
+
+/* ---- Reply cards, Round 7: lift on hover, and the trigger
+      pill now crowns the card (see App.tsx) — the card reads
+      shortcut-first at a glance. ---- */
+.reply-card {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .reply-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      var(--shadow-3),
+      0 18px 36px -18px color-mix(in srgb, var(--accent) 30%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--glass-line) 75%, transparent);
+  }
+}
+
+/* ---- Auth split, Round 7: the explainer lives INSIDE
+      .auth-split now (see App.tsx). Mobile: demo first
+      (order), form below. Desktop: two columns — form on
+      the start side, demo + explainer on the other, both
+      above the fold; the demo column is vertically centered
+      with a hairline divider from the form. ---- */
+.auth-split .auth-explainer {
+  order: -1;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+  text-align: start;
+}
+.auth-split .auth-explainer-head,
+.auth-split .auth-demo-note,
+.auth-split .auth-explainer-figure figcaption {
+  text-align: start;
+}
+.auth-split .auth-demo-chips {
+  justify-content: flex-start;
+}
+@media (min-width: 1024px) {
+  .auth-v78 .auth-split {
+    grid-template-columns: minmax(0, 470px) minmax(0, 1fr);
+    min-height: calc(100dvh - 64px);
+  }
+  .auth-modern.auth-v78 main.auth-form-side {
+    min-height: 0;
+    padding: 32px 24px;
+  }
+  .auth-split .auth-explainer {
+    order: 0;
+    max-width: 620px;
+    margin: 0;
+    padding: 40px 36px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-inline-start: 1px solid var(--border);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
+  }
+  .auth-split .auth-explainer-head h2 {
+    font-size: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmd-deck-glow::before, .cmd-deck-glow::after { animation: none; }
+  .reply-card { transition: none; }
+  .reply-card:hover { transform: none; }
 }

@@ -1,21 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Amiri, Readex_Pro } from "next/font/google";
+import { Amiri, IBM_Plex_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import "./theme.css";
 import "./tokens.css";
 
-/* الخط (قرار المالك 2026-11-26): Readex Pro هو خط الواجهة
-   الوحيد لكل شيء — نص، عناوين، أزرار، قوائم — نفس الإعداد
-   اللي كان قبل جولة أميري (4 أوزان 400/500/600/700، عربي+
-   لاتيني، self-hosted من البناء نفسه، display: swap). أميري
+/* الخط (قرار المالك 2026-11-27): IBM Plex Sans Arabic هو خط
+   الواجهة الوحيد لكل شيء — نص، عناوين، أزرار، قوائم —
+   أنضف بكتير (4 أوزان 400/500/600/700، عربي+لاتيني،
+   self-hosted من البناء نفسه، display: swap). أميري
    باقٍ للآية فقط («نِعْمَةً مِّنْ عِندِنَا…») كما هي الآن
    بالظبط، بقرار المالك — لا يظهر في أي سطح تاني. */
-const readexPro = Readex_Pro({
+const plexSans = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
-  variable: "--font-readex",
+  variable: "--font-plex",
 });
 
 /* أميري للآية فقط — نفس الإعداد اللي كانت به (400/700،
@@ -90,7 +90,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning className={`${readexPro.variable} ${amiri.variable}`}>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className={`${plexSans.variable} ${amiri.variable}`}>
       <head>
         {/* Preload the verse's two 400-weight Amiri files only
             (arabic 400 + latin 400): the verse sits above the

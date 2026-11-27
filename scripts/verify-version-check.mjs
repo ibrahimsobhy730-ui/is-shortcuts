@@ -92,8 +92,10 @@ check(
 // silently shrink the home back.
 const tokens = read("app/tokens.css");
 check(
-  "hero verse is bigger (clamp to 54px) with stat pills",
-  /text-\[clamp\(32px,5\.4vw,54px\)\]/.test(app) &&
+  "deck verse (cmd-deck-verse, clamp to 38px) with stat pills beside it",
+  /className="verse cmd-deck-verse/.test(app) &&
+    /\.cmd-deck-verse \{/.test(tokens) &&
+    /font-size: clamp\(25px, 3\.4vw, 38px\)/.test(tokens) &&
     /className="hero-stat"/.test(app) &&
     /\.hero-stat \{/.test(tokens) &&
     /\.hero-stat b \{/.test(tokens),
@@ -105,9 +107,9 @@ check(
     /<b>\{withTriggerCountHome\}<\/b>/.test(app),
 );
 check(
-  "search is hero-sized with a permanent accent ring",
-  /h-14 w-full rounded-full/.test(app) &&
-    /sm:h-\[60px\]/.test(app) &&
+  "deck search is bigger (64/68px) with a permanent accent ring",
+  /h-\[64px\] w-full rounded-full/.test(app) &&
+    /sm:h-\[68px\]/.test(app) &&
     /border-\[color-mix\(in_srgb,var\(--accent\)_38%,var\(--border\)\)\]/.test(app),
 );
 check(
@@ -115,18 +117,19 @@ check(
   /lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3\.5 text-\[15px\] font-bold/.test(app) &&
     /\.trig-chip \{\s*padding: 7px 14px;\s*font-size: 14px;/.test(tokens),
 );
-// ---- auth explainer (Round 5c, 2026-11-27): an interactive
-// live demo + how-it-works sits BELOW the sign-in form on
-// BOTH login and register pages. Hard rules pinned here:
+// ---- auth explainer (Round 7, 2026-11-27): an interactive
+// live demo + how-it-works sits INSIDE the auth split, beside
+// the sign-in form on desktop and first on mobile, on BOTH
+// login and register pages. Hard rules pinned here:
 // no extension mention, no invented testimonial, demo
 // samples clearly labeled as examples, form stays first.
 const explainer = read("components/AuthExplainer.tsx");
 check(
-  "explainer renders below the auth form on both modes",
+  "explainer renders in the auth split on both modes",
   /import AuthExplainer from "\.\/AuthExplainer";/.test(app) &&
     /<AuthExplainer lang=\{lang\} \/>/.test(app) &&
-    // outside the mode conditional: placed after the auth-split
-    // close, so login AND register both show it.
+    // outside the mode conditional: placed inside .auth-split
+    // after </main>, so login AND register both show it.
     app.indexOf("<AuthExplainer") > app.indexOf("</main>"),
 );
 check(

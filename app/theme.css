@@ -9,12 +9,12 @@
    ============================================================ */
 
 @theme {
-  /* الخط الوحيد للواجهة (2026-11-26): Readex Pro لكل شيء —
+  /* الخط الوحيد للواجهة (2026-11-27): IBM Plex Sans Arabic لكل شيء —
      نص، عناوين، أزرار، وحتى مواضع font-mono (أرقام/لاتيني)؛
      «Segoe UI» وTahoma شبكة أمان للحروف النادرة. الآية وحدها
      بأميري (انظر .verse في tokens.css). */
-  --font-sans: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
-  --font-mono: var(--font-readex), "Readex Pro", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --font-sans: var(--font-plex), "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+  --font-mono: var(--font-plex), "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
   --text-xs: 12px;
   --text-xs--line-height: 18px;
   --text-sm: 14px;

@@ -3008,14 +3008,12 @@ function AuthPage({
       </div>
     </header>
     <div className="auth-split">
-      {/* v80 (owner's explicit call): the brand panel is
-          REMOVED from this page entirely — no side panel on
-          desktop, no compact logo+verse block above the form
-          on mobile, no value-points list or line. The login
-          page is now one clean centered column at every
-          width: greeting, segmented control, fields, submit.
-          The IS mark and the verse live on everywhere else
-          in the app (header, sidebar, home H1) — untouched. */}
+      {/* Round 7 (طلب المالك 2026-11-27): صفحة الدخول منقسمة —
+          النموذج في عمود والشرح التوضيحي الحيّ في عمود، فوق
+          الطيّة من غير سكرول على سطح المكتب؛ وعلى الموبايل
+          العرض الحيّ أولًا ثم النموذج تحته (ترتيب CSS فقط،
+          والـ DOM نفسه: النموذج ثم الشرح). لوحة العلامة v80
+          تظل ملغاة — لا بانل جانبي داكن ولا نقاط قيمة. */}
     <main className="auth-form-side">
       <div className="auth-form-card">
       {/* The bare IS mark alone at the head of the card — mark
@@ -3412,14 +3410,13 @@ function AuthPage({
       </p>
       </div>
     </main>
-    </div>
-    {/* Round 5c — الشرح التوضيحي التفاعلي (طلب المالك
-        2026-11-27): تحت النموذج مباشرة، في الحالتين
-        (دخول + حساب جديد) لأنه خارج شرط الـ mode — النموذج
-        يبقى البطل فوق، والشرح تحته ولا يخفيه أبدًا. قرار
-        المالك الجديد هنا يقدّم على إزالة v80 للوحة القيم —
-        هو نفسه طلب هذا الشرح الآن. */}
+    {/* Round 7 — الشرح التوضيحي التفاعلي داخل .auth-split
+        نفسه (بعد النموذج في الـ DOM): على سطح المكتب عمود
+        مستقل جنب النموذج فوق الطيّة، وعلى الموبايل يظهر
+        أولًا بترتيب CSS (order) ثم النموذج تحته. النموذج
+        يبقى نظيفًا وقابلًا للاستخدام؛ الشرح لا يخفيه. */}
     <AuthExplainer lang={lang} />
+    </div>
     </div>
   );
 }
@@ -6887,65 +6884,7 @@ function Workspace({
           >
             <Logo size={40} />
           </button>
-          <div ref={searchWrapRef} className={`relative mx-auto w-full min-w-0 max-w-3xl flex-1 focus-within:max-w-[48rem] ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
-            <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
-              <Icon d={I.search} size={21} />
-            </span>
-            <input
-              ref={searchRef}
-              aria-label={t("دوّر في الردود")}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                if (section !== "home") setSection("home");
-              }}
-              onFocus={() => {
-                if (section !== "home") setSection("home");
-              }}
-              onKeyDown={(e) => {
-                /* Enter copies the best trigger match — the same
-                   one-tap copy the shortcut bar does on Enter, so
-                   the two search surfaces behave as one. */
-                if (e.key === "Enter" && searchTrigBest) {
-                  e.preventDefault();
-                  void handleCopy(searchTrigBest);
-                }
-              }}
-              placeholder={t("اكتب اختصار أو كلمة من الرد…")}
-              className={`h-14 w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[17px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[60px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] shadow-[0_12px_30px_-10px_rgba(22,104,196,0.40)]"}`}
-            />
-            {search && (
-              <button
-                type="button"
-                aria-label={t("مسح البحث")}
-                data-tip={t("مسح البحث")}
-                data-tip-pos="below"
-                onClick={() => setSearch("")}
-                className="lux-btn absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-[var(--faint)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-              >
-                <Icon d={I.x} size={16} />
-              </button>
-            )}
-            {/* The search box IS the preview box: while the query
-                matches a trigger (or matches nothing at all), the
-                field grows downward into the full reply preview —
-                and shrinks back when cleared. */}
-            <div className="absolute inset-x-0 top-full z-50 mt-2">
-              <SearchTriggerPreview
-                open={searchPreviewOpen}
-                query={search}
-                best={searchTrigBest}
-                extras={searchTrigMatches.slice(1, 3)}
-                kindScore={searchTrigKind}
-                shortcuts={shortcuts}
-                onCopy={(s) => handleCopy(s)}
-                onSaveTrigger={async (s, trigger) => {
-                  await updateTriggerMut.mutateAsync({ s, trigger });
-                }}
-                onDismiss={() => setSearch("")}
-              />
-            </div>
-          </div>
+          <div className="min-w-0 flex-1" aria-hidden="true" />
           {/* Shortcut bar: the fast trigger panel — one visible
               button, no keyboard shortcut (custom keyboard shortcuts
               were removed and stay removed). */}
@@ -7313,124 +7252,185 @@ function Workspace({
 
         {section === "home" && (
         <>
-        {/* Home head: the verse the owner chose in place of the
-            greeting — rendered verbatim, always in Arabic (it is
-            content, not interface chrome, so the language switch
-            never touches it). The plaque is sized TO the verse:
-            snug padding, the verse centered and full-width with
-            balanced wrapping so it fills the card evenly with no
-            dead space, an accent-tinted wash (everything derives
-            from the chosen accent, per the owner's consistency
-            rule), one gradient edge, and a slow breathing glow
-            plus a light sweep for motion. The counter line sits
-            beneath the verse, inside the plaque. The styling
-            lives in the .verse-hero rules in tokens.css, and
-            collapsing still folds the plaque into the slim
-            glass .hero-strip below. */}
-        {heroHidden ? (
-        <section className="hero-strip animate-rise mt-6 flex items-center justify-between gap-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5" aria-label={t("البانر مخفي")}>
-          <p dir="rtl" lang="ar" className="verse min-w-0 truncate text-[17px] text-[var(--ink)]">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
-          <span className="hidden shrink-0 text-[13px] text-[var(--dim)] md:block">
-            {lang === "en" ? `${shortcuts.length} replies in ${folderCount} folders` : `${shortcuts.length} رد في ${folderCount} مجلد`}
-          </span>
-          <button
-            type="button"
-            aria-label={t("إظهار البانر")}
-            data-tip={t("إظهار بانر الآية من تاني")}
-            data-tip-pos="below"
-            onClick={() => toggleHero(false)}
-            className="lux-btn flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
-          >
-            <Icon d={I.eye} size={15} />
-            {t("إظهار البانر")}
-          </button>
-        </section>
-        ) : (
-        <section className="verse-hero animate-rise relative mt-6 flex flex-col items-center text-center lg:mt-7">
-          <button
-            type="button"
-            aria-label={t("إخفاء البانر")}
-            data-tip={t("إخفاء البانر — بيظهر مكانه شريط صغير تقدر ترجعه منه")}
-            data-tip-pos="below"
-            data-tip-align="start"
-            onClick={() => toggleHero(true)}
-            className="hero-hide-btn lux-btn absolute end-3 top-3"
-          >
-            <Icon d={I.eyeOff} size={15} />
-          </button>
-          <h1
-            dir="rtl"
-            lang="ar"
-            className="verse w-full text-[clamp(32px,5.4vw,54px)]"
-          >
-            نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ
-          </h1>
-          {/* Round 5b — the counter line is now three glass stat
-              pills (replies / folders / shortcuts) so the first
-              screen reads unmistakably new at a glance; the same
-              counts, the same hint line underneath, no new data. */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <span className="hero-stat">
-              <b>{shortcuts.length}</b>
-              {lang === "en" ? "replies" : "رد"}
-            </span>
-            <span className="hero-stat">
-              <b>{folderCount}</b>
-              {lang === "en" ? "folders" : "مجلد"}
-            </span>
-            <span className="hero-stat">
-              <b>{withTriggerCountHome}</b>
-              {lang === "en" ? "shortcuts" : "اختصار"}
-            </span>
-          </div>
-          <p className="mt-3 text-[13.5px] font-medium text-[var(--dim)]">
-            {lang === "en"
-              ? "Search from the top, and copy any reply in one click."
-              : "دوّر من فوق، وانسخ أي رد بضغطة واحدة."}
-          </p>
-        </section>
-        )}
-
-        {/* Home trigger strip: the most-recently-used triggers as
-            tappable chips — one tap feeds the search box, which
-            grows into that reply's preview. */}
-        {homeTriggers.length > 0 && (
-          <div className="animate-rise mt-6 flex flex-wrap items-center gap-2" style={{ animationDelay: "90ms" }}>
-            <span className="flex items-center gap-1.5 text-sm font-extrabold text-[var(--faint)]">
-              <Icon d={I.shortcut} size={15} />
-              {t("اختصاراتك:")}
-            </span>
-            {homeTriggers.map((s) => (
+        {/* Round 7 — command deck: the whole first screen is ONE
+            card now, not a plaque + a header search + a chips
+            row. Top: the verse (Amiri, as always) with the three
+            stat pills beside it. Middle: the search itself —
+            moved out of the header into the deck, bigger, still
+            the preview box (same wiring, same component). Bottom:
+            your trigger chips + the «جديد» button. Hiding the
+            banner now folds only the verse row; search, chips
+            and stats stay. */}
+        <section className="cmd-deck animate-rise relative mt-6" aria-label={t("لوحة الأوامر")}>
+          <div className="cmd-deck-glow" aria-hidden="true" />
+          {heroHidden ? (
+            <div className="cmd-deck-top">
+              <p dir="rtl" lang="ar" className="verse min-w-0 flex-1 truncate text-[19px] text-[var(--ink)]">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
+              <div className="cmd-deck-stats">
+                <span className="hero-stat">
+                  <b>{shortcuts.length}</b>
+                  {lang === "en" ? "replies" : "رد"}
+                </span>
+                <span className="hero-stat">
+                  <b>{folderCount}</b>
+                  {lang === "en" ? "folders" : "مجلد"}
+                </span>
+                <span className="hero-stat">
+                  <b>{withTriggerCountHome}</b>
+                  {lang === "en" ? "shortcuts" : "اختصار"}
+                </span>
+              </div>
               <button
-                key={s.id}
                 type="button"
-                data-trig-chip
-                aria-label={lang === "en" ? `Show reply ${s.title} in search` : `عرض رد ${s.title} في البحث`}
-                onClick={() => pickTrigger(s.trigger ?? "")}
-                className="lux-btn trig-chip"
+                aria-label={t("إظهار البانر")}
+                data-tip={t("إظهار بانر الآية من تاني")}
+                data-tip-pos="below"
+                onClick={() => toggleHero(false)}
+                className="lux-btn flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
               >
-                <Icon d={I.shortcut} size={13} />
-                <span dir="auto">{s.trigger}</span>
+                <Icon d={I.eye} size={15} />
+                {t("إظهار البانر")}
               </button>
-            ))}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="cmd-deck-top">
+              <h1
+                dir="rtl"
+                lang="ar"
+                className="verse cmd-deck-verse min-w-0 flex-1"
+              >
+                نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ
+              </h1>
+              <div className="cmd-deck-stats">
+                <span className="hero-stat">
+                  <b>{shortcuts.length}</b>
+                  {lang === "en" ? "replies" : "رد"}
+                </span>
+                <span className="hero-stat">
+                  <b>{folderCount}</b>
+                  {lang === "en" ? "folders" : "مجلد"}
+                </span>
+                <span className="hero-stat">
+                  <b>{withTriggerCountHome}</b>
+                  {lang === "en" ? "shortcuts" : "اختصار"}
+                </span>
+              </div>
+              <button
+                type="button"
+                aria-label={t("إخفاء البانر")}
+                data-tip={t("إخفاء البانر — بيظهر مكانه سطر صغير تقدر ترجعه منه")}
+                data-tip-pos="below"
+                data-tip-align="start"
+                onClick={() => toggleHero(true)}
+                className="hero-hide-btn lux-btn shrink-0"
+              >
+                <Icon d={I.eyeOff} size={15} />
+              </button>
+            </div>
+          )}
 
-        {/* Toolbar: add buttons, folder chips, sort views */}
-        <section className="pt-6">
-          <div className="flex flex-wrap items-center gap-2">
+          {/* The search box IS the preview box — moved here from
+              the header (Round 7): same input, same preview,
+              bigger, as the deck's centerpiece. */}
+          <div ref={searchWrapRef} className={`cmd-deck-search relative w-full ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
+            <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
+              <Icon d={I.search} size={22} />
+            </span>
+            <input
+              ref={searchRef}
+              aria-label={t("دوّر في الردود")}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (section !== "home") setSection("home");
+              }}
+              onFocus={() => {
+                if (section !== "home") setSection("home");
+              }}
+              onKeyDown={(e) => {
+                /* Enter copies the best trigger match — the same
+                   one-tap copy the shortcut bar does on Enter, so
+                   the two search surfaces behave as one. */
+                if (e.key === "Enter" && searchTrigBest) {
+                  e.preventDefault();
+                  void handleCopy(searchTrigBest);
+                }
+              }}
+              placeholder={t("اكتب اختصار أو كلمة من الرد…")}
+              className={`h-[64px] w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[18px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[68px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] shadow-[0_12px_30px_-10px_rgba(22,104,196,0.40)]"}`}
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label={t("مسح البحث")}
+                data-tip={t("مسح البحث")}
+                data-tip-pos="below"
+                onClick={() => setSearch("")}
+                className="lux-btn absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-[var(--faint)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+              >
+                <Icon d={I.x} size={16} />
+              </button>
+            )}
+            {/* The search box IS the preview box: while the query
+                matches a trigger (or matches nothing at all), the
+                field grows downward into the full reply preview —
+                and shrinks back when cleared. */}
+            <div className="absolute inset-x-0 top-full z-50 mt-2">
+              <SearchTriggerPreview
+                open={searchPreviewOpen}
+                query={search}
+                best={searchTrigBest}
+                extras={searchTrigMatches.slice(1, 3)}
+                kindScore={searchTrigKind}
+                shortcuts={shortcuts}
+                onCopy={(s) => handleCopy(s)}
+                onSaveTrigger={async (s, trigger) => {
+                  await updateTriggerMut.mutateAsync({ s, trigger });
+                }}
+                onDismiss={() => setSearch("")}
+              />
+            </div>
+          </div>
+
+          {/* Triggers + «جديد»: the chips feed the search box;
+              the button opens the editor — both live in the deck
+              now, not scattered below it. */}
+          <div className="cmd-deck-bottom">
+            {homeTriggers.length > 0 && (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1.5 text-sm font-extrabold text-[var(--faint)]">
+                  <Icon d={I.shortcut} size={15} />
+                  {t("اختصاراتك:")}
+                </span>
+                {homeTriggers.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    data-trig-chip
+                    aria-label={lang === "en" ? `Show reply ${s.title} in search` : `عرض رد ${s.title} في البحث`}
+                    onClick={() => pickTrigger(s.trigger ?? "")}
+                    className="lux-btn trig-chip"
+                  >
+                    <Icon d={I.shortcut} size={13} />
+                    <span dir="auto">{s.trigger}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               aria-label={t("إضافة اختصار جديد")} data-tip={t("إضافة اختصار جديد إلى مكتبتك")}
               onClick={() => setEditor({ open: true, item: null })}
-              className="lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3.5 text-[15px] font-bold"
+              className="lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3.5 text-[15px] font-bold max-sm:w-full max-sm:justify-center"
             >
               <Icon d={I.plus} size={19} />
               {t("جديد")}
             </button>
-            {/* Bulk add lives in the sidebar («إضافة جماعية») — no
-                second button here. */}
           </div>
+        </section>
+
+        {/* Toolbar: folder chips on small screens — the «جديد» button now lives in the command deck (Round 7). */}
+        <section className="pt-6">
           <div className="no-scrollbar -mx-4 mb-1 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:hidden">
             {categories.map((c) => (
               <button
@@ -12266,6 +12266,8 @@ export const ShortcutCard = memo(function ShortcutCard({
                 المجموعة لأنها حالة (مفضّلة) مش إجراء إدارة،
                 والمعاينة والتكرار في قائمة «⋯». */}
             <div className="flex shrink-0 items-center gap-2">
+              {/* Round 7 — the shortcut pill moves up here: the trigger is the card's identity, not meta text. */}
+              <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
               <button
                 type="button"
                 aria-label={item.favorite ? (lang === "en" ? `Remove ${item.title} from favorites` : `إزالة ${item.title} من المفضلة`) : lang === "en" ? `Add ${item.title} to favorites` : `إضافة ${item.title} للمفضلة`} data-tip={item.favorite ? t("إزالة من المفضلة") : t("إضافة للمفضلة")}
@@ -12391,7 +12393,6 @@ export const ShortcutCard = memo(function ShortcutCard({
             ))}
             {tags.length > 2 && <span className="font-semibold text-[var(--faint)]">+{tags.length - 2}</span>}
             {updatedLabel && <span><span aria-hidden="true" className="me-1.5 text-[var(--faint)]">·</span>{relDateLabel(item.updatedAt, lang)}</span>}
-            <TriggerIcon item={item} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggers} size="full" />
           </div>
           <div className={density === "grid" ? "mt-auto pt-4" : "mt-4"}>
             {copyBtn}
