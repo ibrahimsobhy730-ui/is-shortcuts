@@ -4,7 +4,7 @@
    newer deploy exists (the stale-tab root cause: the user
    photographed an OLD build's error wording minutes after a
    deploy because the open tab never reloaded);
-   (2) service worker cache bumped to is-cache-v9 so old chunk
+   (2) service worker cache bumped to is-cache-v10 so old chunk
    caches are purged when the new worker activates.
    Run with: node scripts/verify-version-check.mjs */
 
@@ -74,8 +74,8 @@ check(
     /\{newBuild\.show && \(/.test(app),
 );
 check(
-  "service worker cache is v9 (old chunk caches purge on activate)",
-  /const CACHE = "is-cache-v9";/.test(sw) && !/is-cache-v8/.test(sw),
+  "service worker cache is v10 (old chunk caches purge on activate)",
+  /const CACHE = "is-cache-v10";/.test(sw) && !/is-cache-v9/.test(sw),
 );
 check(
   "login form never flashes during session restore (Round 5)",
@@ -156,6 +156,28 @@ check(
     /بحث فوري يفهم العربي/.test(explainer) &&
     /صور مع الرد/.test(explainer) &&
     /\.auth-explainer \{/.test(tokens),
+);
+check(
+  "reference image is in the repo and framed in the explainer",
+  existsSync(join(root, "public", "images", "explainer-live-preview.png")) &&
+    existsSync(join(root, "public", "images", "explainer-popup-action.png")) &&
+    /src="\/images\/explainer-live-preview\.png"/.test(explainer) &&
+    /src="\/images\/explainer-popup-action\.png"/.test(explainer) &&
+    /auth-explainer-figure/.test(explainer) &&
+    /\.auth-explainer-figure \{/.test(tokens) &&
+    /\.auth-explainer-figure img \{/.test(tokens),
+);
+check(
+  "starter-library pill is gone from home AND Shortcuts top",
+  !/starterQueryHome/.test(app) &&
+    !/starterQuery\.data\?\.isOwner/.test(app) &&
+    !/مختار \$\{.*chosen\.length\}/.test(app),
+);
+check(
+  "starter picker and seeding stay untouched",
+  /id="starter-library"/.test(app) &&
+    /function StarterLibraryPicker/.test(app) &&
+    /api\.getStarterLibrary/.test(app),
 );
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);

@@ -249,6 +249,48 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
         </p>
       </div>
 
+      {/* الصورة المرجعية التي أرسلها المالك (صفحة المعاينة
+          الحيّة) — تُعرض كما أرسلها، داخل إطار نظيف متسق
+          مع الموقع. التسمية حولها محايدة: لا تكرّر أي نص
+          داخل الصورة ولا تضيف أي سطر عن إضافات. */}
+      <figure className="auth-explainer-figure">
+        <img
+          src="/images/explainer-live-preview.png"
+          alt={
+            en
+              ? "The live preview — the full reply appears in place of the shortcut"
+              : "المعاينة الحيّة — الرد الكامل يظهر مكان الاختصار"
+          }
+          loading="lazy"
+        />
+        <figcaption>
+          {en
+            ? "The live preview — the full reply appears in place of the shortcut."
+            : "المعاينة الحيّة — الرد الكامل يظهر مكان الاختصار."}
+        </figcaption>
+      </figure>
+
+      {/* الصورة الثانية الأوضح التي أرسلها المالك (نافذة
+          الاختصارات أثناء الكتابة) — تُعرض كما أرسلها،
+          بنفس الإطار النظيف. التسمية محايدة وتصف ما في
+          الصورة فقط: اختصار يتحوّل لرده الكامل أثناء الكتابة. */}
+      <figure className="auth-explainer-figure">
+        <img
+          src="/images/explainer-popup-action.png"
+          alt={
+            en
+              ? "While typing — the shortcut turns into its full reply"
+              : "أثناء الكتابة — الاختصار يتحوّل لرده الكامل"
+          }
+          loading="lazy"
+        />
+        <figcaption>
+          {en
+            ? "While typing — the shortcut turns into its full reply."
+            : "أثناء الكتابة — الاختصار يتحوّل لرده الكامل."}
+        </figcaption>
+      </figure>
+
       {/* الخطوات الثلاث: اكتب ← يظهر ← انسخ. */}
       <ol className="auth-steps">
         {[

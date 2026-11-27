@@ -4062,9 +4062,11 @@ function Workspace({
      Round 3 buried the shortcuts work inside the «الاختصارات»
      view, so home looked unchanged. The first screen now carries
      it: the most-recently-used trigger chips (same recency order
-     as the shortcuts card), the «أكمل اختصاراتك» panel, and the
-     starter-library jump — hoisted here so home and the Shortcuts
-     view read the same memos. */
+     as the shortcuts card) and the «أكمل اختصاراتك» panel.
+     (The «مكتبة بداية» pill that sat next to the chips was
+     removed 2026-11-27 at the owner's call — «ملهاش لازمة» —
+     while the picker itself stays at the bottom of the
+     Shortcuts view.) */
   const homeTriggers = useMemo(
     () => sortTriggersRecency(shortcuts.filter((s) => s.trigger)).slice(0, 5),
     [shortcuts],
@@ -4083,13 +4085,6 @@ function Workspace({
     () => shortcuts.filter((s) => s.trigger).length,
     [shortcuts],
   );
-  /* Starter library (owner only): same queryKey as the picker, so
-     this shares its cache and the owner alone ever sees the jump. */
-  const starterQueryHome = useQuery({
-    queryKey: ["starterLibrary", token],
-    queryFn: () => api.getStarterLibrary({ token }),
-  });
-
   /* Tap-outside dismisses the search preview: a press anywhere
      outside the search box (and its preview) clears the query, so
      the panel closes at once — the X is never required. A trigger
@@ -7440,9 +7435,7 @@ function Workspace({
 
         {/* Home trigger strip: the most-recently-used triggers as
             tappable chips — one tap feeds the search box, which
-            grows into that reply's preview. The starter-library
-            jump sits next to them so it stops being buried at the
-            bottom of the long Shortcuts view. */}
+            grows into that reply's preview. */}
         {homeTriggers.length > 0 && (
           <div className="animate-rise mt-6 flex flex-wrap items-center gap-2" style={{ animationDelay: "90ms" }}>
             <span className="flex items-center gap-1.5 text-sm font-extrabold text-[var(--faint)]">
@@ -7462,30 +7455,6 @@ function Workspace({
                 <span dir="auto">{s.trigger}</span>
               </button>
             ))}
-            {starterQueryHome.data?.isOwner && (
-              <button
-                type="button"
-                onClick={() => {
-                  goShortcuts();
-                  window.setTimeout(
-                    () =>
-                      document
-                        .getElementById("starter-library")
-                        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                    200,
-                  );
-                }}
-                className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm font-bold hover:border-[var(--border-strong)]"
-              >
-                <Icon d={Library} size={16} />
-                {t("مكتبة بداية")}
-                <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-                  {lang === "en"
-                    ? `${starterQueryHome.data.chosen.length} picked`
-                    : `مختار ${starterQueryHome.data.chosen.length}`}
-                </span>
-              </button>
-            )}
           </div>
         )}
 
@@ -14767,14 +14736,6 @@ function ShortcutsView({
   /* The one copy toast, threaded down to the shortcuts card. */
   onToast?: (msg: string) => void;
 }) {
-  /* The starter-library picker lives at the bottom of this long
-     view — the jump link below scrolls to it. Same queryKey as
-     the picker itself, so this shares its cache (no extra fetch)
-     and only the owner ever sees the link. */
-  const starterQuery = useQuery({
-    queryKey: ["starterLibrary", token],
-    queryFn: () => api.getStarterLibrary({ token }),
-  });
   const { lang, t } = useLang();
   const q = query.trim();
   const searching = q.length > 0;
@@ -14886,32 +14847,15 @@ function ShortcutsView({
         takenTriggersById={takenTriggersById}
         onSaveTrigger={onSaveTrigger}
       />
-      {/* Share + import + the starter-library jump link. */}
+      {/* Share + import. (The «مكتبة بداية» pill that sat here
+          was removed 2026-11-27 at the owner's call — the picker
+          itself stays at the bottom of this view.) */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <ShareShortcutsRow
           shortcuts={shortcuts}
           onSaveTrigger={onSaveTrigger}
           onCreateShortcut={onCreateShortcut}
         />
-        {starterQuery.data?.isOwner && (
-          <button
-            type="button"
-            onClick={() =>
-              document
-                .getElementById("starter-library")
-                ?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
-            className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold hover:border-[var(--border-strong)]"
-          >
-            <Icon d={Library} size={15} />
-            {t("مكتبة بداية")}
-            <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-              {lang === "en"
-                ? `${starterQuery.data.chosen.length} picked`
-                : `مختار ${starterQuery.data.chosen.length}`}
-            </span>
-          </button>
-        )}
       </div>
       {withTrigger.length === 0 && withoutTrigger.length > 0 && !searching ? (
         /* No triggers yet: one clear line saying what a shortcut
