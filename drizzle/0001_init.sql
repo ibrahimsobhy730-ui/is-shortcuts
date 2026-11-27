@@ -102,7 +102,7 @@ CREATE INDEX IF NOT EXISTS shortcuts_folder_id_idx ON shortcuts(folder_id);
 -- (the server check in assertTriggerAvailable is the first line of
 -- defence; this index is the second). The WHERE keeps trigger-less
 -- replies out of the index entirely.
-CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '' AND deleted_at IS NULL;
 
 -- Reply media: up to 3 images attached to a reply (owner's call
 -- 2026-11-27 — one image is not enough). The bytes live in Vercel

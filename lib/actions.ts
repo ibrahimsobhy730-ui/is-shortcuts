@@ -623,8 +623,9 @@ export async function requireOwnedShortcut(
      case-insensitively on the trimmed text ("ترحيب" and " ترحيب "
      collide; so do "Salam" and "salam"). Another account may use
      the same text; a trashed reply frees its text. The DB's
-     per-user unique index is case-sensitive, so it is only a second
-     line of defence — the check below is what enforces the rule. */
+     per-user unique index is case-insensitive via lower() and
+     excludes deleted rows, so it enforces the same rule at the DB
+     level — the check below is the first line of defence. */
 function normalizeTrigger(raw: string | null | undefined): string {
   return (raw ?? "").trim();
 }

@@ -28,13 +28,6 @@ try {
      on every build so no manual migration step is ever needed. */
   await client.query(`
     ALTER TABLE shortcuts ADD COLUMN IF NOT EXISTS trigger TEXT NOT NULL DEFAULT '';
-    /* Case-insensitive trigger uniqueness at the DB level: the old
-       index compared trigger byte-for-byte, so "Salam" and "salam"
-       could both exist and only the server check caught it. Drop
-       the old index first (it may exist from an earlier build),
-       then create the lower() one. */
-    DROP INDEX IF EXISTS shortcuts_user_trigger_idx;
-    CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx ON shortcuts(user_id, lower(trigger)) WHERE trigger <> '';
     /* Reply media (images attached to a reply, stored in
        Vercel Blob — the table holds only the reference, never the
        bytes). Up to 3 images per reply (position 1–3), ordered;
@@ -67,6 +60,38 @@ try {
     CREATE INDEX IF NOT EXISTS reply_media_user_idx ON reply_media(user_id);
     CREATE INDEX IF NOT EXISTS reply_media_pathname_idx ON reply_media(blob_pathname);
   `);
+  /* Trigger uniqueness must match the server rule exactly: only
+     among NON-deleted replies (a trashed reply frees its trigger).
+     The old predicate (trigger <> '' only) collided a live reply
+     with a trashed one holding the same trigger and killed the
+     whole Vercel build (Round 4 deploy dpl_H8i79WdRQ7fVxjCgSvCygg7HM3SM).
+     This runs as its own step, AFTER the reply_media migration
+     above, so a skipped index never aborts that migration. If live
+     duplicates exist among non-deleted rows, warn and skip the
+     index — never fail the deploy over it. */
+  /* Note: written as a subquery instead of HAVING so the project's
+     pg-mem suites can run this exact query too (pg-mem has no HAVING
+     support); real Postgres accepts both forms identically. */
+  const { rows: dupTriggers } = await client.query(`
+    SELECT user_id, t, n FROM (
+      SELECT user_id, lower(trigger) AS t, COUNT(*)::int AS n
+      FROM shortcuts
+      WHERE trigger <> '' AND deleted_at IS NULL
+      GROUP BY user_id, lower(trigger)
+    ) dups WHERE n > 1`);
+  if (dupTriggers.length > 0) {
+    console.warn(
+      "WARNING: skipping unique trigger index — live duplicate triggers exist:",
+      dupTriggers,
+    );
+  } else {
+    await client.query(`
+      DROP INDEX IF EXISTS shortcuts_user_trigger_idx;
+      CREATE UNIQUE INDEX IF NOT EXISTS shortcuts_user_trigger_idx
+        ON shortcuts(user_id, lower(trigger))
+        WHERE trigger <> '' AND deleted_at IS NULL;
+    `);
+  }
   const { rows } = await client.query(`
     SELECT 'users' AS t, COUNT(*)::int AS n FROM users
     UNION ALL SELECT 'folders', COUNT(*)::int FROM folders
