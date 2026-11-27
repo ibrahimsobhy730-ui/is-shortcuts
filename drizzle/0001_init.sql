@@ -131,7 +131,16 @@ CREATE TABLE IF NOT EXISTS reply_media (
   created_at TIMESTAMP(3) NOT NULL DEFAULT now(),
   updated_at TIMESTAMP(3) NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS reply_media_shortcut_pos_idx ON reply_media(shortcut_id, position);
+-- The (shortcut_id, position) index is NOT created here. This file is
+-- applied by scripts/setup-db.ts as ONE multi-statement query BEFORE its
+-- post-init step runs, and live databases created before Round 4 have a
+-- reply_media table WITHOUT the position column (the ALTER that adds it
+-- lives in that post-init step). A CREATE INDEX on (shortcut_id,
+-- position) here would abort the whole build with Postgres 42703
+-- (column "position" does not exist) — exactly what killed the Round 4
+-- deploys. The post-init step in scripts/setup-db.ts creates
+-- reply_media_shortcut_pos_idx AFTER the ALTER, for fresh and live
+-- databases alike.
 CREATE INDEX IF NOT EXISTS reply_media_user_idx ON reply_media(user_id);
 CREATE INDEX IF NOT EXISTS reply_media_pathname_idx ON reply_media(blob_pathname);
 
