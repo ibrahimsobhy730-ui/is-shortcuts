@@ -5876,9 +5876,12 @@ summary:focus-visible {
   grid-template-rows: 0fr;
   opacity: 0;
   /* الحاوية المقفولة ارتفاعها صفر لكن فجوة الـ flex (16px)
-     حولها كانت بتفضل — هامش سالب يساوي الفجوة يلغيها،
-     ويتحرك مع نفس الانتقال فلا قفزة عند الفتح/القفل. */
-  margin-block: -16px;
+     حولها كانت بتفضل — هامش سالب يساوي فجوة واحدة يلغيها،
+     ويتحرك مع نفس الانتقال فلا قفزة عند الفتح/القفل.
+     Rev3: القاعدة القديمة (-16px لكل جهة = -32 إجمالي) كانت
+     تلغي فجوتين فتسحب الحقول المفتوحة 16px فوق زر التبديل
+     (التسمية فوق الـ seg عند 390px). */
+  margin-block: -8px;
 }
 .auth-r8-swap-inner {
   overflow: hidden;
@@ -6960,4 +6963,200 @@ summary:focus-visible {
   /* Pills must never shrink-wrap their text to two lines (EN labels
      are long): no shrink, no wrap — they fit at 12px in 623px. */
   .auth-r8-feature { padding: 4px 9px; font-size: 12px; gap: 5px; flex-shrink: 0; white-space: nowrap; }
+}
+
+/* ============ Rev3 (2026-11-27): premium light theme + logo fix —
+   owner's verdicts «وحشة جدا و شكله رخيص جدا جدا» (explainer,
+   narrow/light) and «كلها اخطاء واللوجو في مكان غلط و شكله رخيص
+   جدا جدا جدا» (register form, narrow/light).
+   Fixes, all measured in the rev3 audit (rev3/before/CRITIQUE.md):
+   (1) Logo mark off-center in its medallion: the Logo span is
+       76x72 (size=76) while CSS forces the svg to 52x52/64x64/46x46,
+       so the svg rode at the top of the span and poked 4-8px out of
+       the ring (svgTopGap -4/-8, svgBottomGap 16/18). The span now
+       wraps the svg exactly, so the ring centers the mark.
+   (2) LTR inputs (email/phone/identifier): the field icon sits at
+       inline-start of the RTL label (right) while the input's 46px
+       padding was on the left — text flowed into the icon (owner's
+       "name@mail.co" + icon). dir=ltr inputs now pad the icon side.
+   (3) Swap margin over-cancel at <1100px: -16px pulled the identifier
+       label onto the segmented control (390px). Now -8px (one gap).
+   (4) Chat void: the message stack is vertically centered and the
+       chat gets a designed canvas (dot grid + stronger aurora + tint).
+   (5) Light-theme depth pass: visible borders, tinted surfaces,
+       layered shadows — the pale washed-out look is gone.
+   (6) Register 2-col fields widened (card padding-inline 28→20px).
+   No-scroll at 1440x900 / 1366x768 is preserved (all changes are
+   color/depth/centering, or narrow-only). Auth logic untouched. ==== */
+
+/* ---- (1) Logo: the span wraps the svg exactly (the inline
+   width/height on the span are overridden — that is the bug:
+   a 76x72 span around a 52x52 svg). The ring then centers the
+   mark; the mark never leaves the ring. ---- */
+.auth-r8-logo .logo-modern {
+  display: flex !important;
+  width: auto !important;
+  height: auto !important;
+}
+/* Ring definition in light: a tinted disc behind the mark + a
+   stronger gradient ring + a real drop shadow, so the medallion
+   reads on the white card instead of washing out. */
+:root[data-theme="light"] .auth-r8-logo-ring {
+  background:
+    linear-gradient(color-mix(in srgb, var(--accent) 10%, var(--surface-elevated)), color-mix(in srgb, var(--accent) 4%, var(--surface-elevated))) padding-box,
+    linear-gradient(165deg, color-mix(in srgb, var(--accent) 78%, transparent), color-mix(in srgb, var(--accent) 32%, transparent) 55%, color-mix(in srgb, var(--r8-champ) 68%, transparent)) border-box;
+  box-shadow:
+    0 18px 38px -14px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 4px 14px -4px oklch(0.30 0.08 262 / 0.30),
+    inset 0 1px 0 oklch(1 0 0 / 0.85);
+}
+
+/* ---- (2) LTR inputs: pad the ICON side. The icon sits at
+   inline-start of the field wrapper, which follows the DOCUMENT
+   direction (right in AR, left in EN) — while the input itself
+   is always dir=ltr. So the padded side flips with the language:
+   AR → pad the right (the input's inline-end), EN → pad the
+   left (the input's inline-start). Rev2 padded the left in both
+   languages, so in AR the text ran into the icon ("name@mail.co"
+   + icon in the owner's screenshot); the first rev3 version
+   padded the right in both, so in EN the icon overlapped the
+   first letter. ---- */
+.app-shell[dir="rtl"] .auth-r8 .auth-input[dir="ltr"] {
+  padding-inline-start: 12px;
+  /* Icon spans 14–32px from the edge, so 40px leaves an 8px
+     clearance — and frees 6px of text width vs the old 46px
+     (the register email placeholder needs it). */
+  padding-inline-end: 40px;
+}
+.app-shell[dir="ltr"] .auth-r8 .auth-input[dir="ltr"] {
+  padding-inline-start: 40px;
+  padding-inline-end: 12px;
+}
+
+/* ---- (4) Chat: center the stack + designed canvas. The empty
+   area is split top/bottom (breathing room, not a void at the
+   top) and gets a faint dot texture + a tinted surface. ---- */
+.auth-r8-chat-body {
+  justify-content: center;
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 10%, transparent) 1px, transparent 1.5px);
+  background-size: 20px 20px;
+}
+.auth-r8-chat {
+  background:
+    radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%),
+    color-mix(in srgb, var(--surface-alt) 55%, var(--surface));
+  border-color: color-mix(in srgb, var(--border-strong) 35%, transparent);
+}
+.auth-r8-chat-head {
+  border-bottom-color: color-mix(in srgb, var(--border-strong) 30%, transparent);
+}
+.auth-r8-bubble {
+  background: var(--surface-elevated);
+  border-color: color-mix(in srgb, var(--border-strong) 40%, transparent);
+  box-shadow: var(--shadow-1);
+}
+.auth-r8-bubble-out {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+}
+.auth-r8-composer {
+  background: color-mix(in srgb, var(--surface-alt) 70%, var(--surface));
+  border-top-color: color-mix(in srgb, var(--border-strong) 30%, transparent);
+}
+/* Stage: stronger aurora + visible border in light. */
+:root[data-theme="light"] .auth-r8-stage {
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.10), transparent 32%),
+    radial-gradient(120% 90% at 82% 0%, color-mix(in srgb, var(--accent) 32%, transparent), transparent 55%),
+    radial-gradient(100% 85% at 8% 100%, color-mix(in srgb, var(--cyan) 24%, transparent), transparent 50%),
+    var(--surface);
+  border-color: color-mix(in srgb, var(--border-strong) 45%, transparent);
+  box-shadow:
+    var(--shadow-4),
+    0 2px 6px oklch(0.30 0.08 262 / 0.06),
+    inset 0 1px 0 var(--glass-line);
+}
+
+/* ---- (5) Light-theme depth pass: visible borders, tinted
+   surfaces, layered shadows. ---- */
+:root[data-theme="light"] .auth-r8 .auth-form-card {
+  border: 1px solid color-mix(in srgb, var(--border-strong) 45%, transparent);
+  box-shadow:
+    var(--shadow-3),
+    inset 0 1px 0 oklch(1 0 0 / 0.8);
+}
+:root[data-theme="light"] .auth-r8 .auth-input {
+  background: var(--surface-elevated);
+}
+:root[data-theme="light"] .auth-r8 .auth-input:not(:focus) {
+  border-color: color-mix(in srgb, var(--border-strong) 55%, transparent);
+}
+:root[data-theme="light"] .auth-r8 .auth-seg {
+  background: color-mix(in srgb, var(--surface-alt) 88%, var(--surface));
+  border-color: color-mix(in srgb, var(--border-strong) 40%, transparent);
+}
+:root[data-theme="light"] .auth-r8 .auth-seg-thumb {
+  border: 1px solid color-mix(in srgb, var(--border-strong) 35%, transparent);
+  box-shadow: var(--shadow-2), inset 0 1px 0 oklch(1 0 0 / 0.85);
+}
+
+/* ---- Steps: real surfaces + visible borders (both themes);
+   the number badge is accent-tinted in light (the champagne
+   outline is invisible on white). ---- */
+.auth-r8-step {
+  background: color-mix(in srgb, var(--surface-alt) 60%, transparent);
+  border-color: color-mix(in srgb, var(--border-strong) 25%, transparent);
+}
+.auth-r8-step:hover {
+  background: var(--surface-alt);
+}
+.auth-r8-step-active {
+  background: var(--surface-elevated);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: var(--shadow-2);
+}
+:root[data-theme="light"] .auth-r8-step-num {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-strong);
+}
+.auth-r8-step-bar {
+  background: color-mix(in srgb, var(--border-strong) 35%, transparent);
+}
+/* Play/pause: same card treatment as the steps, so it reads as
+   part of the row instead of a floating circle. */
+.auth-r8-play {
+  background: color-mix(in srgb, var(--surface-alt) 70%, var(--surface));
+  border-color: color-mix(in srgb, var(--border-strong) 35%, transparent);
+  box-shadow: var(--shadow-1);
+}
+
+/* ---- Try-it / add / pills: tinted surfaces, visible borders. ---- */
+.auth-r8-try {
+  background: color-mix(in srgb, var(--surface-alt) 65%, var(--surface));
+  border-color: color-mix(in srgb, var(--border-strong) 35%, transparent);
+  box-shadow: var(--shadow-1);
+}
+.auth-r8 .auth-demo-box .auth-demo-input {
+  background: var(--surface-elevated);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+}
+.auth-r8-add {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: var(--shadow-1);
+}
+.auth-r8-feature {
+  background: var(--surface-elevated);
+  border-color: color-mix(in srgb, var(--border-strong) 40%, transparent);
+  box-shadow: var(--shadow-1);
+}
+
+/* ---- (6) Register 2-col fields widened on desktop: the card's
+   horizontal padding 28px→16px (content 384→408px, columns
+   186→198px) so the placeholders clear their icons. ---- */
+@media (min-width: 1100px) {
+  .auth-r8 .auth-form-card[data-mode="register"] {
+    padding-inline: 16px;
+  }
 }

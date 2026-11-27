@@ -231,8 +231,8 @@ check(
     /\.auth-r8-swap\[data-open="false"\] \{\n  grid-template-rows: 0fr;/.test(tokens),
 );
 check(
-  "closed swap cancels the flex gap (margin-block = -gap)",
-  /\.auth-r8-swap\[data-open="false"\] \{[^}]*margin-block: -16px;/.test(tokens),
+  "closed swap cancels the flex gap (margin-block = -gap/2 per side, -16 total)",
+  /\.auth-r8-swap\[data-open="false"\] \{[^}]*margin-block: -8px;/.test(tokens),
 );
 check(
   "form has noValidate (hidden required fields must not trip native validation)",
@@ -273,6 +273,17 @@ check(
   !/from ["'](lottie[^"']*|@lottiefiles|rives?|framer-motion|@rive-app)["']/.test(demo) &&
     !/from ["'](lottie[^"']*|@lottiefiles|rives?|framer-motion|@rive-app)["']/.test(app) &&
     !/["'](lottie[^"']*|framer-motion)["']\s*:/.test(read("package.json")),
+);
+
+/* ---- (6) Rev3: logo centered in its ring + direction-aware LTR padding ---- */
+check(
+  "logo span wraps the svg exactly (Rev3: mark centered in the ring)",
+  /\.auth-r8-logo \.logo-modern \{[^}]*width: auto !important;[^}]*height: auto !important;/.test(tokens),
+);
+check(
+  "LTR inputs pad the icon side per document direction (Rev3: AR right, EN left)",
+  /\.app-shell\[dir="rtl"\] \.auth-r8 \.auth-input\[dir="ltr"\] \{[^}]*padding-inline-end: 40px;/.test(tokens) &&
+    /\.app-shell\[dir="ltr"\] \.auth-r8 \.auth-input\[dir="ltr"\] \{[^}]*padding-inline-start: 40px;/.test(tokens),
 );
 
 console.log(`\n${pass} passed, ${fail} failed`);

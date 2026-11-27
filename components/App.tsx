@@ -3141,7 +3141,7 @@ function AuthPage({
                 aria-label={lang === "en" ? "Full name" : "الاسم الكامل"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={lang === "en" ? "Your full name" : "مثال: إبراهيم صبحي"}
+                placeholder={lang === "en" ? "Your full name" : "إبراهيم صبحي"}
                 autoComplete="name"
                 className={field}
               />
@@ -3426,8 +3426,8 @@ function AuthPage({
             />
             <span>
               {lang === "en"
-                ? "I agree to the terms of use — my replies stay private."
-                : "أوافق على شروط الاستخدام — اختصاراتي خاصة بيا."}
+                ? "I agree to the terms of use."
+                : "أوافق على شروط الاستخدام."}
             </span>
           </label>
           </div>
