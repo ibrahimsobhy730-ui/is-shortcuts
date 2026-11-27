@@ -5741,3 +5741,48 @@ summary:focus-visible {
   color: var(--dim);
   text-align: center;
 }
+
+/* ============================================================
+   Round 5e «EVERY SURFACE» (2026-11-27) — معايرة أخيرة
+   بطلب المالك: «كل حاجة وكل تفصيلة على أحدث إصدارات
+   المواقع العالمية». الأسطح التي لم تمسّها طبقات 5–5d
+   مباشرة تُرفع هنا — لوحة التفاصيل، حقول المحرر
+   والنوافذ، القوائم المنبثقة، الحالات الفارغة — بنفس
+   لغة NEBULA، بلا سلوك جديد ولا ألوان جديدة.
+   ============================================================ */
+
+/* ١) لوحة التفاصيل: خط ضوء علوي + حدّ ملوّن خفيف، فتقرأ
+   لوحًا زجاجيًا واحدًا مكتملًا لا بطاقة مسطّحة. */
+.details-panel {
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
+  box-shadow:
+    var(--shadow-5),
+    inset 0 1px 0 var(--glass-line);
+}
+
+/* ٢) حقول المحرر والنوافذ: تركيز متوهّج واحد (حدّ تمييز
+   + حلقة ناعمة) لكل حقل نصي داخل أي لوح زجاجي — المحرر،
+   الاستيراد، الحساب، إضافة مجلد. */
+.glass-panel input:focus,
+.glass-panel textarea:focus,
+.glass-panel select:focus {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent),
+    0 8px 20px -10px color-mix(in srgb, var(--accent) 35%, transparent);
+  outline: none;
+}
+
+/* ٣) القوائم المنبثقة: حدّ ملوّن خفيف يميّز الزجاج
+   المنبثق عن سطح الصفحة تحته. */
+.pop-glass {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--glass-border));
+}
+
+/* ٤) الحالات الفارغة: توهّج علوي أغنى قليلًا — الصندوق
+   المنقّط يبان مضيئًا لا باهتًا، بلا أيقونات جديدة. */
+.pattern-star {
+  background:
+    radial-gradient(420px 150px at 50% -40px, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    var(--surface);
+}

@@ -4,7 +4,7 @@
    newer deploy exists (the stale-tab root cause: the user
    photographed an OLD build's error wording minutes after a
    deploy because the open tab never reloaded);
-   (2) service worker cache bumped to is-cache-v10 so old chunk
+   (2) service worker cache bumped to is-cache-v11 so old chunk
    caches are purged when the new worker activates.
    Run with: node scripts/verify-version-check.mjs */
 
@@ -74,8 +74,8 @@ check(
     /\{newBuild\.show && \(/.test(app),
 );
 check(
-  "service worker cache is v10 (old chunk caches purge on activate)",
-  /const CACHE = "is-cache-v10";/.test(sw) && !/is-cache-v9/.test(sw),
+  "service worker cache is v11 (old chunk caches purge on activate)",
+  /const CACHE = "is-cache-v11";/.test(sw) && !/is-cache-v10/.test(sw),
 );
 check(
   "login form never flashes during session restore (Round 5)",
@@ -158,11 +158,11 @@ check(
     /\.auth-explainer \{/.test(tokens),
 );
 check(
-  "reference image is in the repo and framed in the explainer",
-  existsSync(join(root, "public", "images", "explainer-live-preview.png")) &&
-    existsSync(join(root, "public", "images", "explainer-popup-action.png")) &&
-    /src="\/images\/explainer-live-preview\.png"/.test(explainer) &&
+  "ONLY the clear popup picture is embedded (dark-green page is style reference only)",
+  existsSync(join(root, "public", "images", "explainer-popup-action.png")) &&
+    !existsSync(join(root, "public", "images", "explainer-live-preview.png")) &&
     /src="\/images\/explainer-popup-action\.png"/.test(explainer) &&
+    !/explainer-live-preview/.test(explainer) &&
     /auth-explainer-figure/.test(explainer) &&
     /\.auth-explainer-figure \{/.test(tokens) &&
     /\.auth-explainer-figure img \{/.test(tokens),
@@ -178,6 +178,19 @@ check(
   /id="starter-library"/.test(app) &&
     /function StarterLibraryPicker/.test(app) &&
     /api\.getStarterLibrary/.test(app),
+);
+check(
+  "«أكمل اختصاراتك» is gone from home, kept in Shortcuts view",
+  !/withoutTriggerHome/.test(app) &&
+    (app.match(/<CompleteShortcutsPanel/g) || []).length === 1 &&
+    /function CompleteShortcutsPanel/.test(app),
+);
+check(
+  "every remaining surface raised (Round 5e): details, editor fields, menus, empty states",
+  /\.details-panel \{\s*border-color: color-mix\(in srgb, var\(--accent\) 16%, var\(--border\)\);/.test(tokens) &&
+    /\.glass-panel input:focus,/.test(tokens) &&
+    /\.pop-glass \{\s*border-color: color-mix\(in srgb, var\(--accent\) 22%, var\(--glass-border\)\);/.test(tokens) &&
+    /color-mix\(in srgb, var\(--accent\) 14%, transparent\), transparent 70%\),\s*var\(--surface\);/.test(tokens),
 );
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);

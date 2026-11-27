@@ -4062,23 +4062,15 @@ function Workspace({
      Round 3 buried the shortcuts work inside the «الاختصارات»
      view, so home looked unchanged. The first screen now carries
      it: the most-recently-used trigger chips (same recency order
-     as the shortcuts card) and the «أكمل اختصاراتك» panel.
+     as the shortcuts card).
      (The «مكتبة بداية» pill that sat next to the chips was
      removed 2026-11-27 at the owner's call — «ملهاش لازمة» —
      while the picker itself stays at the bottom of the
-     Shortcuts view.) */
+     Shortcuts view. The «أكمل اختصاراتك» panel was removed
+     from HOME the same day, also at his call — its Shortcuts
+     view instance stays untouched.) */
   const homeTriggers = useMemo(
     () => sortTriggersRecency(shortcuts.filter((s) => s.trigger)).slice(0, 5),
-    [shortcuts],
-  );
-  const takenTriggersByIdHome = useMemo(() => {
-    const m = new Map<number, string[]>();
-    for (const s of shortcuts) m.set(s.id, otherTriggers(shortcuts, s.id));
-    m.set(-1, otherTriggers(shortcuts, -1));
-    return m;
-  }, [shortcuts]);
-  const withoutTriggerHome = useMemo(
-    () => shortcuts.filter((s) => !s.trigger),
     [shortcuts],
   );
   const withTriggerCountHome = useMemo(
@@ -7455,25 +7447,6 @@ function Workspace({
                 <span dir="auto">{s.trigger}</span>
               </button>
             ))}
-          </div>
-        )}
-
-        {/* «أكمل اختصاراتك» on home: the same guided-completion
-            panel as the Shortcuts view (same component, second
-            mount point) — the coverage work is visible from the
-            first screen instead of buried. Hidden once every
-            reply has a trigger. */}
-        {withoutTriggerHome.length > 0 && (
-          <div className="animate-rise mt-4" style={{ animationDelay: "150ms" }}>
-            <CompleteShortcutsPanel
-              withoutTrigger={withoutTriggerHome}
-              withCount={withTriggerCountHome}
-              total={shortcuts.length}
-              takenTriggersById={takenTriggersByIdHome}
-              onSaveTrigger={async (s, trigger) => {
-                await updateTriggerMut.mutateAsync({ s, trigger });
-              }}
-            />
           </div>
         )}
 
