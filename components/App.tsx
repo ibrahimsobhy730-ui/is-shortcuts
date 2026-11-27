@@ -2793,6 +2793,7 @@ export function App() {
         {token && meQuery.isPending ? (
           <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 px-4">
             <Brand />
+            <span className="spinner" aria-hidden="true" />
             <p className="text-sm text-[var(--dim)]">{langState.t("بنفتح حسابك…")}</p>
           </div>
         ) : user && token ? (
@@ -7407,7 +7408,7 @@ function Workspace({
             jump sits next to them so it stops being buried at the
             bottom of the long Shortcuts view. */}
         {homeTriggers.length > 0 && (
-          <div className="mt-5 flex flex-wrap items-center gap-2">
+          <div className="animate-rise mt-6 flex flex-wrap items-center gap-2" style={{ animationDelay: "90ms" }}>
             <span className="flex items-center gap-1.5 text-[13px] font-extrabold text-[var(--faint)]">
               <Icon d={I.shortcut} size={14} />
               {t("اختصاراتك:")}
@@ -7458,7 +7459,7 @@ function Workspace({
             first screen instead of buried. Hidden once every
             reply has a trigger. */}
         {withoutTriggerHome.length > 0 && (
-          <div className="mt-4">
+          <div className="animate-rise mt-4" style={{ animationDelay: "150ms" }}>
             <CompleteShortcutsPanel
               withoutTrigger={withoutTriggerHome}
               withCount={withTriggerCountHome}

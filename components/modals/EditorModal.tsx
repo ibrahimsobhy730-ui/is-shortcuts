@@ -371,6 +371,18 @@ export function EditorModal({
   type MediaItem = Shortcut["media"][number];
   const [mediaList, setMediaList] = useState<MediaItem[]>(item?.media ?? []);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  /* Round 5 fix — the «3 صور بالفعل» cap error used to stay
+     visible after an image was removed and the count dropped
+     below 3 (stale message, reported 2026-11-27). The cap error
+     is only true while the list is full, so it clears the moment
+     the count drops — any other error (upload failure, too big,
+     wrong type) is untouched and stays until the next attempt. */
+  const MEDIA_CAP_ERROR = "الرد ده فيه 3 صور بالفعل — امسح واحدة الأول";
+  useEffect(() => {
+    if (mediaList.length < MAX_IMAGES_PER_REPLY && mediaError === MEDIA_CAP_ERROR) {
+      setMediaError(null);
+    }
+  }, [mediaList.length, mediaError]);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaProgress, setMediaProgress] = useState(0);
   /* "Sent, waiting for the server": all bytes are read and handed
@@ -432,7 +444,7 @@ export function EditorModal({
        in attachMedia (the truth) — a 4th image is refused either
        way. */
     if (mediaList.length >= MAX_IMAGES_PER_REPLY) {
-      setMediaError("الرد ده فيه 3 صور بالفعل — امسح واحدة الأول");
+      setMediaError(MEDIA_CAP_ERROR);
       return;
     }
     /* Stage tracking (2026-11-26): every failure names the stage

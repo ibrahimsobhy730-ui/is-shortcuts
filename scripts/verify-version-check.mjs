@@ -4,7 +4,7 @@
    newer deploy exists (the stale-tab root cause: the user
    photographed an OLD build's error wording minutes after a
    deploy because the open tab never reloaded);
-   (2) service worker cache bumped to is-cache-v6 so old chunk
+   (2) service worker cache bumped to is-cache-v7 so old chunk
    caches are purged when the new worker activates.
    Run with: node scripts/verify-version-check.mjs */
 
@@ -74,8 +74,14 @@ check(
     /\{newBuild\.show && \(/.test(app),
 );
 check(
-  "service worker cache is v6 (old chunk caches purge on activate)",
-  /const CACHE = "is-cache-v6";/.test(sw) && !/is-cache-v5/.test(sw),
+  "service worker cache is v7 (old chunk caches purge on activate)",
+  /const CACHE = "is-cache-v7";/.test(sw) && !/is-cache-v6/.test(sw),
+);
+check(
+  "login form never flashes during session restore (Round 5)",
+  /const \[restored, setRestored\] = useState\(false\);/.test(app) &&
+    /setRestored\(true\);/.test(app) &&
+    /\(!restored \|\| \(token && meQuery\.isPending\)\)/.test(app),
 );
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);

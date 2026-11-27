@@ -5237,3 +5237,128 @@ div[class*="-mb-9"] > button[class*="bg-[var(--accent)]"] {
 .details-panel {
   overscroll-behavior: contain;
 }
+
+/* ============================================================
+   Round 5 «LUXE» (2026-11-27) — تطوير شامل لكل التفاصيل
+   على آخر أشكال المواقع المتطورة، بطلب المالك: «عايز شغل
+   فاخر من الاخر». طبقة أخيرة فوق كل الطبقات، عرض فقط:
+   لا كلاسات جديدة في الـ JSX (باستثناء ما وُسم في App)،
+   لا ألوان جديدة، لا خطوط جديدة، لا منطق — نفس الموقع،
+   بنفس الهوية الزرقاء NEBULA ونفس الـ tokens، لكن بظلال
+   أخفّ وأنعم، وحلقات تركيز واضحة، ودخول أنعم للتوست،
+   ولمعة هيكل أوضح، ونص محدد بلون التمييز، وأشرطة تمرير
+   رفيعة، وتباين أدقّ في العناوين. كل التوقيتات منحنيات
+   حرفية — var(--ease-out) لا يحرّك شيئًا في هذا البناء.
+   ============================================================ */
+
+/* ١) ظلال أخفّ وأكثر انتشارًا — نفس العمق، هواء أكثر.
+   خفّة نهارًا (ألفا أقلّ وانتشار أوسع)، وليلًا حدّ علوي
+   أفتح قليلًا حتى لا تغمق الكروت على الأرض الداكنة. */
+:root, :root[data-theme="light"] {
+  --shadow-2:
+    0 1px 2px oklch(0.30 0.08 262 / 0.04),
+    0 8px 22px -10px oklch(0.30 0.08 262 / 0.09),
+    0 28px 56px -24px oklch(0.35 0.10 262 / 0.14);
+  --shadow-3:
+    0 2px 4px oklch(0.30 0.08 262 / 0.04),
+    0 18px 38px -14px oklch(0.35 0.10 262 / 0.13),
+    0 44px 80px -32px oklch(0.40 0.12 258 / 0.22);
+}
+:root[data-theme="dark"] {
+  --shadow-2:
+    inset 0 1px 0 oklch(1 0 0 / 0.06),
+    0 1px 2px oklch(0 0 0 / 0.40),
+    0 24px 48px -22px oklch(0 0 0 / 0.55);
+  --shadow-3:
+    inset 0 1px 0 oklch(1 0 0 / 0.07),
+    0 2px 4px oklch(0 0 0 / 0.40),
+    0 44px 80px -32px oklch(0 0 0 / 0.66);
+}
+
+/* ٢) التحديد والكتابة — التحديد بلون التمييز، ومؤشر
+   الكتابة بلون التمييز في كل الحقول. */
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--text);
+}
+input, textarea { caret-color: var(--accent); }
+
+/* ٣) حلقة تركيز واحدة لكل الموقع (لوحة المفاتيح) —
+   حلقة تمييز واضحة بهامش، بلا تغيير في شكل العنصر:
+   الحقول النصية تدير تركيزها بنفسها (حدّ + توهّج)،
+   فتُستثنى هنا حتى لا تتضاعف الحلقة. */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible,
+[role="menuitem"]:focus-visible, [role="tab"]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 78%, transparent);
+  outline-offset: 2px;
+}
+/* الكارت اللي جواه تركيز (لوحة مفاتيح) يضيء بنفس لغة
+   التحويم — فيعرف مستخدم الكيبورد أي كارت هو فيه. */
+.lux-card:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+  box-shadow:
+    var(--shadow-hover),
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* ٤) التوست: دخول خاص به — صعود خفيف مع تكبير طفيف،
+   بدل الـ pop العام؛ يغلّف الـ animate-pop الموضوع في
+   الـ JSX (نفس التخصيص، والملف أخيرًا في الكاسكيد). */
+@keyframes neb-toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-card {
+  animation: neb-toast-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  border-radius: 16px;
+}
+
+/* ٥) الهياكل العظمية: لمعة أوضح قليلًا حتى يُقرأ التحميل
+   فورًا، بنفس الإيقاع البطيء الهادئ. */
+.skeleton-card::after {
+  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--text) 7%, transparent) 50%, transparent 75%);
+}
+
+/* ٦) صفحة الدخول: حقل في تركيز يتوهّج بحلقة تمييز
+   ناعمة فوق عمقه الداخلي، وزر الدخول الأساسي يرتفع
+   درجة عند التحويم — دخول أفخم بلا زخرفة جديدة. */
+.auth-input:focus {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 2px 4px oklch(0.30 0.08 262 / 0.05),
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .btn-lux.auth-submit:hover { transform: translateY(-1px); }
+}
+
+/* ٧) التسلسل الهرمي للنص — عناوين الكروت بتباين أدقّ
+   (تتبّع سالب خفيف)، والآية متوازنة السطر. */
+.lux-card h3 { letter-spacing: -0.01em; }
+.verse-hero h1.verse { text-wrap: balance; }
+
+/* ٨) أشرطة تمرير رفيعة بلون التمييز — القوائم الجانبية
+   واللوحات والنوافذ كلها بنفس اللمسة، بلا شريط عريض
+   رمادي يكسر الإحساس. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 32%, transparent) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* ٩) تقليل الحركة: لمسات الطبقة الجديدة تسكن كلها. */
+@media (prefers-reduced-motion: reduce) {
+  .toast-card { animation: none; }
+  .btn-lux.auth-submit:hover { transform: none; }
+}

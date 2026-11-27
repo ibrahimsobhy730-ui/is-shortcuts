@@ -572,6 +572,16 @@ try {
       !editorSrc.includes('kind === "video"') &&
       !editorSrc.includes("measureVideo"),
   );
+  // ---- cap-error clearing (Round 5, 2026-11-27): the «3 صور
+  // بالفعل» error used to stay visible after an image was
+  // removed and the count dropped below 3. The cap error is
+  // only true while the list is full, so an effect clears it
+  // the moment mediaList.length drops under the cap.
+  check(
+    "cap error clears when the image count drops below 3",
+    /mediaList\.length < MAX_IMAGES_PER_REPLY && mediaError === MEDIA_CAP_ERROR/.test(editorSrc) &&
+      /if \(mediaList\.length >= MAX_IMAGES_PER_REPLY\) \{\s*setMediaError\(MEDIA_CAP_ERROR\);/.test(editorSrc),
+  );
   // ---- upload diagnosability (2026-11-26): the server fallback
   // used to throw a bare message with no cause, so the UI showed
   // a bare «الرفع متمّش» at stage «الرفع من السيرفر». The error
