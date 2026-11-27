@@ -3024,7 +3024,7 @@ function AuthPage({
           الـ DOM نفسه: النموذج ثم الشرح). لوحة العلامة v80
           تظل ملغاة — لا بانل جانبي داكن ولا نقاط قيمة. */}
     <main className="auth-form-side">
-      <div className="auth-form-card">
+      <div className="auth-form-card" data-mode={mode}>
       {/* Rev1 (owner 2026-11-27): the card carries a soft accent
           glow from above — light from the top, never a fill. */}
       <span className="auth-r8-card-glow" aria-hidden="true" />
@@ -3046,7 +3046,7 @@ function AuthPage({
         <p className={`auth-subtitle ${mode === "login" ? "auth-promise" : ""}`}>
           {mode === "login"
             ? lang === "en" ? "Type a shortcut — get the reply instantly." : "اكتب اختصار — وخد الرد فورًا"
-            : lang === "en" ? "Create your account and keep your shortcuts private to you." : "اعمل حسابك واحفظ اختصاراتك الخاصة بيك"}
+            : lang === "en" ? "Create your account — your shortcuts stay private." : "اعمل حسابك واحفظ اختصاراتك الخاصة بيك"}
         </p>
       </div>
 
@@ -3069,7 +3069,7 @@ function AuthPage({
             type="button"
             role="tab"
             aria-selected={mode === tab.key}
-            aria-label={t(tab.label)} data-tip={tab.key === "login" ? (lang === "en" ? "Have an account? Sign in" : "عندك حساب؟ سجّل دخولك") : lang === "en" ? "New here? Create your account" : "لسه جديد؟ اعمل حسابك"}
+            aria-label={t(tab.label)}
             onClick={() => {
               setMode(tab.key);
               setError(null);
@@ -3104,6 +3104,7 @@ function AuthPage({
       ) : (
       <form
         className={`auth-in auth-form${error ? " auth-shake" : ""}`}
+        data-mode={mode}
         style={{ "--d": "180ms" } as React.CSSProperties}
         /* Round 8: noValidate — the mode-specific field groups stay
             mounted (inert) inside the grid-rows swap containers, so
@@ -3123,7 +3124,7 @@ function AuthPage({
             The closed group is inert + aria-hidden. Validation,
             submit and auto sign-in logic are untouched. */}
         <div
-          className="auth-r8-swap"
+          className="auth-r8-swap reg-name"
           data-open={mode === "register"}
           inert={mode !== "register"}
           aria-hidden={mode !== "register"}
@@ -3140,7 +3141,7 @@ function AuthPage({
                 aria-label={lang === "en" ? "Full name" : "الاسم الكامل"}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={lang === "en" ? "e.g. Ibrahim Sobhi" : "مثال: إبراهيم صبحي"}
+                placeholder={lang === "en" ? "Your full name" : "مثال: إبراهيم صبحي"}
                 autoComplete="name"
                 className={field}
               />
@@ -3149,7 +3150,7 @@ function AuthPage({
           </div>
         </div>
         <div
-          className="auth-r8-swap"
+          className="auth-r8-swap reg-email"
           data-open={mode === "register"}
           inert={mode !== "register"}
           aria-hidden={mode !== "register"}
@@ -3170,11 +3171,23 @@ function AuthPage({
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@gmail.com"
+                  placeholder="name@mail.com"
                   className={`${field} text-left font-mono tracking-wide`}
                 />
               </span>
             </label>
+          </div>
+        </div>
+        {/* Rev2: email and phone are separate swaps so the register
+            form can lay out as a 2-column grid on desktop (name |
+            email / phone | password / confirm | terms). */}
+        <div
+          className="auth-r8-swap reg-phone"
+          data-open={mode === "register"}
+          inert={mode !== "register"}
+          aria-hidden={mode !== "register"}
+        >
+          <div className="auth-r8-swap-inner">
             <label className="block" data-tip={lang === "en" ? "Your Egyptian mobile — optional, and a second way to sign in" : "رقم موبايلك المصري — اختياري، وبيبقى طريقة دخول تانية"}>
               <span className="mb-1.5 block text-sm font-bold">
                 {lang === "en" ? "Mobile number" : "رقم الموبايل"} <span className="font-semibold text-[var(--dim)]">{lang === "en" ? "(optional)" : "(اختياري)"}</span>
@@ -3196,13 +3209,13 @@ function AuthPage({
                 />
               </span>
               <span className="auth-helper">
-                {lang === "en" ? "If you add it, you can also sign in with it alongside your email." : "لو كتبته، هتقدر تسجّل دخولك بيه كمان جنب البريد."}
+                {lang === "en" ? "You can also sign in with it." : "تسجّل دخولك بيه كمان."}
               </span>
             </label>
           </div>
         </div>
         <div
-          className="auth-r8-swap"
+          className="auth-r8-swap reg-login"
           data-open={mode === "login"}
           inert={mode !== "login"}
           aria-hidden={mode !== "login"}
@@ -3231,7 +3244,7 @@ function AuthPage({
           </label>
           </div>
         </div>
-        <label className="block" data-tip={lang === "en" ? "Your password — nobody knows it but you" : "كلمة المرور بتاعتك — محدش يعرفها غيرك"}>
+        <label className="block reg-pass" data-tip={lang === "en" ? "Your password — nobody knows it but you" : "كلمة المرور بتاعتك — محدش يعرفها غيرك"}>
           <span className="mb-1.5 block text-sm font-bold">{lang === "en" ? "Password" : "كلمة المرور"}</span>
           <span className="relative block">
             <span className={fieldIcon}>
@@ -3245,7 +3258,7 @@ function AuthPage({
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={lang === "en" ? "Any password you choose — even a short one" : "أي كلمة مرور تختارها — حتى لو قصيرة"}
+                placeholder={lang === "en" ? "Any password" : "أي كلمة مرور"}
                 className={fieldPw}
               />
             ) : (
@@ -3296,7 +3309,7 @@ function AuthPage({
         </label>
 
         <div
-          className="auth-r8-swap"
+          className="auth-r8-swap reg-confirm"
           data-open={mode === "register"}
           inert={mode !== "register"}
           aria-hidden={mode !== "register"}
@@ -3314,7 +3327,7 @@ function AuthPage({
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder={lang === "en" ? "Type it again exactly" : "اكتبها تاني زي ما هي"}
+                placeholder={lang === "en" ? "Repeat it" : "اكتبها تاني"}
                 className={fieldPw}
               />
               <button
@@ -3340,7 +3353,7 @@ function AuthPage({
         </div>
 
         <div
-          className="auth-r8-swap"
+          className="auth-r8-swap reg-remember"
           data-open={mode === "login"}
           inert={mode !== "login"}
           aria-hidden={mode !== "login"}
@@ -3357,7 +3370,7 @@ function AuthPage({
                     onChange={(e) => setRemember(e.target.checked)}
                     className="auth-checkbox"
                   />
-                  {lang === "en" ? "Stay signed in on this device" : "ابقَ مسجّلًا على هذا الجهاز"}
+                  {lang === "en" ? "Stay signed in" : "ابقَ مسجّلًا على هذا الجهاز"}
                 </label>
                 <button
                   type="button"
@@ -3397,7 +3410,7 @@ function AuthPage({
           </div>
         </div>
         <div
-          className="auth-r8-swap"
+          className="auth-r8-swap reg-terms"
           data-open={mode === "register"}
           inert={mode !== "register"}
           aria-hidden={mode !== "register"}
@@ -3413,8 +3426,8 @@ function AuthPage({
             />
             <span>
               {lang === "en"
-                ? "I agree to the terms of use — my replies are private to me, saved in my account, and no other account can reach them."
-                : "أوافق على شروط الاستخدام — اختصاراتي خاصة بيا ومحفوظة في حسابي، ومفيش أي حساب تاني يقدر يوصل لها."}
+                ? "I agree to the terms of use — my replies stay private."
+                : "أوافق على شروط الاستخدام — اختصاراتي خاصة بيا."}
             </span>
           </label>
           </div>
@@ -3453,7 +3466,7 @@ function AuthPage({
       <p className="auth-in auth-privacy" style={{ "--d": "300ms" } as React.CSSProperties}>
         <Icon d={I.shield} size={15} />
         {lang === "en"
-          ? "Your session lives on this device only, and stays open until you sign out yourself."
+          ? "Your session lives on this device only."
           : "جلستك على الجهاز ده بس، وبتفضل مفتوحة لحد ما تسجّل الخروج بنفسك."}
       </p>
       </div>

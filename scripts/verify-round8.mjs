@@ -130,7 +130,7 @@ check(
   "mock customer question fills the early chat (stage is no longer an empty box)",
   /ممكن أسعار الباقات؟/.test(demo) &&
     /auth-r8-bubble-q/.test(demo) &&
-    /t >= 1200/.test(demo),
+    /t >= 600/.test(demo),
 );
 check(
   "step cards carry their own text (no separate caption line)",
@@ -162,9 +162,9 @@ check(
     !/1472955|1472977/.test(demo),
 );
 check(
-  "popup glass is near-opaque (no bleed-through of the chat behind it)",
-  /\.auth-r8-popup \{[^}]*background: color-mix\(in srgb, var\(--surface-elevated\) 94%, transparent\);/.test(tokens) &&
-    /\.auth-r8-montage-chip \{[^}]*background: color-mix\(in srgb, var\(--surface-elevated\) 94%, transparent\);/.test(tokens),
+  "popup surface is SOLID (no bleed-through of the chat behind it — Rev2: the 94%/98% glass still ghosted, measured alpha 0.90)",
+  /\.auth-r8-popup \{[^}]*background: rgb\(from var\(--surface-elevated\) r g b \/ 1\);/.test(tokens) &&
+    /\.auth-r8-montage-chip \{[^}]*background: rgb\(from var\(--surface-elevated\) r g b \/ 1\);/.test(tokens),
 );
 check(
   "cursor lives inside the popup, on the first row (top 60px)",
@@ -225,7 +225,7 @@ check(
 );
 check(
   "mode swap via grid-rows + data-open (no key={mode} remount)",
-  /className="auth-r8-swap"/.test(app) &&
+  /className="auth-r8-swap/.test(app) &&
     /data-open=\{mode === "register"\}/.test(app) &&
     !/key=\{mode\}/.test(app) &&
     /\.auth-r8-swap\[data-open="false"\] \{\n  grid-template-rows: 0fr;/.test(tokens),

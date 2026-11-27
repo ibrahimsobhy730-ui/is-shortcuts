@@ -42,11 +42,13 @@ const LOOP_MS = 16000;
 const TYPE_AT = [500, 1100, 1650, 2350, 2900]; // ظهور حروف "/شكرا"
 const TYPED = "/شكرا";
 const POPUP_AT = 3200;
+const TYPING_AT = 1800; // فقاعة «يكتب…» تملأ المسرح قبل النافذة
 const CURSOR_AT = 6000;
 const PRESS_AT = 7000;
 const SENT_AT = 7800;
 const SUCCESS_AT = 9500;
 const MONTAGE_AT = 12000;
+const ADD_AT = 13500; // «+» press + the new shortcut appears in the list
 const FADE_AT = 15000;
 
 /* نتائج وهمية للنافذة المنبثقة — نفس نصوص الأمثلة، مع وسم
@@ -76,25 +78,25 @@ const BENEFITS = [
   { icon: Copy, label: "نسخ بضغطة" },
   { icon: Folder, label: "مجلدات منظمة" },
   { icon: ImageIcon, label: "صور مع الرد" },
-  { icon: Search, label: "بحث فوري يفهم العربي" },
+  { icon: Search, label: "بحث يفهم العربي" },
 ];
 
 const STEPS = [
   {
     title: "اكتب الاختصار",
-    text: "أي كلمة أو رقم أو رمز — اختصارك انت.",
+    text: "أي كلمة أو رقم أو رمز.",
     from: 0,
     to: 3200,
   },
   {
     title: "الرد يظهر فوراً",
-    text: "الرد الكامل، جوه بوكس البحث نفسه.",
+    text: "الرد الكامل في بوكس البحث.",
     from: 3200,
     to: 9500,
   },
   {
     title: "انسخه بضغطة",
-    text: "النص — والصور معاه — في نسخة واحدة.",
+    text: "النص والصور في نسخة واحدة.",
     from: 9500,
     to: 16000,
   },
@@ -205,6 +207,11 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
   const bubbleShown = t >= SUCCESS_AT && t < MONTAGE_AT;
   const success = t >= SUCCESS_AT && t < MONTAGE_AT;
   const montage = t >= MONTAGE_AT;
+  /* Sequential montage (was one simultaneous pile-up that collided
+     with the popup rows and the composer): chips first (12–13.5s),
+     then the «+» press + the new shortcut in the list (13.5s+). */
+  const montageChips = t >= MONTAGE_AT && t < ADD_AT;
+  const montageAdd = t >= ADD_AT;
   const fading = t >= FADE_AT;
   const activeStep = t < 3200 ? 0 : t < 9500 ? 1 : 2; // حدود STEPS[1].from / STEPS[2].from
   const stepProgress = STEPS.map((s) =>
@@ -216,9 +223,9 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
     : STEPS.map((s) => s.title);
   const stepText = en
     ? [
-        "Any word, number or symbol — it is yours.",
-        "The full reply, right in the search box.",
-        "Text — and images with it — in one copy.",
+        "Any word, number or symbol.",
+        "Right in the search box.",
+        "Text and images in one copy.",
       ]
     : STEPS.map((s) => s.text);
 
@@ -235,8 +242,8 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
       {/* بديل نصي كامل للعرض لقارئات الشاشة. */}
       <span className="sr-only">
         {en
-          ? "How it works in three steps. 1. Type the shortcut: any word, number or symbol — it is yours. 2. The reply appears: the full reply, right in the search box. 3. Copy in one tap: text — and images with it — in one copy."
-          : "إزاي بيشتغل في 3 خطوات. 1. اكتب الاختصار: أي كلمة أو رقم أو رمز — اختصارك انت. 2. الرد يظهر فورًا: الرد الكامل، جوه بوكس البحث نفسه. 3. انسخه بضغطة: النص — والصور معاه — في نسخة واحدة."}
+          ? "How it works in three steps. 1. Type the shortcut: any word, number or symbol. 2. The reply appears: right in the search box. 3. Copy in one tap: text and images in one copy."
+          : "إزاي بيشتغل في 3 خطوات. 1. اكتب الاختصار: أي كلمة أو رقم أو رمز. 2. الرد يظهر فورًا: الرد الكامل في بوكس البحث. 3. انسخه بضغطة: النص والصور في نسخة واحدة."}
       </span>
 
       {/* المسرح: توهّج هادئ + حبيبات 2% + إبراز من أعلى. */}
@@ -245,6 +252,7 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
         className={`auth-r8-stage${fading ? " auth-r8-stage-fading" : ""}`}
         data-phase={activeStep}
         data-playing={running ? "1" : "0"}
+        data-montage={montage ? "1" : "0"}
       >
         {/* نافذة محادثة وهمية عامة — بلا أي شعارات. */}
         <div className="auth-r8-chat" aria-hidden="true">
@@ -260,21 +268,29 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
             <div className="auth-r8-bubble auth-r8-bubble-in">
               {en ? "Hi! How can I help?" : "أهلاً! أقدر أساعدك إزاي؟"}
             </div>
-            {/* Rev1: a customer question fills the early chat — the
-                stage is no longer an empty box in the first 3s of
-                every loop. Mock text only, same fictional examples. */}
-            {t >= 1200 && (
+            {/* Rev2: the question fills the chat at 0.6s (was 1.2s) —
+                the compact stage must not read as an empty box in
+                the first seconds of every loop. Mock text only. */}
+            {t >= 600 && (
               <div className="auth-r8-bubble auth-r8-bubble-in auth-r8-bubble-q">
                 {en ? "Can I see the prices?" : "ممكن أسعار الباقات؟"}
               </div>
             )}
-            {/* تلميح هادئ يملأ فراغ الجسم في أول 3 ثوانٍ (قبل
-                أن تفتح النافذة)، ويختفي مع إرسال الرد. */}
-            {!sent && (
+            {/* تلميح هادئ يملأ فراغ الجسم في أول 1.8 ثانية، ثم
+                فقاعة «يكتب…» حتى تنبثق النافذة (3.2ث) — نفس
+                الموضع في التكديس فلا قفز في التخطيط. */}
+            {!sent && t < TYPING_AT && (
               <div className="auth-r8-bubble-note">
                 {en
                   ? "Type a shortcut — the reply appears instantly."
                   : "اكتب اختصارًا — والرد يظهر فورًا."}
+              </div>
+            )}
+            {!sent && t >= TYPING_AT && t < POPUP_AT && (
+              <div className="auth-r8-bubble auth-r8-bubble-typing" aria-hidden="true">
+                <span className="auth-r8-typing-dot" />
+                <span className="auth-r8-typing-dot" />
+                <span className="auth-r8-typing-dot" />
               </div>
             )}
             {bubbleShown && (
@@ -344,8 +360,8 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
                 </span>
               </li>
             ))}
-            {/* خطوة "إضافة اختصار" تظهر في المونتاج. */}
-            {montage && (
+            {/* خطوة "إضافة اختصار" تظهر في المونتاج — مع الضغطة. */}
+            {montageAdd && (
               <li className="auth-r8-popup-item auth-r8-popup-item-new">
                 <span className="auth-r8-popup-item-main">
                   <span className="auth-r8-popup-item-title">
@@ -376,7 +392,7 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
         {/* مونتاج المزايا: 4 شرائح + خطوة الإضافة. */}
         {montage && (
           <div className="auth-r8-montage" aria-hidden="true">
-            {BENEFITS.map((b, i) => (
+            {montageChips && BENEFITS.map((b, i) => (
               <span
                 key={b.label}
                 className="auth-r8-montage-chip"
@@ -386,13 +402,14 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
                 {en
                   ? [
                       "One-tap copy",
-                      "Organised folders",
-                      "Images with the reply",
-                      "Instant Arabic-aware search",
+                      "Folders",
+                      "Images included",
+                      "Arabic-aware search",
                     ][i]
                   : b.label}
               </span>
             ))}
+            {montageAdd && (
             <span
               className="auth-r8-montage-add"
               style={{ "--i": 4 } as React.CSSProperties}
@@ -402,6 +419,7 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
               </span>
               {en ? "Add a shortcut in seconds" : "أضف اختصارًا في ثوانٍ"}
             </span>
+            )}
           </div>
         )}
       </div>

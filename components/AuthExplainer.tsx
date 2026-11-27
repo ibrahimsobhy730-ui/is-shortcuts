@@ -252,7 +252,7 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
         )}
         <p className="auth-demo-note">
           {en
-            ? "These are just illustrative examples — your real replies stay private in your account and appear after you sign in."
+            ? "Examples only — your real replies stay private and appear after you sign in."
             : "دي أمثلة للتوضيح بس — ردودك الحقيقية محفوظة في حسابك وبتظهر بعد الدخول."}
         </p>
       </div>
@@ -277,7 +277,7 @@ export default function AuthExplainer({ lang }: { lang: Lang }) {
       {/* المزايا الأساسية: أربع حبوب بأيقونات — بلا زحمة. */}
       <div className="auth-r8-features">
         {[
-          { icon: Search, label: en ? "Instant Arabic-aware search" : "بحث فوري يفهم العربي" },
+          { icon: Search, label: en ? "Arabic-aware search" : "بحث فوري يفهم العربي" },
           { icon: Copy, label: en ? "One-tap copy" : "نسخ بضغطة واحدة" },
           { icon: Folder, label: en ? "Organised folders" : "مجلدات منظمة" },
           { icon: ImageIcon, label: en ? "Images with the reply" : "صور مع الرد" },

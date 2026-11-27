@@ -6079,6 +6079,30 @@ summary:focus-visible {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+/* فقاعة «يكتب…» (طرف الوكيل): تظهر 1.8–3.2ث بدل التلميح،
+   فتملأ فراغ المسرح الأيسر بحركة حية قبل أن تنبثق النافذة.
+   transform/opacity فقط، وتختفي تمامًا عند الإيقاف/الحركة المخففة
+   (الإطار الثابت بعد النجاح لا يعرضها أصلًا). */
+.auth-r8-bubble-typing {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 14px;
+}
+.auth-r8-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dim);
+  animation: r8-typing 1.2s ease-in-out infinite;
+}
+.auth-r8-typing-dot:nth-child(2) { animation-delay: 150ms; }
+.auth-r8-typing-dot:nth-child(3) { animation-delay: 300ms; }
+@keyframes r8-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
 .auth-r8-bubble-note {
   font-size: 12.5px;
   color: var(--dim);
@@ -6094,6 +6118,15 @@ summary:focus-visible {
   border-top: 1px solid var(--border);
   background: var(--surface);
   font-size: 15px;
+  transition: opacity 400ms ease;
+}
+/* أثناء المونتاج يتلاشى صندوق الكتابة (نص الرد الطويل كان
+   يتداخل مع سطر الإضافة) فيبقى سطر المونتاج وحده نظيفًا. */
+.auth-r8-stage[data-montage="1"] .auth-r8-composer { opacity: 0; }
+.auth-r8-composer-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 .auth-r8-typed {
   font-weight: 600;
@@ -6114,6 +6147,10 @@ summary:focus-visible {
   50%, 100% { opacity: 0; }
 }
 .auth-r8-composer-sent {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
   color: var(--text);
   word-break: break-word;
@@ -6157,10 +6194,13 @@ summary:focus-visible {
   bottom: 84px;
   z-index: 3;
   border-radius: 18px;
-  /* زجاج شبه معتم: التمويه وحده لا يكفي — نص الفقاعة خلف
-     النافذة كان يظهر ويتداخل مع صفوفها. 94% سطح معتم
-     يخفي ما خلفها تمامًا مع بقاء الإحساس الزجاجي. */
-  background: color-mix(in srgb, var(--surface-elevated) 94%, transparent);
+  /* Solid surface — NOT the 92–94% token: at 94% the chat
+     bubbles showed through as ghost text behind the rows
+     (measured: popup bg alpha 0.90, no backdrop blur applied).
+     rgb(from …) strips the token's alpha; the line above is
+     the fallback for browsers without relative color syntax. */
+  background: var(--surface-elevated);
+  background: rgb(from var(--surface-elevated) r g b / 1);
   border: 1px solid var(--glass-border);
   box-shadow:
     var(--shadow-5),
@@ -6178,6 +6218,7 @@ summary:focus-visible {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .auth-r8-popup {
     background: var(--surface-elevated);
+    background: rgb(from var(--surface-elevated) r g b / 1);
   }
 }
 .auth-r8-popup-open {
@@ -6279,10 +6320,11 @@ summary:focus-visible {
   position: absolute;
   z-index: 4;
   /* داخل النافذة المنبثقة (أقرب سلف متموضع): طرفه على
-     الصف الأول (رأس 36px + نصف صف 46px ≈ 60px)، فيثبت
-     على النتيجة في كل المقاسات — لا نسبة من ارتفاع المسرح. */
+     الصف الأول (رأس 36px + نصف صف 46px ≈ 60px). أفقيًا في
+     منتصف الصف الفارغ (42% من البداية) — لا يغطي العنوان
+     ولا الاختصار (كان عند 24px فوق حبة العنوان فيقطعها). */
   top: 60px;
-  inset-inline-start: 24px;
+  inset-inline-start: 42%;
   width: 20px;
   height: 20px;
   color: var(--text);
@@ -6331,7 +6373,9 @@ summary:focus-visible {
   gap: 6px;
   padding: 7px 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-elevated) 94%, transparent);
+  /* Solid like the popup (same ghost-text flaw at 94%). */
+  background: var(--surface-elevated);
+  background: rgb(from var(--surface-elevated) r g b / 1);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-2), inset 0 1px 0 var(--glass-line);
   backdrop-filter: blur(20px) saturate(160%);
@@ -6348,6 +6392,40 @@ summary:focus-visible {
 @keyframes auth-r8-chip-in {
   from { opacity: 0; transform: translateY(8px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* سطر الإضافة في المونتاج: حبة ملوّنة باللكنة (لا نص عارٍ)،
+   تدخل بعد الشرائح، وزر «+» يضغط مرة واحدة عند ظهوره. */
+.auth-r8-montage-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-elevated));
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  box-shadow: var(--shadow-2), inset 0 1px 0 var(--glass-line);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  animation: auth-r8-chip-in 320ms var(--r8-ease-spring) 360ms both;
+}
+.auth-r8-montage-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  animation: r8-plus-press 450ms ease 800ms both;
+}
+@keyframes r8-plus-press {
+  0% { transform: scale(1); }
+  35% { transform: scale(0.78); }
+  70% { transform: scale(1.14); }
+  100% { transform: scale(1); }
 }
 
 /* ---- مؤشر الخطوات + زر التشغيل/الإيقاف ---- */
@@ -6535,6 +6613,9 @@ summary:focus-visible {
   .auth-r8-copied svg,
   .auth-r8-popup-item-new,
   .auth-r8-montage-chip,
+  .auth-r8-montage-add,
+  .auth-r8-montage-plus,
+  .auth-r8-typing-dot,
   .auth-r8-ripple {
     animation: none;
   }
@@ -6701,4 +6782,182 @@ summary:focus-visible {
 /* Reduced motion: the question bubble pops in statically too. */
 @media (prefers-reduced-motion: reduce) {
   .auth-r8-bubble-q { animation: none; }
+}
+
+/* ============ Rev2 (2026-11-27): no-scroll login — owner's call
+   «فيه خطاء كتير جدا ... عايز اللي بيدخل ميضرش ينزل تحت عشان
+   يشوف باقي الشرح ... كل حاجة متطورة جدا و حديثة».
+   The whole login page (form + COMPLETE explainer) fits above the
+   fold at 1440x900 AND 1366x768, dark+light, AR+EN, login+register
+   (scrollHeight <= innerHeight, no vertical scrollbar).
+   Desktop-only (>=1100px): a compact viewport layout — 100dvh flex
+   root, slim topbar, vertically centred columns, compact stage
+   (vh-driven height, denser chat/popup), compact step row (short
+   one-line texts), compact try-it (label+chips on one row), add-
+   shortcut as one flowing line, compact form, and a 2-column
+   register grid so 5 fields fit. Below 1100px nothing changes
+   (no mobile/tablet work — owner's scope cut). Auth logic
+   untouched. ==== */
+
+/* Popup: SOLID surface — the 94%/98% glass let the chat bubbles
+   show through as ghost text behind the rows (measured alpha
+   0.90). rgb(from …) strips the token's alpha; the line above
+   is the fallback for browsers without relative color syntax. */
+.auth-r8-popup {
+  background: var(--surface-elevated);
+  background: rgb(from var(--surface-elevated) r g b / 1);
+}
+.auth-r8-montage-chip {
+  background: var(--surface-elevated);
+  background: rgb(from var(--surface-elevated) r g b / 1);
+}
+
+@media (min-width: 1100px) {
+  /* ---- Viewport root: exactly one viewport tall; the split
+     takes the rest and centres both columns vertically. ---- */
+  .auth-r8 {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+  .auth-r8 .auth-topbar {
+    flex-shrink: 0;
+    padding: 4px 20px 0;
+  }
+  /* Slimmer utility pill on desktop (40px targets — the 48px
+     touch targets are a mobile rule). */
+  .auth-r8-util-lang button { min-height: 36px; min-width: 36px; }
+  .auth-r8-util-theme { width: 36px; height: 36px; }
+  .auth-r8 .auth-split {
+    flex: 1;
+    min-height: 0;
+    align-items: center;
+  }
+  .auth-r8.auth-modern.auth-v78 main.auth-form-side {
+    min-height: 0;
+    padding: 8px 20px;
+  }
+  .auth-r8 .auth-r8-demo {
+    padding: 8px 28px 2px;
+  }
+
+  /* ---- Form, compact ---- */
+  .auth-r8 .auth-form-card { padding: 16px 28px 12px; border-radius: 28px; }
+  /* Register mode is the tallest form (5 fields + terms): shrink the
+     logo ring so the card still fits above the fold at 768px. */
+  .auth-r8 .auth-form-card[data-mode="register"] .auth-r8-logo-ring { width: 56px; height: 56px; }
+  .auth-r8 .auth-form-card[data-mode="register"] .auth-r8-logo svg { width: 46px; height: 46px; }
+  .auth-r8-logo-ring { width: 64px; height: 64px; }
+  .auth-r8-logo svg { width: 52px; height: 52px; }
+  .auth-r8-brandline { margin-bottom: 2px; }
+  .auth-r8 .auth-title { font-size: 28px; text-wrap: balance; }
+  .auth-r8 .auth-subtitle { font-size: 14.5px; }
+  .auth-r8 .auth-form { gap: 10px; }
+  /* Closed-swap margin must cancel exactly ONE flex gap (10px):
+     the base -16px over-cancels and pulls the open fields up over
+     the segmented control (the identifier label intercepted clicks
+     on the seg buttons). margin-block -5px each side = -10 total. */
+  .auth-r8-swap[data-open="false"] { margin-block: -5px; }
+  .auth-r8 .auth-input { min-height: 48px; }
+  .auth-r8 .auth-remember-row { min-height: 40px; }
+  .auth-r8 .auth-remember-label { min-height: 40px; }
+  .auth-r8 .auth-forgot-link { min-height: 40px; }
+  .auth-r8 .auth-submit { min-height: 52px; }
+  .auth-r8 .auth-privacy { margin-top: 8px; }
+
+  /* ---- Register: 2-column grid so 5 fields + terms fit above
+     the fold. Placement is explicit (the login-only swap sits in
+     row 4 at 0 height in register mode — it must not push the
+     password down a row). Closed swaps keep margin 0 here (the
+     -16px flex-gap cancel would overlap grid rows). ---- */
+  .auth-r8 .auth-form[data-mode="register"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 12px;
+    row-gap: 6px;
+    align-items: start;
+  }
+  .auth-r8 .auth-form[data-mode="register"] .reg-name { grid-column: 1; grid-row: 1; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-email { grid-column: 2; grid-row: 1; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-phone { grid-column: 1; grid-row: 2; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-login { grid-column: 1; grid-row: 4; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-remember { grid-column: 2; grid-row: 4; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-pass { grid-column: 2; grid-row: 2; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-confirm { grid-column: 1; grid-row: 3; }
+  .auth-r8 .auth-form[data-mode="register"] .reg-terms { grid-column: 2; grid-row: 3; }
+  .auth-r8 .auth-form[data-mode="register"] .auth-submit,
+  .auth-r8 .auth-form[data-mode="register"] .auth-error { grid-column: 1 / -1; }
+  .auth-r8 .auth-form[data-mode="register"] .auth-r8-swap[data-open="false"] { margin-block: 0; }
+
+  /* ---- Demo head, compact ---- */
+  .auth-r8-demo-head { margin-bottom: 6px; }
+  .auth-r8-eyebrow { margin-bottom: 6px; padding: 4px 11px; font-size: 12px; }
+  .auth-r8-demo-title { font-size: 28px; }
+  .auth-r8-demo-sub { margin-top: 4px; font-size: 14px; }
+
+  /* ---- Stage: viewport-driven height, denser chat ---- */
+  .auth-r8-stage { height: clamp(232px, 31vh, 330px); aspect-ratio: auto; }
+  .auth-r8-chat { inset: 10px; }
+  .auth-r8-chat-head { min-height: 32px; padding: 6px 12px; transition: opacity 200ms ease; }
+  /* Montage popup (4 rows) grows over the chat head — fade the
+     head out only while the new-shortcut row is mounted. */
+  .auth-r8-stage:has(.auth-r8-popup-item-new) .auth-r8-chat-head { opacity: 0; }
+  .auth-r8-chat-body { gap: 6px; padding: 10px 12px; }
+  .auth-r8-bubble { padding: 7px 11px; font-size: 13px; }
+  .auth-r8-bubble-note { font-size: 12px; }
+  .auth-r8-composer { min-height: 46px; padding: 8px 12px; font-size: 14px; }
+  .auth-r8-popup { bottom: 58px; }
+  .auth-r8-popup-head { padding: 8px 12px 6px; }
+  .auth-r8-popup-item { min-height: 36px; padding: 6px 12px; }
+  .auth-r8-cursor { top: 46px; }
+  /* Montage must stay ONE row in EN too (the 4 labels total 674px
+     at 12.5px and wrapped, covering the popup's 3rd row): tighter
+     chips + narrower inset so all four fit in 605px. */
+  .auth-r8-montage { bottom: 12px; inset-inline: 8px; gap: 6px; }
+  .auth-r8-montage-chip { padding: 5px 9px; font-size: 12px; }
+
+  /* The phone helper line is the tallest register field: keep it,
+     but tighter (the same info is also in the field tooltip). */
+  .auth-r8 .reg-phone .auth-helper { font-size: 12.5px; line-height: 1.5; margin-top: 4px; }
+
+  /* ---- Steps: compact single row, one-line texts ---- */
+  .auth-r8-steps { margin-top: 8px; gap: 6px; }
+  .auth-r8-step { padding: 5px 10px; gap: 4px; }
+  .auth-r8-step-num { width: 20px; height: 20px; font-size: 12px; }
+  .auth-r8-step-name { font-size: 13px; }
+  .auth-r8-step-text { font-size: 12px; white-space: nowrap; }
+  .auth-r8-play { width: 40px; height: 40px; }
+
+  /* ---- Try-it: label + chips on one row, compact card.
+     Zero the base margins on the children (chips had 12px top
+     margin, note its own top margin) — inside the grid they
+     added ~23px of phantom space. ---- */
+  .auth-r8-try {
+    margin-top: 8px;
+    padding: 10px 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 12px;
+    row-gap: 8px;
+  }
+  .auth-r8-try > * { margin: 0; }
+  .auth-r8-try .trig-chip { padding: 5px 11px; font-size: 12.5px; }
+  .auth-r8-try-label { grid-column: 1; grid-row: 1; align-self: center; margin: 0; }
+  .auth-r8-demo-chips { grid-column: 2; grid-row: 1; }
+  .auth-r8 .auth-demo-box { grid-column: 1 / -1; grid-row: 2; }
+  .auth-r8-try .search-trig-expand { grid-column: 1 / -1; grid-row: 3; }
+  .auth-r8 .auth-demo-note { grid-column: 1 / -1; }
+  .auth-r8 .auth-demo-input { height: 40px; font-size: 15px; }
+
+  /* ---- Add-shortcut: one flowing line, not a tall card ---- */
+  .auth-r8-add { margin-top: 8px; padding: 6px 12px; align-items: center; }
+  .auth-r8-add-icon { width: 32px; height: 32px; border-radius: 11px; }
+  .auth-r8-add-title, .auth-r8-add-text { display: inline; }
+  .auth-r8-add-text { margin-top: 0; line-height: 1.6; }
+  .auth-r8-add-text::before { content: " — "; }
+  .auth-r8-add-title { font-size: 13.5px; }
+  .auth-r8-features { margin-top: 6px; gap: 6px; flex-wrap: nowrap; }
+  /* Pills must never shrink-wrap their text to two lines (EN labels
+     are long): no shrink, no wrap — they fit at 12px in 623px. */
+  .auth-r8-feature { padding: 4px 9px; font-size: 12px; gap: 5px; flex-shrink: 0; white-space: nowrap; }
 }
