@@ -3534,6 +3534,11 @@ function Workspace({
     }
   });
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  /* Library Tools («أدوات المكتبة») — secondary, collapsed by
+     default at the owner's call 2026-11-27 («فرعي و مش واخد
+     حايز كبير»): one quiet header line; the backup/import/reset
+     tools live inside, full functionality intact when opened. */
+  const [toolsOpen, setToolsOpen] = useState(false);
   useEffect(() => {
     try {
       localStorage.setItem("is-folder-sort", folderSort);
@@ -5234,6 +5239,7 @@ function Workspace({
 
   const scrollToTools = () => {
     setSection("home");
+    setToolsOpen(true);
     window.setTimeout(() => {
       document
         .getElementById("home-tools")
@@ -8600,20 +8606,31 @@ function Workspace({
             AutoHotkey panel that sat beside it was removed
             entirely 2026-11-27 at the owner's call — «مش
             محتاجينها» — his standalone .ahk file is untouched.) */}
-        <section id="home-tools" className="elev-card mt-6 scroll-mt-24 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-          <div className="flex items-center gap-3">
+        <section id="home-tools" className="elev-card mt-6 scroll-mt-24 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+          <button
+            type="button"
+            aria-expanded={toolsOpen}
+            aria-controls="home-tools-body"
+            data-tip="النسخ الاحتياطي والاستيراد وتصفير الاستخدام"
+            onClick={() => setToolsOpen((v) => !v)}
+            className="lux-btn flex w-full items-center gap-3 px-5 py-3.5 text-start sm:px-6"
+          >
             <span className="folder-bar-icon">
               <Icon d={I.archive} size={20} />
             </span>
-            <div className="min-w-0">
-              <h2 className="text-lg font-bold leading-snug">أدوات المكتبة</h2>
-              <p className="text-[13px] leading-relaxed text-[var(--dim)]">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-bold leading-snug">أدوات المكتبة</span>
+              <span className="block text-[12.5px] leading-relaxed text-[var(--dim)]">
                 النسخ الاحتياطي والاستيراد — نسخة من مكتبتك محفوظة عندك.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-4 sm:p-5">
+              </span>
+            </span>
+            <span className={toolsOpen ? "rotate-180 transition-transform" : "transition-transform"}>
+              <Icon d={I.chevron} size={16} />
+            </span>
+          </button>
+          {toolsOpen && (
+          <div id="home-tools-body" className="animate-menu px-5 pb-5 sm:px-6 sm:pb-6">
+          <div className="mt-1 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-4 sm:p-5">
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface)] text-[var(--accent)] shadow-[var(--shadow-card)]">
                 <Icon d={I.archive} size={18} />
@@ -8740,6 +8757,8 @@ function Workspace({
               </p>
             </div>
           </div>
+          </div>
+          )}
         </section>
 
         </>
