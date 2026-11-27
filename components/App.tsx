@@ -2,6 +2,7 @@ import { createContext, memo, useCallback, useContext, useDeferredValue, useEffe
 import { createPortal, flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "./safe-area";
+import AuthExplainer from "./AuthExplainer";
 import { FIELDS } from "./fields.generated";
 import { api, type ApiResponse } from "./api";
 import {
@@ -3448,6 +3449,13 @@ function AuthPage({
       </div>
     </main>
     </div>
+    {/* Round 5c — الشرح التوضيحي التفاعلي (طلب المالك
+        2026-11-27): تحت النموذج مباشرة، في الحالتين
+        (دخول + حساب جديد) لأنه خارج شرط الـ mode — النموذج
+        يبقى البطل فوق، والشرح تحته ولا يخفيه أبدًا. قرار
+        المالك الجديد هنا يقدّم على إزالة v80 للوحة القيم —
+        هو نفسه طلب هذا الشرح الآن. */}
+    <AuthExplainer lang={lang} />
     </div>
   );
 }

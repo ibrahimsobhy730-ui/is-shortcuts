@@ -5444,3 +5444,270 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .verse-hero { animation: none; }
 }
+
+/* ============================================================
+   Round 5c «AUTH EXPLAINER» (2026-11-27) — شرح توضيحي
+   تفاعلي على صفحتي الدخول وإنشاء الحساب (طلب المالك):
+   عرض حيّ (اكتب اختصارًا فيُكشف الرد)، ثلاث خطوات،
+   إضافة اختصار، وأربع مزايا — تحت النموذج، والنموذج
+   يبقى البطل. هوية NEBULA الزرقاء كما هي، بلا أخضر
+   وبلا ذهبي، بلا أي ذكر لإضافة، بلا شهادات مختلقة.
+   العرض يعيد استخدام آلية معاينة البحث نفسها
+   (.search-trig-expand + .search-trig-panel) فيبقى
+   الإحساس واحدًا مع الرئيسية. كل التوقيتات منحنيات
+   حرفية — var(--ease-out) لا يحرّك شيئًا في هذا البناء.
+   ============================================================ */
+.auth-explainer {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 6px 20px 56px;
+  text-align: center;
+}
+.auth-explainer-head { margin-bottom: 16px; }
+.auth-explainer-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.auth-explainer-head h2 {
+  margin-top: 10px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.auth-explainer-head p {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--dim);
+}
+/* صندوق العرض: بحث مصغّر بحلقة زرقاء دائمة — نفس لغة
+   بحث الرئيسية، لكنه مستقل تمامًا عن مكتبة المستخدم. */
+.auth-demo-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.auth-demo-icon {
+  position: absolute;
+  inset-inline-start: 16px;
+  color: var(--accent);
+  pointer-events: none;
+  display: inline-flex;
+}
+.auth-demo-input {
+  width: 100%;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--surface);
+  box-shadow: 0 12px 30px -10px rgba(22, 104, 196, 0.35);
+  padding-inline-start: 46px;
+  padding-inline-end: 44px;
+  font-size: 16px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-demo-input::placeholder { color: var(--faint); }
+.auth-demo-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent), 0 12px 30px -10px rgba(22, 104, 196, 0.45);
+}
+/* مؤشر «بيكتب…»: ثلاث نقاط تنبض أثناء الكتابة الآلية. */
+.auth-demo-typing {
+  position: absolute;
+  inset-inline-end: 16px;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.auth-demo-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: neb-typing-dot 0.9s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.auth-demo-typing i:nth-child(2) { animation-delay: 0.15s; }
+.auth-demo-typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes neb-typing-dot {
+  0%, 100% { transform: translateY(0); opacity: 0.45; }
+  50% { transform: translateY(-3px); opacity: 1; }
+}
+.auth-demo-clear {
+  position: absolute;
+  inset-inline-end: 8px;
+  display: inline-flex;
+  padding: 6px;
+  border-radius: 999px;
+  color: var(--faint);
+}
+.auth-demo-clear:hover { color: var(--text); background: var(--surface-alt); }
+.auth-demo-chips {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.auth-demo-panel { margin-top: 10px; text-align: start; }
+.auth-demo-match-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.auth-demo-example-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.auth-demo-match-title {
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+.auth-demo-match-body {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--dim);
+}
+.auth-demo-copy {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.auth-demo-nomatch {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+.auth-demo-note {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--faint);
+}
+/* الخطوات الثلاث: بطاقات زجاجية صغيرة برقم متدرج. */
+.auth-steps {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+@media (max-width: 419px) {
+  .auth-steps { grid-template-columns: 1fr; }
+}
+.auth-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.auth-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--grad);
+  color: var(--on-grad);
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.auth-step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+.auth-step-title { font-size: 13.5px; font-weight: 800; color: var(--text); }
+.auth-step-text { font-size: 12.5px; line-height: 1.6; color: var(--dim); }
+/* إضافة اختصار: سطر زجاجي واحد بأيقونة زائد. */
+.auth-add {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  text-align: start;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.auth-add-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--grad);
+  color: var(--on-grad);
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.auth-add-title { font-size: 14px; font-weight: 800; color: var(--text); }
+.auth-add-text { margin-top: 2px; font-size: 13px; line-height: 1.7; color: var(--dim); }
+/* المزايا: حبوب خفيفة بأيقونات. */
+.auth-features {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.auth-feature {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--dim);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.auth-feature svg { color: var(--accent); }
+/* تقليل الحركة: نقاط الكتابة ساكنة. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-demo-typing i { animation: none; opacity: 0.7; }
+}

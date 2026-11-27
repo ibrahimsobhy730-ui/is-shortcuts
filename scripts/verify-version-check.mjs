@@ -4,7 +4,7 @@
    newer deploy exists (the stale-tab root cause: the user
    photographed an OLD build's error wording minutes after a
    deploy because the open tab never reloaded);
-   (2) service worker cache bumped to is-cache-v8 so old chunk
+   (2) service worker cache bumped to is-cache-v9 so old chunk
    caches are purged when the new worker activates.
    Run with: node scripts/verify-version-check.mjs */
 
@@ -74,8 +74,8 @@ check(
     /\{newBuild\.show && \(/.test(app),
 );
 check(
-  "service worker cache is v8 (old chunk caches purge on activate)",
-  /const CACHE = "is-cache-v8";/.test(sw) && !/is-cache-v7/.test(sw),
+  "service worker cache is v9 (old chunk caches purge on activate)",
+  /const CACHE = "is-cache-v9";/.test(sw) && !/is-cache-v8/.test(sw),
 );
 check(
   "login form never flashes during session restore (Round 5)",
@@ -114,6 +114,48 @@ check(
   "«جديد» is a gradient hero button, chips are bigger",
   /lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3\.5 text-\[15px\] font-bold/.test(app) &&
     /\.trig-chip \{\s*padding: 7px 14px;\s*font-size: 14px;/.test(tokens),
+);
+// ---- auth explainer (Round 5c, 2026-11-27): an interactive
+// live demo + how-it-works sits BELOW the sign-in form on
+// BOTH login and register pages. Hard rules pinned here:
+// no extension mention, no invented testimonial, demo
+// samples clearly labeled as examples, form stays first.
+const explainer = read("components/AuthExplainer.tsx");
+check(
+  "explainer renders below the auth form on both modes",
+  /import AuthExplainer from "\.\/AuthExplainer";/.test(app) &&
+    /<AuthExplainer lang=\{lang\} \/>/.test(app) &&
+    // outside the mode conditional: placed after the auth-split
+    // close, so login AND register both show it.
+    app.indexOf("<AuthExplainer") > app.indexOf("</main>"),
+);
+check(
+  "demo really works: typewriter, exact-match reveal, real copy",
+  /window\.setTimeout\(step, 45\)/.test(explainer) &&
+    /EXAMPLES\.find\(\(e\) => e\.trigger === q\)/.test(explainer) &&
+    /search-trig-expand-open/.test(explainer) &&
+    /navigator\.clipboard\.writeText\(match\.body\)/.test(explainer),
+);
+check(
+  "demo samples are labeled examples, never real replies",
+  /أمثلة للتوضيح/.test(explainer) &&
+    /Example/.test(explainer) &&
+    /دي أمثلة للتوضيح بس/.test(explainer),
+);
+check(
+  "explainer mentions no extension and no testimonial",
+  !/extension/i.test(explainer) &&
+    !/اكستنشن/i.test(explainer) &&
+    !/إضافة المتصفح|إضافة كروم/i.test(explainer) &&
+    !/testimonial|★★★★★|⭐/.test(explainer),
+);
+check(
+  "explainer covers steps, adding a shortcut, and core features",
+  /اكتب الاختصار/.test(explainer) &&
+    /إضافة اختصار بتاخد ثواني/.test(explainer) &&
+    /بحث فوري يفهم العربي/.test(explainer) &&
+    /صور مع الرد/.test(explainer) &&
+    /\.auth-explainer \{/.test(tokens),
 );
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);
