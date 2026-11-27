@@ -286,5 +286,45 @@ check(
     /\.app-shell\[dir="ltr"\] \.auth-r8 \.auth-input\[dir="ltr"\] \{[^}]*padding-inline-start: 40px;/.test(tokens),
 );
 
+/* ---- (7) Step 2: simplified home banner + header actions ---- */
+check(
+  "deck hero is one centered composition (verse + ornamental divider + one counters line)",
+  /cmd-deck-hero/.test(app) &&
+    /orn-divider cmd-deck-divider/.test(app) &&
+    /cmd-deck-counters/.test(app) &&
+    /\.cmd-deck-verse \{[^}]*text-align: center;/.test(tokens) &&
+    /\.cmd-deck-counters \{[^}]*font-size: 13px;/.test(tokens),
+);
+check(
+  "collapsed banner is a slim strip (52px, verse fragment + counters + show button)",
+  /cmd-deck-strip/.test(app) &&
+    /\.cmd-deck-strip \{[^}]*min-height: 52px;/.test(tokens) &&
+    /\.cmd-deck-strip-counters \{[^}]*display: none;/.test(tokens),
+);
+check(
+  "hide button is truly absolute (Step 2: the data-tip tooltip rule wins over a plain class)",
+  /cmd-deck-hide absolute/.test(app),
+);
+check(
+  "no «جديد» button in the deck; sidebar primary + rail still create a new reply",
+  !/cmd-deck-bottom[\s\S]*?إضافة اختصار جديد/.test(app) &&
+    /rail-new/.test(app),
+);
+check(
+  "hero-stat pills are gone (CSS + JSX) — counters are one quiet line now",
+  !/\.hero-stat \{/.test(tokens) && !/hero-stat/.test(app),
+);
+check(
+  "header fits at 390px (Step 2: tighter small-screen gap/padding, no clip)",
+  /float-header mx-auto flex h-\[68px\] w-full max-w-\[88rem\] items-center gap-1\.5 px-2\.5/.test(app),
+);
+check(
+  "header «اختصار سريع» still opens the glass ShortcutBar (pick + copy, search inside, empty state)",
+  /function ShortcutBar/.test(app) &&
+    /glass-panel/.test(app) &&
+    /مفيش اختصار بيطابق اللي كتبته/.test(app) &&
+    /لسه مفيش اختصارات/.test(app),
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

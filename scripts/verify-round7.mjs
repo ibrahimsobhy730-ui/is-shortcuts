@@ -74,11 +74,14 @@ check(
 
 /* ---- (2) Home command deck ---- */
 check(
-  "home has one .cmd-deck section (verse + stats / search / triggers + جديد)",
+  "home has one .cmd-deck section (centered verse + counters line / search / triggers, no جديد)",
   (app.match(/className="cmd-deck /g) ?? []).length === 1 &&
     /cmd-deck-verse/.test(app) &&
+    /cmd-deck-counters/.test(app) &&
     /cmd-deck-search/.test(app) &&
-    /cmd-deck-bottom/.test(app),
+    /cmd-deck-bottom/.test(app) &&
+    !/hero-stat/.test(app) &&
+    !/cmd-deck-top/.test(app),
 );
 check(
   "search input lives inside the deck (ref after cmd-deck, not in header)",
@@ -96,16 +99,18 @@ check(
     /overflow: hidden;\n  border-radius: inherit;/.test(tokens),
 );
 check(
-  "hero hide/show still wired (folds only the verse row)",
+  "hero hide/show still wired (folds the hero into a slim strip)",
   /const \[heroHidden, setHeroHidden\]/.test(app) &&
     /heroHidden \? \(/.test(app) &&
     /toggleHero\(true\)/.test(app) &&
-    /toggleHero\(false\)/.test(app),
+    /toggleHero\(false\)/.test(app) &&
+    /cmd-deck-strip/.test(app),
 );
 check(
-  "«جديد» button lives in the deck, not in the toolbar",
-  /cmd-deck-bottom[\s\S]*?إضافة اختصار جديد/.test(app) &&
-    !/Toolbar: add buttons/.test(app),
+  "no «جديد» button in the deck (Step 2: sidebar primary is the only create action)",
+  !/cmd-deck-bottom[\s\S]*?إضافة اختصار جديد/.test(app) &&
+    /rail-new/.test(app) &&
+    /إضافة اختصار جديد/.test(app),
 );
 check(
   "reply card crowns the trigger pill in the top action row",

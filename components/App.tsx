@@ -6920,7 +6920,7 @@ function Workspace({
           offset (tokens.css .app-shell > header) so the
           capsule floats over the aurora ground. */}
       <header className="sticky top-0 z-40">
-        <div className={`header-blur float-header mx-auto flex h-[68px] w-full max-w-[88rem] items-center gap-2 px-3 transition-shadow duration-300 sm:gap-3 sm:px-5 lg:px-6 ${scrolled ? "header-elevated" : ""}`}>
+        <div className={`header-blur float-header mx-auto flex h-[68px] w-full max-w-[88rem] items-center gap-1.5 px-2.5 transition-shadow duration-300 sm:gap-3 sm:px-5 lg:px-6 ${scrolled ? "header-elevated" : ""}`}>
           <button
             type="button"
             aria-label={t("فتح قائمة التنقل")}
@@ -7323,60 +7323,41 @@ function Workspace({
             your trigger chips + the «جديد» button. Hiding the
             banner now folds only the verse row; search, chips
             and stats stay. */}
+        {/* Step 2 — command deck, simplified: the banner is ONE
+            centered editorial composition now — verse, ornamental
+            divider, ONE quiet counters line — then the search as
+            the single main control and the trigger chips as one
+            small centered row. The banner's extra «جديد» button is
+            GONE (the sidebar primary is the only create action;
+            the header «اختصار سريع» is the quick-copy action).
+            Hiding the banner folds the whole hero into a slim
+            strip; search, chips and the strip stay. */}
         <section className="cmd-deck animate-rise relative mt-6" aria-label={t("لوحة الأوامر")}>
           <div className="cmd-deck-glow" aria-hidden="true" />
           {heroHidden ? (
-            <div className="cmd-deck-top">
-              <p dir="rtl" lang="ar" className="verse min-w-0 flex-1 truncate text-[19px] text-[var(--ink)]">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
-              <div className="cmd-deck-stats">
-                <span className="hero-stat">
-                  <b>{shortcuts.length}</b>
-                  {lang === "en" ? "replies" : "رد"}
-                </span>
-                <span className="hero-stat">
-                  <b>{folderCount}</b>
-                  {lang === "en" ? "folders" : "مجلد"}
-                </span>
-                <span className="hero-stat">
-                  <b>{withTriggerCountHome}</b>
-                  {lang === "en" ? "shortcuts" : "اختصار"}
-                </span>
-              </div>
+            <div className="cmd-deck-strip">
+              <p dir="rtl" lang="ar" className="verse cmd-deck-strip-verse">نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ</p>
+              <span className="cmd-deck-strip-counters">
+                <b>{shortcuts.length}</b> {lang === "en" ? "replies" : "رد"}
+                <span aria-hidden="true"> · </span>
+                <b>{folderCount}</b> {lang === "en" ? "folders" : "مجلد"}
+                <span aria-hidden="true"> · </span>
+                <b>{withTriggerCountHome}</b> {lang === "en" ? "shortcuts" : "اختصار"}
+              </span>
               <button
                 type="button"
                 aria-label={t("إظهار البانر")}
                 data-tip={t("إظهار بانر الآية من تاني")}
                 data-tip-pos="below"
                 onClick={() => toggleHero(false)}
-                className="lux-btn flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--border)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
+                className="lux-btn flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--border)] px-3.5 py-2 text-[13px] font-bold text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
               >
                 <Icon d={I.eye} size={15} />
                 {t("إظهار البانر")}
               </button>
             </div>
           ) : (
-            <div className="cmd-deck-top">
-              <h1
-                dir="rtl"
-                lang="ar"
-                className="verse cmd-deck-verse min-w-0 flex-1"
-              >
-                نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ
-              </h1>
-              <div className="cmd-deck-stats">
-                <span className="hero-stat">
-                  <b>{shortcuts.length}</b>
-                  {lang === "en" ? "replies" : "رد"}
-                </span>
-                <span className="hero-stat">
-                  <b>{folderCount}</b>
-                  {lang === "en" ? "folders" : "مجلد"}
-                </span>
-                <span className="hero-stat">
-                  <b>{withTriggerCountHome}</b>
-                  {lang === "en" ? "shortcuts" : "اختصار"}
-                </span>
-              </div>
+            <div className="cmd-deck-hero">
               <button
                 type="button"
                 aria-label={t("إخفاء البانر")}
@@ -7384,10 +7365,25 @@ function Workspace({
                 data-tip-pos="below"
                 data-tip-align="start"
                 onClick={() => toggleHero(true)}
-                className="hero-hide-btn lux-btn shrink-0"
+                className="hero-hide-btn lux-btn cmd-deck-hide absolute"
               >
                 <Icon d={I.eyeOff} size={15} />
               </button>
+              <h1
+                dir="rtl"
+                lang="ar"
+                className="verse cmd-deck-verse"
+              >
+                نِعْمَةً مِّنْ عِندِنَا ۚ كَذَٰلِكَ نَجْزِي مَن شَكَرَ
+              </h1>
+              <span aria-hidden="true" className="orn-divider cmd-deck-divider"><i /></span>
+              <p className="cmd-deck-counters">
+                <b>{shortcuts.length}</b> {lang === "en" ? "replies" : "رد"}
+                <span aria-hidden="true"> · </span>
+                <b>{folderCount}</b> {lang === "en" ? "folders" : "مجلد"}
+                <span aria-hidden="true"> · </span>
+                <b>{withTriggerCountHome}</b> {lang === "en" ? "shortcuts" : "اختصار"}
+              </p>
             </div>
           )}
 
@@ -7454,12 +7450,12 @@ function Workspace({
             </div>
           </div>
 
-          {/* Triggers + «جديد»: the chips feed the search box;
-              the button opens the editor — both live in the deck
-              now, not scattered below it. */}
+          {/* Triggers: the chips feed the search box — one small
+              centered row now; the «جديد» button is gone from
+              the deck (see the comment above). */}
           <div className="cmd-deck-bottom">
             {homeTriggers.length > 0 && (
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
                 <span className="flex items-center gap-1.5 text-sm font-extrabold text-[var(--faint)]">
                   <Icon d={I.shortcut} size={15} />
                   {t("اختصاراتك:")}
@@ -7479,15 +7475,6 @@ function Workspace({
                 ))}
               </div>
             )}
-            <button
-              type="button"
-              aria-label={t("إضافة اختصار جديد")} data-tip={t("إضافة اختصار جديد إلى مكتبتك")}
-              onClick={() => setEditor({ open: true, item: null })}
-              className="lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3.5 text-[15px] font-bold max-sm:w-full max-sm:justify-center"
-            >
-              <Icon d={I.plus} size={19} />
-              {t("جديد")}
-            </button>
           </div>
         </section>
 

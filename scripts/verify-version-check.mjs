@@ -92,13 +92,13 @@ check(
 // silently shrink the home back.
 const tokens = read("app/tokens.css");
 check(
-  "deck verse (cmd-deck-verse, clamp to 38px) with stat pills beside it",
+  "deck verse (cmd-deck-verse, clamp to 38px) centered with a quiet counters line below it (Step 2: pills gone)",
   /className="verse cmd-deck-verse/.test(app) &&
     /\.cmd-deck-verse \{/.test(tokens) &&
     /font-size: clamp\(25px, 3\.4vw, 38px\)/.test(tokens) &&
-    /className="hero-stat"/.test(app) &&
-    /\.hero-stat \{/.test(tokens) &&
-    /\.hero-stat b \{/.test(tokens),
+    /cmd-deck-counters/.test(app) &&
+    !/hero-stat/.test(app) &&
+    !/\.hero-stat \{/.test(tokens),
 );
 check(
   "hero stat pills show replies, folders and shortcuts counts",
@@ -113,8 +113,8 @@ check(
     /border-\[color-mix\(in_srgb,var\(--accent\)_38%,var\(--border\)\)\]/.test(app),
 );
 check(
-  "«جديد» is a gradient hero button, chips are bigger",
-  /lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3\.5 text-\[15px\] font-bold/.test(app) &&
+  "no «جديد» gradient hero button in the deck (Step 2: removed); chips stay bigger",
+  !/lux-btn btn-lux flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-7 py-3\.5 text-\[15px\] font-bold/.test(app) &&
     /\.trig-chip \{\s*padding: 7px 14px;\s*font-size: 14px;/.test(tokens),
 );
 // ---- auth explainer (Round 7, 2026-11-27): an interactive

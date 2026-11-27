@@ -5322,30 +5322,7 @@ summary:focus-visible {
     radial-gradient(420px 170px at 88% -20px, color-mix(in srgb, var(--cyan) 20%, transparent), transparent 70%);
 }
 
-/* ٢) حبوب إحصائيات الهيرو: رقم عريض بلون التمييز +
-   تسمية خافتة، في حبة زجاجية — نفس الأرقام التي كان
-   يحملها سطر العدّاد، ببنية تُقرأ فورًا. */
-.hero-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  box-shadow: var(--shadow-1), inset 0 1px 0 var(--glass-line);
-  color: var(--dim);
-  font-size: 14px;
-  font-weight: 600;
-}
-.hero-stat b {
-  color: var(--accent);
-  font-size: 17px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ٣) شرائح الاختصارات: أكبر وأوضح — الشريط نفسه يبان
+/* ٢) شرائح الاختصارات: أكبر وأوضح — الشريط نفسه يبان
    طبقة جديدة مش مجرد حبوب صغيرة. */
 .trig-chip {
   padding: 7px 14px;
@@ -5601,15 +5578,24 @@ summary:focus-visible {
   background-position: 130% 0;
   animation: neb-hero-sheen 9s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
 }
-.cmd-deck-top,
+.cmd-deck-hero,
+.cmd-deck-strip,
 .cmd-deck-search,
 .cmd-deck-bottom {
   position: relative;
 }
-.cmd-deck-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+/* Step 2 — the hero is ONE centered editorial composition:
+   verse, ornamental divider, one quiet counters line. The
+   hide control floats at the hero's top corner so the
+   centered composition is never disturbed. */
+.cmd-deck-hero {
+  padding: 2px 44px 0;
+  text-align: center;
+}
+.cmd-deck-hide {
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
 }
 .cmd-deck-verse {
   font-weight: 700;
@@ -5617,13 +5603,63 @@ summary:focus-visible {
   line-height: 1.85;
   text-wrap: balance;
   color: var(--ink);
+  text-align: center;
 }
-.cmd-deck-stats {
+.cmd-deck-divider {
+  margin-top: 10px;
+}
+.cmd-deck-counters {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.cmd-deck-counters b {
+  color: var(--text);
+  font-weight: 800;
+}
+.cmd-deck-counters [aria-hidden="true"] {
+  color: var(--faint);
+  padding-inline: 2px;
+}
+/* The collapsed banner: a TRUE slim strip — one row with the
+   verse fragment, the quiet counters line and the show
+   button. The counters hide under 640px so the strip stays
+   one row at narrow widths. */
+.cmd-deck-strip {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 12px;
+  min-height: 52px;
+}
+.cmd-deck-strip-verse {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  line-height: 1.7;
+  text-align: start;
+  color: var(--ink);
+}
+.cmd-deck-strip-counters {
+  flex: none;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.cmd-deck-strip-counters b {
+  color: var(--text);
+  font-weight: 800;
+}
+.cmd-deck-strip-counters [aria-hidden="true"] {
+  color: var(--faint);
+  padding-inline: 2px;
 }
 .cmd-deck-search {
   margin-top: 16px;
@@ -5633,15 +5669,15 @@ summary:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
 }
 @media (max-width: 640px) {
   .cmd-deck { padding: 16px 16px 14px; border-radius: 24px; }
-  .cmd-deck-top { flex-direction: column; align-items: stretch; gap: 10px; }
-  .cmd-deck-verse { padding-inline-end: 44px; font-size: clamp(23px, 6.4vw, 28px); }
-  .cmd-deck-top .hero-hide-btn { position: absolute; top: 0; inset-inline-end: 0; }
-  .cmd-deck-stats { justify-content: flex-start; }
+  .cmd-deck-hero { padding: 2px 40px 0; }
+  .cmd-deck-verse { font-size: clamp(23px, 6.4vw, 28px); }
+  .cmd-deck-strip { min-height: 48px; gap: 10px; }
+  .cmd-deck-strip-counters { display: none; }
   .cmd-deck-search { margin-top: 14px; }
 }
 
