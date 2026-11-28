@@ -29,8 +29,6 @@ import {
   Folder,
   Image as ImageIcon,
   MousePointer2,
-  Pause,
-  Play,
   Plus,
   Search,
   Zap,
@@ -105,10 +103,8 @@ const STEPS = [
 export default function AuthDemo({ lang }: { lang: Lang }) {
   const en = lang === "en";
   const [elapsed, setElapsed] = useState(0);
-  const [playing, setPlaying] = useState(true);
   const [inView, setInView] = useState(true);
   const [reduced, setReduced] = useState(false);
-  const [userPaused, setUserPaused] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const startRef = useRef(0); // performance.now() عند بداية الحلقة الحالية
   const pausedAtRef = useRef(0); // elapsed عند الإيقاف
@@ -145,7 +141,6 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
   }, []);
 
   const running =
-    playing &&
     inView &&
     (typeof document === "undefined" ? true : !document.hidden) &&
     !reduced;
@@ -166,28 +161,6 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
-
-  const jumpTo = (ms: number) => {
-    pausedAtRef.current = ms;
-    elapsedRef.current = ms;
-    /* إعادة ضبط نقطة بداية المؤقّت أيضًا — وإلا أعاد الـ interval
-       الكتابة فوق القفزة من الخط الزمني القديم في التكة التالية. */
-    startRef.current = performance.now() - ms;
-    setElapsed(ms);
-    if (userPaused) {
-      /* القفز أثناء الإيقاف يبقي الإيقاف — المشهد يتبدّل فقط. */
-    }
-  };
-
-  const togglePlay = () => {
-    if (playing) {
-      setUserPaused(true);
-      setPlaying(false);
-    } else {
-      setUserPaused(false);
-      setPlaying(true);
-    }
-  };
 
   /* ---- الحالة المشتقة من elapsed ---- */
   const t = reduced ? SUCCESS_AT + 100 : elapsed; // الإطار الثابت: بعد النجاح
@@ -214,13 +187,6 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
   const montageAdd = t >= ADD_AT;
   const fading = t >= FADE_AT;
   const activeStep = t < 3200 ? 0 : t < 9500 ? 1 : 2; // حدود STEPS[1].from / STEPS[2].from
-  const stepProgress = STEPS.map((s) =>
-    Math.min(1, Math.max(0, (t - s.from) / (s.to - s.from))),
-  );
-
-  const stepLabel = en
-    ? ["Type the shortcut", "The reply appears", "Copy in one tap"]
-    : STEPS.map((s) => s.title);
   const stepText = en
     ? [
         "Any word, number or symbol.",
@@ -422,59 +388,17 @@ export default function AuthDemo({ lang }: { lang: Lang }) {
             )}
           </div>
         )}
+        {/* LEGENDARY — the 3 steps as small captions INSIDE the
+            scene's bottom edge, not separate cards. */}
+        <div className="legend-stage-captions" aria-hidden="true">
+          <span>١ اكتب الاختصار</span>
+          <span aria-hidden="true">·</span>
+          <span>٢ الرد يظهر فوراً</span>
+          <span aria-hidden="true">·</span>
+          <span>٣ انسخه بضغطة</span>
+        </div>
       </div>
 
-      {/* شريط الخطوات: تقدّم شعري لكل خطوة + قفز بالنقر. */}
-      <div className="auth-r8-steps" role="group" aria-label={en ? "Demo steps" : "خطوات العرض"}>
-        {STEPS.map((s, i) => (
-          <button
-            key={s.title}
-            type="button"
-            className={`auth-r8-step${i === activeStep ? " auth-r8-step-active" : ""}${(stepProgress[i] ?? 0) >= 1 ? " auth-r8-step-done" : ""}`}
-            onClick={() => jumpTo(s.from)}
-            aria-current={i === activeStep ? "step" : undefined}
-            aria-label={`${i + 1}. ${stepLabel[i] ?? ""}`}
-          >
-            <span className="auth-r8-step-top">
-              <span className="auth-r8-step-num" aria-hidden="true">
-                {i + 1}
-              </span>
-              <span className="auth-r8-step-name">{stepLabel[i]}</span>
-            </span>
-            {/* Rev1: the step text lives inside its own card — the
-                separate caption line below is gone. */}
-            <span className="auth-r8-step-text">{stepText[i]}</span>
-            <span className="auth-r8-step-bar" aria-hidden="true">
-              <span
-                className="auth-r8-step-fill"
-                style={{ transform: `scaleX(${stepProgress[i]})` }}
-              />
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          className="auth-r8-play"
-          onClick={togglePlay}
-          aria-label={
-            reduced
-              ? en
-                ? "Demo is a static frame (reduced motion)"
-                : "العرض إطار ثابت (تقليل الحركة)"
-              : playing
-                ? en
-                  ? "Pause the demo"
-                  : "إيقاف العرض مؤقتًا"
-                : en
-                  ? "Play the demo"
-                  : "تشغيل العرض"
-          }
-          aria-pressed={playing}
-          disabled={reduced}
-        >
-          {playing ? <Pause size={16} /> : <Play size={16} />}
-        </button>
-      </div>
       {/* Rev1: the step text now lives inside each step card — the
           visible caption line is gone; the live region stays for
           screen readers only. */}

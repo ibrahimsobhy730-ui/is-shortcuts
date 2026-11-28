@@ -26,7 +26,7 @@ type ExtensionInstallGuideProps = {
   downloadUrl?: string;
 };
 
-type GuideStep = {
+export type GuideStep = {
   id: string;
   badgeAr: string;
   badgeEn: string;
@@ -41,7 +41,7 @@ type GuideStep = {
   hotspot?: { top: string; left: string; labelAr: string; labelEn: string };
 };
 
-const STEPS: GuideStep[] = [
+export const STEPS: GuideStep[] = [
   {
     id: "download",
     badgeAr: "المرحلة 1 · التحميل",

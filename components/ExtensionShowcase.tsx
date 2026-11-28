@@ -1,19 +1,16 @@
 "use client";
 
-/* «تحميل الاكستنشن» — product-showcase page for the owner's own
-   extension (IS - Extension v3.0.0, HIS code — we only host the ZIP
-   and the guide). Structure, decided by the owner 2026-11-27:
-   hero moment → the real 70s video as the centerpiece → the 6 steps
-   as clickable chapters that seek the video → the download card as
-   the climax → the full 6-step interactive guide below.
-   The video is a real file (public/extension-guide.mp4, 70.5s,
-   1280×720, Arabic voiceover + burned-in captions); the chapter
-   thumbnails are the 4 enhanced step photos + 2 frames from the
-   video's designed step cards. Nothing here modifies the extension. */
+/* «تحميل الاكستنشن» — LEGENDARY «النُّور» frame, same content.
+   The video IS the hero (full width, 16:9, floating glass chip on
+   its lower edge) — no navy deck above it. Chapters are a horizontal
+   filmstrip (click seeks + plays). The download climax is ONE centred
+   Ink Slab → live ZIP. The 6-step guide is an accordion of 6 quiet
+   rows (same steps, same enhanced images, same ZIP/video links).
+   The extension itself is untouched — we only host the ZIP + guide. */
 
 import { useRef, useState } from "react";
-import { Download, Play, Puzzle } from "lucide-react";
-import { ExtensionInstallGuide } from "./ExtensionInstallGuide";
+import { ChevronDown, Download, FolderDown, Play, Puzzle } from "lucide-react";
+import { STEPS } from "./ExtensionInstallGuide";
 
 const CHAPTERS = [
   { key: "s1", start: 9.5, thumb: "/guide/chapter-step1.jpg", pos: "", ar: "حمّل ملف الإضافة", en: "Download the extension file" },
@@ -34,6 +31,7 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(0);
+  const [openStep, setOpenStep] = useState<number>(0);
   const en = lang === "en";
 
   const activeIdx = CHAPTERS.reduce(
@@ -50,55 +48,10 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
   };
 
   return (
-    <section className="animate-fade mx-auto max-w-4xl" aria-label={en ? "Download the extension" : "تحميل الاكستنشن"}>
-      {/* HERO — deep navy deck, same tokens as the home banner */}
-      <div
-        className="relative overflow-hidden rounded-[var(--radius)] px-6 py-8 text-center shadow-[var(--deck-glow)] sm:px-10 sm:py-10"
-        style={{
-          background: "var(--deck-bg)",
-          border: "1px solid var(--deck-border)",
-          boxShadow: "var(--deck-glow), inset 0 1px 0 oklch(1 0 0 / 0.14)",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(520px 200px at 50% -10%, rgb(59 130 246 / 0.32), transparent 70%), radial-gradient(420px 180px at 85% 110%, rgb(56 189 248 / 0.22), transparent 70%)",
-          }}
-        />
-        <div className="relative">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-[16px] border border-[oklch(1_0_0/0.25)] bg-[oklch(1_0_0/0.12)] text-white shadow-[var(--shadow-2)]">
-            <Puzzle size={26} strokeWidth={1.75} aria-hidden="true" />
-          </span>
-          <p className="mt-4 text-[12.5px] font-bold text-[var(--deck-dim)]">
-            IS Shortcuts · {en ? "Browser extension" : "إضافة المتصفح"}
-          </p>
-          <h1 className="mt-1.5 text-[30px] font-extrabold leading-tight text-[var(--deck-text)] sm:text-[36px]">
-            {en ? "Download the Extension" : "تحميل الاكستنشن"}
-          </h1>
-          <p className="mx-auto mt-2 max-w-xl text-[15px] leading-relaxed text-[var(--deck-dim)]">
-            {en
-              ? "Your ready replies, anywhere — the video, the steps and the download, all in one place."
-              : "ردودك الجاهزة في أي مكان — الفيديو والخطوات والتحميل، كلهم في صفحة واحدة."}
-          </p>
-          <p className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <span className="rounded-full border border-[oklch(1_0_0/0.25)] bg-[oklch(1_0_0/0.10)] px-3 py-1 text-[12.5px] font-bold text-[var(--deck-text)]" dir="ltr">
-              v3.0.0
-            </span>
-            <span className="rounded-full border border-[oklch(1_0_0/0.25)] bg-[oklch(1_0_0/0.10)] px-3 py-1 text-[12.5px] font-bold text-[var(--deck-text)]">
-              {en ? "Free" : "مجاني"}
-            </span>
-            <span className="rounded-full border border-[oklch(1_0_0/0.25)] bg-[oklch(1_0_0/0.10)] px-3 py-1 text-[12.5px] font-bold text-[var(--deck-text)]">
-              Chrome
-            </span>
-          </p>
-        </div>
-      </div>
-
-      {/* VIDEO — the centerpiece */}
-      <div className="mt-6 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-2)]">
+    <section className="legend-extension animate-fade mx-auto max-w-4xl" aria-label={en ? "Download the extension" : "تحميل الاكستنشن"}>
+      {/* VIDEO — the hero. The floating glass chip overlays its
+          lower edge: download · version · free · Chrome. */}
+      <div className="legend-ext-video relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-black shadow-[var(--shadow-2)]">
         <video
           ref={videoRef}
           controls
@@ -109,27 +62,31 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
           className="aspect-video w-full bg-black"
           aria-label={en ? "Extension install video — 70 seconds" : "فيديو تثبيت الإضافة — ٧٠ ثانية"}
         />
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-          <p className="text-[13px] font-bold text-[var(--dim)]">
-            {en ? "70 seconds — Arabic voiceover with captions" : "٧٠ ثانية — تعليق صوتي عربي مع ترجمة مكتوبة"}
-          </p>
-          <a
-            href="/is-shortcuts-extension.zip"
-            download
-            className="lux-btn flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-[13px] font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
-          >
-            <Download size={15} aria-hidden="true" />
-            {en ? "Download the ZIP" : "تحميل الملف"}
-          </a>
-        </div>
+        <a
+          href="/is-shortcuts-extension.zip"
+          download
+          className="legend-ext-chip"
+        >
+          <Download size={15} aria-hidden="true" />
+          <span>{en ? "Download the extension" : "تحميل الاكستنشن"}</span>
+          <span aria-hidden="true">·</span>
+          <span dir="ltr">v3.0.0</span>
+          <span aria-hidden="true">·</span>
+          <span>{en ? "Free" : "مجاني"}</span>
+          <span aria-hidden="true">·</span>
+          <span>Chrome</span>
+        </a>
       </div>
+      <p className="mt-3 text-center text-[13px] font-bold text-[var(--dim)]">
+        {en ? "70 seconds — Arabic voiceover with captions" : "٧٠ ثانية — تعليق صوتي عربي مع ترجمة مكتوبة"}
+      </p>
 
-      {/* CHAPTERS — the 6 steps, each seeks the video */}
+      {/* CHAPTERS — horizontal filmstrip, click seeks + plays. */}
       <div className="mt-6">
         <p className="mb-2.5 text-[13px] font-bold text-[var(--faint)]">
           {en ? "Chapters — tap one and the video jumps to it" : "الفصول — دوس على أي فصل والفيديو يروح له"}
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="legend-filmstrip no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
           {CHAPTERS.map((c, i) => {
             const active = i === activeIdx;
             return (
@@ -139,18 +96,18 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
                 onClick={() => seek(c.start)}
                 aria-label={`${en ? "Step" : "الخطوة"} ${i + 1} — ${en ? c.en : c.ar} — ${fmtTime(c.start)}`}
                 aria-current={active || undefined}
-                className={`lux-btn group overflow-hidden rounded-[var(--radius)] border bg-[var(--surface)] text-start shadow-[var(--shadow-1)] transition-transform hover:-translate-y-0.5 ${
+                className={`lux-btn legend-chapter group shrink-0 overflow-hidden rounded-[20px] border bg-[var(--surface)] text-start shadow-[var(--shadow-1)] ${
                   active ? "border-[var(--accent)] ring-2 ring-[var(--accent)]" : "border-[var(--border)] hover:border-[var(--border-strong)]"
                 }`}
               >
-                <span className="relative block aspect-video overflow-hidden bg-[var(--surface-alt)]">
+                <span className="relative block aspect-video w-56 overflow-hidden bg-[var(--surface-alt)]">
                   <img src={c.thumb} alt="" loading="lazy" className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04] ${c.pos}`} />
                   <span className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity group-hover:opacity-100">
                     <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[var(--shadow-2)]">
                       <Play size={18} aria-hidden="true" />
                     </span>
                   </span>
-                  <span className="absolute bottom-2 end-2 rounded-full bg-black/65 px-2 py-0.5 font-mono text-[11px] font-bold text-white" dir="ltr">
+                  <span className="absolute bottom-2 end-2 rounded-full bg-black/65 px-2 py-0.5 font-mono text-[12px] font-bold text-white" dir="ltr">
                     {fmtTime(c.start)}
                   </span>
                 </span>
@@ -170,24 +127,22 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
         </div>
       </div>
 
-      {/* DOWNLOAD — the climax */}
-      <div
-        className="mt-6 flex flex-col gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[linear-gradient(150deg,color-mix(in_srgb,var(--accent)_10%,var(--surface)),var(--surface)_65%)] p-5 shadow-[var(--shadow-1)] sm:flex-row sm:items-center sm:p-6"
-      >
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] bg-[var(--accent)] text-[var(--accent-ink)] shadow-[var(--shadow-2)]">
+      {/* DOWNLOAD — one centred Ink Slab, the one dark object. */}
+      <div className="legend-ink-slab mt-8">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[16px] border border-white/20 bg-white/10 text-white">
           <Puzzle size={26} strokeWidth={1.75} aria-hidden="true" />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[17px] font-extrabold leading-snug" dir="ltr">
+        <span className="min-w-0 flex-1 text-center">
+          <span className="block text-[17px] font-extrabold leading-snug text-white" dir="ltr">
             IS - Extension · v3.0.0
           </span>
-          <span className="mt-0.5 block text-[13.5px] leading-relaxed text-[var(--dim)]">
+          <span className="mt-0.5 block text-[13px] leading-relaxed text-white/70">
             {en
               ? "Compressed file · 47 KB · free — install it in under a minute with the video above."
               : "ملف مضغوط · ٤٧ كيلوبايت · مجاني — ثبّته في أقل من دقيقة مع الفيديو اللي فوق."}
           </span>
         </span>
-        <span className="flex shrink-0 flex-col gap-2 sm:items-end">
+        <span className="flex shrink-0 flex-col items-center gap-2">
           <a
             href="/is-shortcuts-extension.zip"
             download
@@ -199,14 +154,14 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
           <button
             type="button"
             onClick={() => guideRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[13px] font-bold text-[var(--dim)] hover:text-[var(--text)]"
+            className="lux-btn rounded-full px-4 py-2 text-[13px] font-bold text-white/80 hover:text-white"
           >
             {en ? "Step-by-step guide" : "شرح التثبيت خطوة بخطوة"}
           </button>
         </span>
       </div>
 
-      {/* FULL GUIDE */}
+      {/* FULL GUIDE — accordion of 6 quiet rows. */}
       <div ref={guideRef} className="mt-10 scroll-mt-4">
         <h2 className="text-[20px] font-extrabold leading-snug">
           {en ? "Step-by-step install guide" : "شرح التثبيت خطوة بخطوة"}
@@ -216,8 +171,50 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
             ? "Six steps with pictures — the same steps as the video, one by one."
             : "٦ خطوات بالصور — نفس خطوات الفيديو، خطوة خطوة."}
         </p>
-        <div className="mt-4">
-          <ExtensionInstallGuide lang={lang} />
+        <div className="legend-guide-accordion mt-4">
+          {STEPS.map((s, i) => {
+            const open = openStep === i;
+            return (
+              <div key={s.id} className="legend-guide-row">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpenStep(open ? -1 : i)}
+                  className="lux-btn legend-guide-head"
+                >
+                  <span className="legend-guide-num" aria-hidden="true">{i + 1}</span>
+                  <span className="min-w-0 flex-1 text-start">
+                    <span className="block truncate text-[15px] font-extrabold leading-snug">{en ? s.titleEn : s.titleAr}</span>
+                    <span className="block text-[12px] font-semibold text-[var(--faint)]">{en ? s.badgeEn : s.badgeAr}</span>
+                  </span>
+                  <ChevronDown size={17} aria-hidden="true" className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+                </button>
+                {open && (
+                  <div className="legend-guide-body">
+                    {s.visualType === "image" && s.imageSrc ? (
+                      <span className="legend-guide-imgwrap">
+                        <img src={s.imageSrc} alt="" loading="lazy" className="w-full rounded-[14px] border border-[var(--border)]" />
+                        {s.hotspot && (
+                          <span
+                            className="legend-guide-hotspot"
+                            style={{ top: s.hotspot.top, left: s.hotspot.left }}
+                          >
+                            {en ? s.hotspot.labelEn : s.hotspot.labelAr}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="legend-guide-tile" aria-hidden="true">
+                        {s.visualType === "download" ? <Download size={26} /> : <FolderDown size={26} />}
+                      </span>
+                    )}
+                    <p className="text-[14px] leading-relaxed">{en ? s.descEn : s.descAr}</p>
+                    <p className="legend-guide-tip">{en ? s.tipEn : s.tipAr}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

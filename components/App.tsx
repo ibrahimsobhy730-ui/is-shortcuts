@@ -2316,6 +2316,7 @@ const EN: Record<string, string> = {
   "اسحب لإعادة الترتيب أو النقل لمجلد تاني": "Drag to reorder or move to another folder",
   "اسحب للنقل أو إعادة الترتيب": "Drag to move or reorder",
   "اسحب المجلد للنقل أو إعادة الترتيب": "Drag the folder to move or reorder it",
+  "اسحب المجلد لإعادة ترتيبه": "Drag the folder to reorder it",
   "اسحب المجلد عشان ترتّبه أو تدخّله جوه مجلد تاني": "Drag a folder by its handle to reorder it or drop it inside another folder",
   // top bar
   "فتح قائمة التنقل": "Open navigation menu",
@@ -3760,9 +3761,9 @@ function Workspace({
   const [density, setDensity] = useState<ListDensity>(() => {
     try {
       const v = localStorage.getItem("is-list-density");
-      return v === "comfortable" || v === "grid" ? v : "compact";
+      return v === "comfortable" || v === "compact" ? v : "grid";
     } catch {
-      return "compact";
+      return "grid";
     }
   });
   const [folderSettingsId, setFolderSettingsId] = useState<number | null>(null);
@@ -3820,7 +3821,7 @@ function Workspace({
      under its (now expanded) source main folder, so the move is
      SEEN, not just announced. Set by the setFolderSource
      mutation; cleared by its own timer. */
-  const [flashFolderId, setFlashFolderId] = useState<number | null>(null);
+  const [, setFlashFolderId] = useState<number | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const flashFolder = (id: number) => {
     window.clearTimeout(flashTimer.current);
@@ -4867,6 +4868,47 @@ function Workspace({
     return m;
   }, [shortcuts]);
 
+  /* Folder strip order = the top-level folder order. A strip tab
+     IS its folder (matched by name), so dragging a tab reorders
+     the folders through the same moveFolderTo engine — and the
+     same applyTree persistence + undo — as the old sidebar drag;
+     the strip is just a new surface. «الكل» is not a folder and
+     never moves; a tab with no matching folder is not draggable. */
+  const stripFolderByName = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of childFolders.get(null) ?? []) {
+      if (!m.has(f.name)) m.set(f.name, f.id);
+    }
+    return m;
+  }, [childFolders]);
+  const stripCategories = useMemo(() => {
+    const rank = new Map<string, number>();
+    (childFolders.get(null) ?? []).forEach((f, i) => {
+      if (!rank.has(f.name)) rank.set(f.name, i);
+    });
+    const cats = categories.filter((c) => c !== "الكل");
+    const ranked = cats.filter((c) => rank.has(c));
+    const unranked = cats.filter((c) => !rank.has(c));
+    ranked.sort((a, b) => (rank.get(a) ?? 0) - (rank.get(b) ?? 0));
+    return ["الكل", ...ranked, ...unranked];
+  }, [categories, childFolders]);
+
+  /* Strip drag: the same HTML5 grip-arm pattern as the tree rows
+     and the subfolder cards — a drag only starts from the grip, so
+     dragging the tab body still scrolls the strip. The payload
+     rides the shared dragRef; the drop lands through moveFolderTo. */
+  const [stripArm, setStripArm] = useState<number | null>(null);
+  const [stripDragId, setStripDragId] = useState<number | null>(null);
+  const [stripDrop, setStripDrop] = useState<{
+    id: number;
+    pos: "before" | "after";
+  } | null>(null);
+  const clearStripDrag = () => {
+    setStripArm(null);
+    setStripDragId(null);
+    setStripDrop(null);
+  };
+
   /* The smart folder currently open (if any) and the list the main
      area actually renders: the view/search/filter pipeline first,
      then the smart folder's rules on top. A smart folder copies
@@ -5305,53 +5347,12 @@ function Workspace({
     run?: () => void;
   };
 
-  const scrollToTools = () => {
-    setSection("home");
-    setToolsOpen(true);
-    window.setTimeout(() => {
-      document
-        .getElementById("home-tools")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 60);
-  };
+
   /* The sidebar tree holds folders only — replies live in the main
      content list where they can be read and copied (the brief's
      explicit rule: never list every reply inside the sidebar). A
      folder's count still covers everything inside it, replies and
      subfolders alike, so nothing about its contents is hidden. */
-  const folderNode = (f: FolderRowT, depth: number, parentIcon?: LucideIcon): TNode => {
-    /* Each folder carries the glyph of its own subject (prices →
-       percent badge, support → life buoy, teachers → people…), so
-       the tree and the rail can be read by icon alone. The
-       parent's glyph is passed down as `avoid`: a subfolder's
-       automatic icon never repeats its parent's shape. Only a
-       source's MAIN folder wears the brand mark (sourceName);
-       a sourced subfolder keeps its own subject glyph. */
-    const myIcon = folderIconOf(f, parentIcon);
-    return {
-      key: `f:${f.id}`,
-      kind: "folder",
-      label: f.name,
-      icon: myIcon,
-      tip: `مجلد «${f.name}» — دوس على الاسم لعرض محتوياته في الصفحة، والسهم للفتح والطي في الشجرة، واسحب من المقبض للنقل`,
-      depth,
-      count: descendantCount(f.id),
-      active: section === "home" && category === f.name,
-      pinned: f.pinned,
-      sourceName: f.isSourceMain ? f.source || undefined : undefined,
-      flash: flashFolderId === f.id,
-      folderId: f.id,
-      parentFolderId: f.parentId,
-      /* Source main folders never nest inside the library tree —
-         they live under the «المصادر» group (see buildTree), so a
-         main folder dragged inside another folder still shows in
-         exactly one place: its source's home. */
-      children: (childFolders.get(f.id) ?? [])
-        .filter((c) => !c.isSourceMain)
-        .map((c) => folderNode(c, depth + 1, myIcon)),
-    };
-  };
-
   /* The glyph a folder's parent shows, for the surfaces that
      render one folder at a time (header tile, folder cards):
      a subfolder's automatic icon steers away from it. A source
@@ -5375,52 +5376,6 @@ function Workspace({
     depth = 1,
   ): TNode => ({ key, kind: "page", label, icon, tip, depth, active, count, run });
 
-  /* «المصادر» — the sources' own home in the sidebar (v72 placed
-     it under the library; v81, at the owner's explicit call,
-     makes it a top-level group of its own, still seated directly
-     under the library block, so folding the library can never
-     hide it): a crafted section wearing its own emblem
-     (SourcesGlyph) instead of a generic glyph — one row per
-     source, wearing its real brand mark. A source whose main
-     folder exists shows that folder right here (expandable, with
-     everything moved under it), and clicking it opens the folder.
-     A source never assigned yet shows as a quiet placeholder —
-     its main folder is created the moment the source is put on
-     any folder, and the row becomes the real folder then. */
-  const sourcesNode: TNode = {
-    key: "g:sources",
-    kind: "group",
-    label: "المصادر",
-    icon: I.link,
-    glyph: "sources",
-    tip: lang === "en" ? "Sources — every source's main folder lives here, under your library; assigning a source to a folder moves it under its main folder at once" : "المصادر — المجلد الرئيسي لكل مصدر عايش هنا تحت مكتبتك؛ وحط مصدر على أي مجلد بينقله تحت مجلده الرئيسي على طول",
-    depth: 0,
-    count: folders.filter((f) => f.isSourceMain).length,
-    children: REPLY_SOURCES.map((source) => {
-      const main = folders.find((f) => f.isSourceMain && f.source === source);
-      if (main) return folderNode(main, 1);
-      const node = pageNode(
-        `src:${source}`,
-        source,
-        I.link,
-        lang === "en"
-          ? `The ${source} main folder is created here the moment you put this source on any folder`
-          : `المجلد الرئيسي لـ ${source} بيتكون هنا أول ما تحط المصدر ده على أي مجلد`,
-        false,
-        null,
-        () =>
-          showToast(
-            lang === "en"
-              ? `No ${source} main folder yet — put the ${source} source on any folder and it will be created here at once`
-              : `لسه مفيش مجلد رئيسي لـ ${source} — حط مصدر ${source} على أي مجلد وهيتكون هنا على طول`,
-          ),
-        1,
-      );
-      node.sourceName = source;
-      return node;
-    }),
-  };
-
   /* The tree's shape (v81, owner's explicit call): «الرئيسية»
      and «المصادر» are TOP-LEVEL stops of their own, outside
      every collapsible group — folding «المكتبة» (or folding
@@ -5433,61 +5388,18 @@ function Workspace({
      tools holds every tool in one flat list; account stays as
      it was. Favorites / most-used / recent are views inside
      Home now, not separate destinations. */
+  /* LEGENDARY: the folder tree is gone — folders live in the home
+     strip. The sidebar is nav only: الرئيسية، الاختصارات، الأدوات
+     (extension showcase), الحساب — plus سلة المهملات and إضافة جماعية
+     as quiet rows, because those two destinations have no other entry
+     point anywhere in the product. */
   const buildTree = (): TNode[] => [
     pageNode("p:home", "الرئيسية", I.home, "الرئيسية — كل ردودك مرتبة في مجلداتها، والمفضلة والمستخدمة مؤخراً والأكثر استخداماً من أزرار العرض فوق القائمة", section === "home" && view === "default" && category === "الكل" && !search.trim() && smartId === null, shortcuts.length, goHome, 0),
     pageNode("p:shortcuts", "الاختصارات", I.shortcut, "الاختصارات — كل كلمات الاختصار بتاعتك في مكان واحد، مرتبة بالمجلد، مع الردود اللي لسه ملهاش اختصار", section === "home" && view === "shortcuts", shortcuts.filter((s) => s.trigger).length, goShortcuts, 0),
-    {
-      key: "g:library",
-      kind: "group",
-      label: "المكتبة",
-      icon: I.layers,
-      tip: "المكتبة — كل مجلداتك وردودك، اسحب أي عنصر عشان تنقله أو ترتبه",
-      depth: 0,
-      count: folders.length,
-      children: [
-        ...smartFolders.map((sf) =>
-          pageNode(
-            `sf:${sf.id}`,
-            sf.name,
-            FOLDER_ICON_OPTIONS.find((o) => o.key === sf.icon)?.icon ?? I.wand,
-            lang === "en" ? `Smart folder — shows live replies matching: ${smartRuleSummary(sf)}` : `مجلد ذكي — بيعرض الردود اللي بتطابق شروطه دلوقتي: ${smartRuleSummary(sf)}`,
-            section === "home" && smartId === sf.id,
-            null,
-            () => goSmart(sf),
-          ),
-        ),
-        ...(childFolders.get(null) ?? [])
-          .filter((f) => !f.isSourceMain)
-          .map((f) => folderNode(f, 1)),
-        pageNode("p:trash", lang === "en" ? "Trash" : "سلة المهملات", I.trash, lang === "en" ? "Trash — deleted replies and folders stay restorable here until you delete them forever" : "سلة المهملات — الردود والمجلدات المحذوفة بتفضل قابلة للاستعادة من هنا لحد ما تحذفها نهائياً", section === "home" && view === "trash", null, goTrash),
-      ],
-    },
-    sourcesNode,
-    {
-      key: "g:tools",
-      kind: "group",
-      label: "الأدوات",
-      icon: I.wrench,
-      tip: "الأدوات — البحث وكل الأدوات في مكان واحد",
-      depth: 0,
-      children: [
-        pageNode("p:bulk", "إضافة جماعية", I.upload, "إضافة مجموعة ردود مرة واحدة باللصق", false, null, () => setBulkOpen(true)),
-        pageNode("p:extension", "تحميل الاكستنشن", I.puzzle, "تحميل الاكستنشن — فيديو الشرح وخطوات التثبيت والتحميل", section === "extension", null, () => goSection("extension")),
-        pageNode("p:home-tools", "النسخ الاحتياطي", I.archive, "النسخ الاحتياطية والاستيراد — في آخر الرئيسية", false, null, scrollToTools),
-      ],
-    },
-    {
-      key: "g:account",
-      kind: "group",
-      label: "الحساب",
-      icon: I.user,
-      tip: "الحساب — ملفك وجلساتك",
-      depth: 0,
-      children: [
-        pageNode("p:account", "حسابي", I.user, "حسابي — الاسم وكلمة المرور والجلسات", section === "account", null, () => goSection("account")),
-        pageNode("p:logout", "تسجيل الخروج", I.logout, "تسجيل الخروج من الجهاز ده", false, null, onLogout),
-      ],
-    },
+    pageNode("p:trash", lang === "en" ? " Trash" : "سلة المهملات", I.trash, lang === "en" ? "Trash — deleted replies and folders stay restorable here until you delete them forever" : "سلة المهملات — الردود والمجلدات المحذوفة بتفضل قابلة للاستعادة من هنا لحد ما تحذفها نهائياً", section === "home" && view === "trash", null, goTrash, 0),
+    pageNode("p:bulk", "إضافة جماعية", I.upload, "إضافة مجموعة ردود مرة واحدة باللصق", false, null, () => setBulkOpen(true), 0),
+    pageNode("p:extension", "الأدوات", I.puzzle, "تحميل الاكستنشن — فيديو الشرح وخطوات التثبيت والتحميل", section === "extension", null, () => goSection("extension"), 0),
+    pageNode("p:account", "حسابي", I.user, "حسابي — الاسم وكلمة المرور والجلسات", section === "account", null, () => goSection("account"), 0),
   ];
 
   const isNodeOpen = (key: string, kind: TNode["kind"]): boolean =>
@@ -5871,7 +5783,7 @@ function Workspace({
             >
               <Icon d={GripVertical} size={14} />
             </span>
-          ) : (
+          ) : node.kind === "page" ? null : (
             <span aria-hidden="true" className="w-[18px] shrink-0" />
           )}
           {hasChildren ? (
@@ -5890,7 +5802,7 @@ function Workspace({
                 <Icon d={chevDir} size={15} />
               </span>
             </button>
-          ) : (
+          ) : node.kind === "page" ? null : (
             <span aria-hidden="true" className="w-[22px] shrink-0" />
           )}
           <span style={nodeColorStyle} className={`tree-icon ${node.sourceName ? "tree-icon-brand" : ""} flex shrink-0 ${node.active ? "text-[var(--accent)]" : isFolderLike ? "text-[var(--dim)]" : "text-[var(--faint)]"} ${nodeColorCls}`}>
@@ -5984,6 +5896,7 @@ function Workspace({
               {node.count}
             </span>
           )}
+          {node.kind !== "page" && (
           <button
             type="button"
             aria-label={`إجراءات «${node.label}»`}
@@ -5993,6 +5906,7 @@ function Workspace({
           >
             <Icon d={MoreHorizontal} size={16} />
           </button>
+          )}
         </div>
         {hasChildren && (
           <div className="tree-children" data-open={open}>
@@ -6423,7 +6337,7 @@ function Workspace({
     return rank;
   }, [childFolders]);
   const visibleItems = displayList.slice(0, visibleCount);
-  const groupedView = category === "الكل" && search.trim() === "" && view === "default" && smartId === null;
+  const groupedView = false; /* LEGENDARY: folder-group headers deleted — home is one 2-col card grid; folders live in the strip above. */
   const groups = useMemo(() => {
     if (!groupedView) return [];
     const map = new Map<string, Shortcut[]>();
@@ -6503,7 +6417,7 @@ function Workspace({
 
   const listUlClass =
     density === "grid"
-      ? "grid items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
+      ? "legend-grid grid items-stretch gap-5 sm:grid-cols-2"
       : density === "compact"
         ? "flex flex-col gap-2"
         : "flex flex-col gap-6";
@@ -7347,6 +7261,7 @@ function Workspace({
             the header «اختصار سريع» is the quick-copy action).
             Hiding the banner folds the whole hero into a slim
             strip; search, chips and the strip stay. */}
+        {view !== "shortcuts" && view !== "trash" && (
         <section className="cmd-deck animate-rise relative mt-6" aria-label={t("لوحة الأوامر")}>
           <div className="cmd-deck-glow" aria-hidden="true" />
           {heroHidden ? (
@@ -7448,7 +7363,7 @@ function Workspace({
                 matches a trigger (or matches nothing at all), the
                 field grows downward into the full reply preview —
                 and shrinks back when cleared. */}
-            <div className="absolute inset-x-0 top-full z-50 mt-2">
+            <div className="legend-preview-wrap">
               <SearchTriggerPreview
                 open={searchPreviewOpen}
                 query={search}
@@ -7482,33 +7397,114 @@ function Workspace({
                     data-trig-chip
                     aria-label={lang === "en" ? `Show reply ${s.title} in search` : `عرض رد ${s.title} في البحث`}
                     onClick={() => pickTrigger(s.trigger ?? "")}
-                    className="lux-btn trig-chip"
+                    className="lux-btn legend-keycap"
                   >
-                    <Icon d={I.shortcut} size={13} />
-                    <span dir="auto">{s.trigger}</span>
+                    <span dir="auto" className="legend-keycap-trig">{s.trigger}</span>
+                    <span className="legend-keycap-title">{s.title}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
-        </section>
+        </section>)}
 
         {/* Toolbar: folder chips on small screens — the «جديد» button now lives in the command deck (Round 7). */}
-        <section className="pt-6">
-          <div className="no-scrollbar -mx-4 mb-1 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:hidden">
-            {categories.map((c) => (
+        {view !== "shortcuts" && view !== "trash" && (
+        <section className="legend-folder-strip-wrap pt-6">
+          <div className="legend-folder-strip no-scrollbar -mx-4 mb-1 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
+            {stripCategories.map((c) => {
+              const folderId = c === "الكل" ? null : (stripFolderByName.get(c) ?? null);
+              const dropHere = folderId !== null && stripDrop?.id === folderId ? stripDrop.pos : null;
+              const dragging = folderId !== null && stripDragId === folderId;
+              return (
               <button
                 key={c}
                 type="button"
+                data-strip-tab={c}
+                data-folder-id={folderId ?? undefined}
                 aria-label={lang === "en" ? `Category ${c === "الكل" ? "All" : c}` : `تصنيف ${c}`} data-tip={c === "الكل" ? (lang === "en" ? "Show all replies" : "عرض كل الاختصارات") : lang === "en" ? `Show only «${c}» replies` : `عرض اختصارات «${c}» فقط`} data-tip-pos="below"
                 aria-pressed={category === c}
                 onClick={() => setCategory(c)}
-                className={`lux-btn flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold ${
+                draggable={folderId !== null && stripArm === folderId}
+                data-dragging={dragging}
+                onDragStart={(e) => {
+                  if (folderId === null || stripArm !== folderId) {
+                    e.preventDefault();
+                    return;
+                  }
+                  dragRef.current = { kind: "folder", id: folderId, ids: [folderId] };
+                  e.dataTransfer.effectAllowed = "move";
+                  try {
+                    e.dataTransfer.setData("text/plain", c);
+                  } catch {
+                    /* the ref carries the payload */
+                  }
+                  setStripDragId(folderId);
+                }}
+                onDragEnd={() => {
+                  clearStripDrag();
+                  clearDrag();
+                }}
+                onDragOver={(e) => {
+                  const drag = dragRef.current;
+                  if (!drag || drag.kind !== "folder" || folderId === null) return;
+                  if (drag.id === folderId) {
+                    if (stripDrop) setStripDrop(null);
+                    return;
+                  }
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const fromStart =
+                    (lang === "ar" ? rect.right - e.clientX : e.clientX - rect.left) /
+                    Math.max(1, rect.width);
+                  const pos = fromStart < 0.5 ? "before" : "after";
+                  if (stripDrop?.id !== folderId || stripDrop.pos !== pos)
+                    setStripDrop({ id: folderId, pos });
+                }}
+                onDragLeave={() => {
+                  if (stripDrop?.id === folderId) setStripDrop(null);
+                }}
+                onDrop={(e) => {
+                  const drag = dragRef.current;
+                  if (!drag || drag.kind !== "folder" || folderId === null) return;
+                  e.preventDefault();
+                  if (drag.id !== folderId) {
+                    const pos = stripDrop?.id === folderId ? stripDrop.pos : "before";
+                    moveFolderTo(
+                      drag.id,
+                      null,
+                      pos === "before" ? folderId : siblingFolderAfter(null, folderId),
+                    );
+                  }
+                  clearStripDrag();
+                  clearDrag();
+                }}
+                className={`lux-btn group relative flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold ${
                   category === c
                     ? "bg-[var(--accent)] text-[var(--accent-ink)]"
                     : "border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--border-strong)] hover:text-[var(--text)]"
                 }`}
               >
+                {dropHere === "before" && <span aria-hidden="true" className="tree-drop-line-v" style={{ insetInlineStart: -4 }} />}
+                {dropHere === "after" && <span aria-hidden="true" className="tree-drop-line-v" style={{ insetInlineEnd: -4 }} />}
+                {folderId !== null && (
+                  <span
+                    aria-hidden="true"
+                    data-tip={t("اسحب المجلد لإعادة ترتيبه")}
+                    className="tree-grip -ms-1 flex shrink-0 items-center self-stretch px-0.5 text-[var(--faint)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setStripArm(folderId);
+                    }}
+                    onMouseUp={() => {
+                      if (stripDragId !== folderId) setStripArm(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Icon d={GripVertical} size={13} />
+                  </span>
+                )}
                 {c === "الكل" ? t("الكل") : c}
                 <span
                   className={`rounded-full px-1.5 text-[11px] font-bold leading-5 ${
@@ -7520,9 +7516,10 @@ function Workspace({
                   {c === "الكل" ? shortcuts.length : (categoryCounts.get(c) ?? 0)}
                 </span>
               </button>
-            ))}
+              );
+            })}
           </div>
-        </section>
+        </section>)}
 
         {/* Filter bar — ONE sticky glass row under the header:
             four primary view pills with counters riding a sliding
@@ -7533,6 +7530,7 @@ function Workspace({
             scrolls sideways under faded edges. Every control drives
             the same view/filter state as before — only the
             arrangement changed. */}
+        {view !== "shortcuts" && view !== "trash" && (
         <div className="header-blur modern-switcher sticky top-[68px] z-30 -mx-4 mt-4 px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="filter-scroll overflow-x-auto">
             <div className="flex w-max items-center gap-1.5">
@@ -7817,7 +7815,7 @@ function Workspace({
               )}
             </div>
           )}
-        </div>
+        </div>)}
 
         {/* Smart folder header: when a smart folder is open, it
             introduces itself like a folder does — name, its rules in
@@ -8221,7 +8219,6 @@ function Workspace({
             <ShortcutsView
               token={token}
               shortcuts={shortcuts}
-              folders={folders}
               query={search}
               onCopy={(s) => handleCopy(s)}
               onSaveTrigger={async (s, trigger) => {
@@ -8246,6 +8243,7 @@ function Workspace({
               onForeverFolder={(id) => foreverFolderMut.mutate(id)}
               onEmpty={() => emptyTrashMut.mutate()}
               emptying={emptyTrashMut.isPending}
+              onBrowse={() => goHome()}
             />
           ) : view === "history" ? (
             <CopyHistoryView
@@ -8669,8 +8667,11 @@ function Workspace({
         {/* Tools — one tidy card: backup & import. (The Windows /
             AutoHotkey panel that sat beside it was removed
             entirely 2026-11-27 at the owner's call — «مش
-            محتاجينها» — his standalone .ahk file is untouched.) */}
-        <section id="home-tools" className="elev-card mt-6 scroll-mt-24 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
+            محتاجينها» — his standalone .ahk file is untouched.)
+            LEGENDARY: home chrome only — it must not leak onto
+            the Shortcuts / Trash / History views. */}
+        {view === "default" && (
+        <section id="home-tools" className="legend-tools elev-card mt-6 scroll-mt-24 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)]">
           <button
             type="button"
             aria-expanded={toolsOpen}
@@ -8703,9 +8704,7 @@ function Workspace({
               <span dir="ltr" className="shrink-0 rounded-full bg-[var(--surface)] px-2.5 py-1 font-mono text-[11px] font-semibold text-[var(--dim)] shadow-[var(--shadow-card)]">JSON · CSV</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-[var(--dim)]">
-              نزّل نسخة احتياطية من مكتبتك واحتفظ بيها، أو استورد اختصارات من ملف نسخة
-              سابقة — المكرر منها بيتخطى لوحده. النسخة العادية مش بتشمل الصور
-              — دي في «تصدير نسخة كاملة» بس، وهناك كروابط مش كملفات.
+              نزّل نسخة من مكتبتك أو استورد نسخة سابقة — المكرر بيتخطى لوحده، والصور في «تصدير نسخة كاملة» بس.
             </p>
             <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
               <button
@@ -8813,7 +8812,7 @@ function Workspace({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold">تصفير الاستخدام</p>
                 <p className="mt-0.5 text-[12.5px] leading-relaxed text-[var(--dim)]">
-                  بيمسح سجل النسخ كله ويرجّع عدّاد استخدام كل رد لصفر — عشان تبدأ العدّ من أول وجديد. الردود والمجلدات والحسابات زي ما هي، ومتاح لحساب صاحب الموقع بس.
+                  بيمسح سجل النسخ ويرجّع كل العدّادات لصفر — الردود والمجلدات زي ما هي.
                 </p>
               </div>
               <button
@@ -8821,7 +8820,7 @@ function Workspace({
                 aria-label="تصفير الاستخدام — مسح سجل النسخ وتصفير عدّادات الردود"
                 data-tip="بيحتاج تأكيد قبل التنفيذ — ومفيش تراجع بعده"
                 onClick={() => setResetUsageOpen(true)}
-                className="lux-btn shrink-0 rounded-[var(--radius)] border border-[var(--danger)] px-4 py-2.5 font-bold text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+                className="lux-btn legend-danger-text shrink-0"
               >
                 تصفير الاستخدام
               </button>
@@ -8837,13 +8836,14 @@ function Workspace({
                 <span className="mt-0.5 shrink-0">
                   <Icon d={Info} size={13} />
                 </span>
-                الاستيراد بيوريك معاينة الأول — إيه اللي هيتضاف وإيه المكرر — وبتختار الدمج أو الاستبدال قبل ما أي حاجة تتكتب. ملف CSV بيحتفظ بالردود والتصنيفات بس، والـ JSON بيحتفظ بكل حاجة بما فيها المجلدات الفرعية.
+                الاستيراد بيوريك معاينة الأول — إيه اللي هيتضاف وإيه المكرر — قبل ما أي حاجة تتكتب.
               </p>
             </div>
           </div>
           </div>
           )}
         </section>
+        )}
 
         </>
         )}
@@ -9432,31 +9432,6 @@ function Workspace({
           <Icon d={I.arrowUp} size={19} />
         </button>
       )}
-      {/* شريط تنقل سفلي للموبايل — بديل السايدبار على الشاشات
-          الصغيرة: أهم الوجهات بضغطة واحدة وبأهداف لمس مريحة */}
-      <nav className="bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] lg:hidden" aria-label={t("التنقل السفلي")}>
-        <div className="mx-auto flex max-w-xl items-stretch justify-around px-2">
-          {([
-            { key: "home", label: "الرئيسية", icon: I.home, active: section === "home" && view === "default" && smartId === null, run: () => { goHome(); window.scrollTo({ top: 0 }); } },
-            { key: "fav", label: "المفضلة", icon: I.star, active: section === "home" && view === "favorites", run: () => { setSmartId(null); setView("favorites"); setSection("home"); window.scrollTo({ top: 0 }); } },
-            { key: "new", label: "جديد", icon: I.plus, active: false, run: () => setEditor({ open: true, item: null }) },
-            { key: "recent", label: "مؤخراً", icon: I.history, active: section === "home" && view === "used", run: () => { setSmartId(null); setView("used"); setSection("home"); window.scrollTo({ top: 0 }); } },
-            { key: "menu", label: "القائمة", icon: I.menu, active: false, run: () => setDrawerOpen(true) },
-          ] as Array<{ key: string; label: string; icon: LucideIcon; active: boolean; run: () => void }>).map((b) => (
-            <button
-              key={b.key}
-              type="button"
-              aria-label={t(b.label)}
-              aria-current={b.active ? "page" : undefined}
-              onClick={b.run}
-              className={`flex min-h-[54px] min-w-[60px] flex-col items-center justify-center gap-0.5 rounded-[10px] px-2 text-[12px] font-bold ${b.active ? "text-[var(--accent)]" : "text-[var(--dim)]"}`}
-            >
-              <Icon d={b.icon} size={21} />
-              {t(b.label)}
-            </button>
-          ))}
-        </div>
-      </nav>
       <Toast toast={toast} />
       {newBuild.show && (
         <div dir="rtl" className="fixed inset-x-0 bottom-20 z-[var(--z-toast)] flex justify-center px-4" role="status">
@@ -9904,6 +9879,7 @@ function TrashView({
   onForeverFolder,
   onEmpty,
   emptying,
+  onBrowse,
 }: {
   folders: FolderRowT[];
   shortcuts: Shortcut[];
@@ -9916,6 +9892,7 @@ function TrashView({
   onForeverFolder: (id: number) => void;
   onEmpty: () => void;
   emptying: boolean;
+  onBrowse: () => void;
 }) {
   const { lang } = useLang();
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
@@ -9953,17 +9930,20 @@ function TrashView({
   const empty = folders.length === 0 && shortcuts.length === 0;
   if (empty) {
     return (
-      <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[linear-gradient(150deg,color-mix(in_srgb,var(--accent)_7%,var(--surface)),var(--surface)_60%)] px-4 py-12 text-center shadow-[var(--shadow-1)]">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--accent)_26%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-[var(--accent)]">
-          <Icon d={I.trash} size={28} />
+      <div className="legend-trash">
+        <div className="legend-page-head">
+          <h2 className="legend-page-title">{lang === "en" ? "Trash" : "سلة المهملات"}</h2>
+          <span className="legend-page-count">0</span>
         </div>
-        <p className="text-[18px] font-extrabold">{lang === "en" ? "The trash is empty" : "سلة المهملات فاضية"}</p>
-        <span aria-hidden="true" className="orn-divider"><i /></span>
-        <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
-          {lang === "en"
-            ? "Anything you delete — a reply or a whole folder — lands here first and stays restorable until you delete it forever."
-            : "أي حاجة بتحذفها — رد أو مجلد كامل — بتنزل هنا الأول وبتفضل قابلة للاستعادة لحد ما تحذفها نهائياً بنفسك."}
-        </p>
+        <div className="legend-empty">
+          <div className="legend-empty-glyph">
+            <Icon d={I.trash} size={28} />
+          </div>
+          <p className="legend-empty-line">{lang === "en" ? "The trash is empty" : "سلة المهملات فاضية"}</p>
+          <button type="button" onClick={onBrowse} className="lux-btn legend-empty-link">
+            {lang === "en" ? "Browse the library" : "تصفح المكتبة"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -9996,13 +9976,10 @@ function TrashView({
       </button>
     );
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <p className="flex-1 text-sm leading-relaxed text-[var(--dim)]">
-          {lang === "en"
-            ? "Deleted items stay restorable here. A restored folder brings back everything inside it, exactly as it was."
-            : "العناصر المحذوفة بتفضل قابلة للاستعادة من هنا. المجلد المستعاد بيرجع بكل اللي جواه زي ما كان بالظبط."}
-        </p>
+    <div className="legend-trash">
+      <div className="legend-page-head mb-3">
+        <h2 className="legend-page-title">{lang === "en" ? "Trash" : "سلة المهملات"}</h2>
+        <span className="legend-page-count">{folders.length + shortcuts.length}</span>
         {confirmEmpty ? (
           <button
             type="button"
@@ -10024,7 +10001,7 @@ function TrashView({
             aria-label={lang === "en" ? "Empty the trash" : "تفريغ سلة المهملات"}
             data-tip={lang === "en" ? "Permanently deletes everything below" : "حذف نهائي لكل اللي تحت"}
             onClick={() => setConfirmEmpty(true)}
-            className="lux-btn flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-[13px] font-bold text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+            className="lux-btn legend-danger-text"
           >
             <Icon d={I.eraser} size={15} />
             {lang === "en" ? "Empty trash" : "تفريغ السلة"}
@@ -11214,10 +11191,10 @@ function AccountSection({
       <div className="mt-8">
         <GroupHead label="الملف الشخصي" hint="اسمك وبيانات حسابك الأساسية" />
       </div>
-      <div className="elev-card mt-5 flex flex-wrap items-center gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
-        <AvatarFace user={user} displayName={displayName} size={64} textClass="text-[26px]" />
+      <div className="legend-profile-band elev-card mt-5 flex flex-wrap items-center gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+        <AvatarFace user={user} displayName={displayName} size={96} textClass="text-[26px]" />
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-[20px] font-bold">{displayName}</p>
+          <p className="truncate text-[22px] font-extrabold">{displayName}</p>
           <p dir="ltr" className="mt-1 truncate text-left font-mono text-sm text-[var(--dim)]">{loginIdLabel(user)}</p>
           <p className="mt-1 text-xs text-[var(--dim)]">
             عضو من {new Date(user.createdAt).toLocaleDateString("ar-EG")}
@@ -13868,576 +13845,6 @@ function SearchTriggerPreview({
    staged animation (literal cubic-bezier only) and the copy
    button flips to the check + «اتنسخ» with a success glow for
    2s — the same flip the reply copy buttons use. */
-function MyShortcutsCard({
-  items,
-  onAddFirst,
-  onPickTrigger,
-  query,
-  onToast,
-}: {
-  items: Shortcut[];
-  onAddFirst: () => void;
-  /* Tapping a row types its trigger into the search box, so the
-     search box grows into that reply's preview (the old chips
-     strip did this; the rows do it now). */
-  onPickTrigger?: (trigger: string) => void;
-  /* The search query, so the row whose trigger is typed now can
-     wear the active state. */
-  query?: string;
-  /* The one copy toast (same contract as every copy surface:
-     the button flips for 2s AND the toast fires). */
-  onToast?: (msg: string) => void;
-}) {
-  const { lang, t } = useLang();
-  const [open, setOpen] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const timer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  const text = useMemo(
-    () => items.map((s) => `${s.trigger} → ${s.title}`).join("\n"),
-    [items],
-  );
-  const copyAll = async () => {
-    if (copying || items.length === 0) return;
-    setCopying(true);
-    const ok = await copyText(text);
-    setCopying(false);
-    if (!ok) return; /* never show a false «اتنسخ» */
-    setCopied(true);
-    onToast?.(t("اتنسخ الكارت كله — الصقه في أي مكان"));
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <section
-      aria-label={t("كارت اختصاراتك")}
-      className="animate-card-in overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
-    >
-      <div className="flex items-center gap-2 px-4 py-3">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-label={open ? t("اقفل كارت اختصاراتك") : t("افتح كارت اختصاراتك")}
-          className="lux-btn flex min-w-0 flex-1 items-center gap-2.5 text-start"
-        >
-          <span className="editor-head-icon shrink-0">
-            <Icon d={I.shortcut} size={15} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-extrabold">
-              {t("كارت اختصاراتك")}
-            </span>
-            <span className="block truncate text-xs text-[var(--dim)]">
-              {items.length === 0
-                ? t("لسه مفيش اختصارات — أول ما تضيف واحد هيظهر هنا")
-                : lang === "en"
-                  ? `${items.length} shortcuts — most recently used first`
-                  : `${items.length} اختصار — آخر استخدام الأول`}
-            </span>
-          </span>
-          <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-            {items.length}
-          </span>
-          <span
-            aria-hidden="true"
-            className={`flex shrink-0 text-[var(--dim)] transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-          >
-            <Icon d={I.chevron} size={16} />
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-label={copied ? t("اتنسخ الكارت كله") : t("انسخ الكارت كله")}
-          aria-live="polite"
-          aria-busy={copying}
-          disabled={items.length === 0 || copying}
-          onClick={() => void copyAll()}
-          className={`btn-lux flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-bold disabled:opacity-60 ${copied ? "btn-lux-success copy-success" : ""}`}
-        >
-          {copying ? (
-            <>
-              <span className="spinner" aria-hidden="true" />
-              {t("بيتنسخ…")}
-            </>
-          ) : copied ? (
-            <>
-              <span className="animate-copy-pop flex">
-                <Icon d={I.check} size={15} />
-              </span>
-              {t("اتنسخ")}
-            </>
-          ) : (
-            <>
-              <Icon d={I.copy} size={15} />
-              {t("انسخ الكارت كله")}
-            </>
-          )}
-        </button>
-      </div>
-      {open &&
-        (items.length === 0 ? (
-          <div className="pattern-star border-t border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center">
-            <div className="mb-3 flex justify-center text-[var(--faint)]">
-              <Icon d={I.shortcut} size={40} />
-            </div>
-            <p className="font-semibold">
-              {t("لسه مفيش اختصارات في الكارت")}
-            </p>
-            <span aria-hidden="true" className="orn-divider"><i /></span>
-            <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-[var(--dim)]">
-              {t("أول ما تضيف اختصار لأي رد، هيظهر هنا — والكارت كله هيتنسخ بضغطة واحدة.")}
-            </p>
-            <button
-              type="button"
-              onClick={onAddFirst}
-              className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]"
-            >
-              <Icon d={I.shortcut} size={15} />
-              {t("ضيف أول اختصار")}
-            </button>
-          </div>
-        ) : (
-          <ul className="max-h-80 overflow-y-auto overscroll-contain border-t border-[var(--border)] p-2">
-            {items.map((s, i) => {
-              /* The row whose trigger is typed in the search box
-                 right now: its pill wears the active state (the
-                 filled trig-chip-active style belongs on the pill,
-                 not the full-width row). data-trig-chip keeps the
-                 search preview's tap-outside dismissal from
-                 flickering the panel shut on this press. */
-              const active =
-                query !== undefined &&
-                query.trim() !== "" &&
-                normalizeSearchText(s.trigger ?? "") ===
-                  normalizeSearchText(query.trim());
-              return (
-              <li
-                key={s.id}
-                className="trig-stage"
-                style={{ animationDelay: `${Math.min(i, 12) * 35}ms` } as React.CSSProperties}
-              >
-                <button
-                  type="button"
-                  data-trig-chip
-                  aria-pressed={active}
-                  aria-label={lang === "en" ? `Show reply ${s.title} in search` : `عرض رد ${s.title} في البحث`}
-                  onClick={() => onPickTrigger?.(s.trigger ?? "")}
-                  className={`flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-start hover:bg-[var(--surface-alt)] ${active ? "bg-[var(--surface-alt)]" : ""}`}
-                >
-                  <span dir="auto" className={`trig-chip shrink-0 ${active ? "trig-chip-active" : ""}`}>
-                    {s.trigger}
-                  </span>
-                  <span aria-hidden="true" className="shrink-0 text-[var(--faint)]">
-                    →
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-bold">
-                      {s.title}
-                    </span>
-                    <span className="block truncate text-xs text-[var(--dim)]">
-                      {s.category}
-                    </span>
-                  </span>
-                </button>
-              </li>
-              );
-            })}
-          </ul>
-        ))}
-    </section>
-  );
-}
-
-/* ---------- starter library picker (owner only) ----------
-   «مكتبة بداية»: the owner picks, from his own library, the
-   replies every new account starts with. The choice is stored in
-   site_config ("starter_library") and registration copies the
-   chosen replies into the new account's own library — existing
-   accounts are never touched, and until the owner picks a set new
-   accounts start from the guided empty state. Non-owners never
-   see this card (the server answers isOwner false for them).
-   No reply is invented here: the list is the owner's own library,
-   grouped the way the library itself is ordered. */
-function StarterLibraryPicker({
-  token,
-  shortcuts,
-  folders,
-}: {
-  token: string;
-  shortcuts: Shortcut[];
-  folders: FolderRowT[];
-}) {
-  const { lang, t } = useLang();
-  const queryClient = useQueryClient();
-  const libQuery = useQuery({
-    queryKey: ["starterLibrary", token],
-    queryFn: () => api.getStarterLibrary({ token }),
-  });
-  const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState<number[]>([]);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const savedTimer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(savedTimer.current), []);
-  const chosenIds = libQuery.data?.chosen.map((c) => c.id) ?? [];
-  useEffect(() => {
-    setSelected(chosenIds);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [libQuery.data]);
-  const saveMut = useMutation({
-    mutationFn: async (ids: number[]) =>
-      await api.setStarterLibrary({ token, shortcutIds: ids }),
-    onSuccess: () => {
-      setSaveError(null);
-      setSaved(true);
-      window.clearTimeout(savedTimer.current);
-      savedTimer.current = window.setTimeout(() => setSaved(false), 2000);
-      void queryClient.invalidateQueries({
-        queryKey: ["starterLibrary", token],
-      });
-    },
-    onError: (e) =>
-      setSaveError(e instanceof Error ? e.message : "الحفظ متمّش — حاول تاني"),
-  });
-  const groups = useMemo(() => {
-    const q = filter.trim();
-    const list = shortcuts.filter(
-      (s) => !q || searchScore(s, q) >= 0,
-    );
-    const rank = new Map<string, number>();
-    folders.forEach((f, i) => {
-      if (!rank.has(f.name)) rank.set(f.name, i);
-    });
-    const map = new Map<string, Shortcut[]>();
-    for (const s of list) {
-      const arr = map.get(s.category) ?? [];
-      arr.push(s);
-      map.set(s.category, arr);
-    }
-    for (const arr of map.values())
-      arr.sort((a, b) => a.title.localeCompare(b.title, "ar"));
-    return [...map.entries()]
-      .sort(
-        ([a], [b]) =>
-          (rank.get(a) ?? 10000) - (rank.get(b) ?? 10000) ||
-          a.localeCompare(b, "ar"),
-      )
-      .map(([name, items]) => ({ name, items }));
-  }, [shortcuts, folders, filter]);
-  /* Not the owner (or still loading / failed): the picker simply
-     does not exist — it is an owner surface, not a gated error. */
-  if (!libQuery.data?.isOwner) return null;
-  return (
-    <section
-      id="starter-library"
-      aria-label={t("مكتبة بداية")}
-      className="animate-card-in scroll-mt-4 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
-    >
-      <div className="flex items-start gap-2.5 px-4 py-3.5">
-        <span className="editor-head-icon mt-0.5 shrink-0">
-          <Icon d={Library} size={15} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-extrabold">{t("مكتبة بداية")}</p>
-          <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--dim)]">
-            {t("اختار الردود اللي أي حساب جديد هيبدأ بيها — بتتنسخ في مكتبته هو، وردودك بتفضل زي ما هي.")}
-          </p>
-        </div>
-        <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-          {lang === "en"
-            ? `${selected.length} picked`
-            : `مختار ${selected.length}`}
-        </span>
-      </div>
-      {chosenIds.length === 0 && (
-        <p className="border-t border-[var(--border)] px-4 py-2.5 text-[13px] font-semibold text-[var(--dim)]">
-          {t("لسه مخترتش ولا رد — الحسابات الجديدة هتبدأ من صفحة فاضية لحد ما تختار.")}
-        </p>
-      )}
-      <div className="border-t border-[var(--border)] px-4 py-3">
-        <input
-          aria-label={t("دوّر في ردودك")}
-          dir="auto"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder={t("دوّر في ردودك…")}
-          className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-        />
-        <div className="mt-3 max-h-80 overflow-y-auto overscroll-contain pe-1">
-          {groups.map((g) => (
-            <div key={g.name} className="mb-3">
-              <p className="mb-1.5 text-xs font-extrabold text-[var(--faint)]">
-                {g.name} · {g.items.length}
-              </p>
-              <ul className="flex flex-col gap-1">
-                {g.items.map((s, i) => {
-                  const on = selected.includes(s.id);
-                  return (
-                    <li
-                      key={s.id}
-                      className={i < 6 ? "trig-stage" : undefined}
-                      style={
-                        i < 6
-                          ? ({ animationDelay: `${i * 35}ms` } as React.CSSProperties)
-                          : undefined
-                      }
-                    >
-                      <label className="lux-btn flex cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-[var(--surface-alt)]">
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={() =>
-                            setSelected((prev) =>
-                              on
-                                ? prev.filter((x) => x !== s.id)
-                                : [...prev, s.id],
-                            )
-                          }
-                          className="h-4 w-4 shrink-0 accent-[var(--accent)]"
-                        />
-                        <span className="min-w-0 flex-1 truncate text-[14px] font-bold">
-                          {s.title}
-                        </span>
-                        {s.trigger && (
-                          <span dir="auto" className="trig-chip shrink-0">
-                            {s.trigger}
-                          </span>
-                        )}
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-          {groups.length === 0 && (
-            <p className="py-4 text-center text-sm text-[var(--dim)]">
-              {t("مفيش رد بيطابق بحثك")}
-            </p>
-          )}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            aria-label={t("احفظ مكتبة البداية")}
-            aria-live="polite"
-            aria-busy={saveMut.isPending}
-            disabled={saveMut.isPending}
-            onClick={() => saveMut.mutate(selected)}
-            className={`btn-lux flex items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold disabled:opacity-60 ${saved ? "btn-lux-success copy-success" : ""}`}
-          >
-            {saveMut.isPending ? (
-              <>
-                <span className="spinner" aria-hidden="true" />
-                {t("بيتحفظ…")}
-              </>
-            ) : saved ? (
-              <>
-                <span className="animate-copy-pop flex">
-                  <Icon d={I.check} size={15} />
-                </span>
-                {t("اتحفظت")}
-              </>
-            ) : (
-              <>
-                <Icon d={I.check} size={15} />
-                {t("احفظ مكتبة البداية")}
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelected([])}
-            disabled={selected.length === 0}
-            className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-bold hover:border-[var(--border-strong)] disabled:opacity-60"
-          >
-            {t("امسح الاختيار")}
-          </button>
-        </div>
-        {saveError && (
-          <p role="alert" className="mt-2 text-xs font-semibold text-[var(--danger)]">
-            {saveError}
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-/* ---------- «أكمل اختصاراتك» ----------
-   Guided completion: the trigger-less replies, most-used first,
-   one at a time, with the easiest suggested trigger one tap away.
-   One tap assigns + auto-advances (the list shrinks, the next
-   reply slides in); «تخطَّ» skips. The progress line counts the
-   whole library (X of Y replies have shortcuts) so the coverage
-   is visible at a glance. */
-function CompleteShortcutsPanel({
-  withoutTrigger,
-  withCount,
-  total,
-  takenTriggersById,
-  onSaveTrigger,
-}: {
-  withoutTrigger: Shortcut[];
-  withCount: number;
-  total: number;
-  takenTriggersById: Map<number, string[]>;
-  onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
-}) {
-  const { lang, t } = useLang();
-  const ordered = useMemo(
-    () =>
-      [...withoutTrigger].sort(
-        (a, b) => b.usageCount - a.usageCount || a.id - b.id,
-      ),
-    [withoutTrigger],
-  );
-  const [open, setOpen] = useState(true);
-  const [idx, setIdx] = useState(0);
-  const [busy, setBusy] = useState(false);
-  /* The list shrinks as triggers are assigned — clamp the cursor. */
-  useEffect(() => {
-    setIdx((i) =>
-      ordered.length === 0 ? 0 : Math.min(i, ordered.length - 1),
-    );
-  }, [ordered.length]);
-  const current = ordered[idx] ?? null;
-  const suggestions = useMemo(
-    () =>
-      current
-        ? suggestTriggers(current, takenTriggersById.get(current.id) ?? [], "")
-        : [],
-    [current, takenTriggersById],
-  );
-  const pct = total > 0 ? Math.round((withCount / total) * 100) : 100;
-  if (ordered.length === 0) {
-    return (
-      <div className="animate-card-in flex items-center gap-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <span className="text-[var(--accent)]">
-          <Icon d={I.check} size={16} />
-        </span>
-        <p className="text-sm font-bold">{t("كل الردود ليها اختصارات ✓")}</p>
-      </div>
-    );
-  }
-  return (
-    <section
-      aria-label={t("أكمل اختصاراتك")}
-      className="animate-card-in overflow-hidden rounded-[var(--radius)] border border-[var(--border)] glass-panel"
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="lux-btn flex w-full items-center gap-2.5 px-4 py-3.5 text-start"
-      >
-        <span className="editor-head-icon shrink-0">
-          <Icon d={I.sparkles} size={15} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-extrabold">
-            {t("أكمل اختصاراتك")}
-          </span>
-          <span className="mt-0.5 block text-[13px] leading-relaxed text-[var(--dim)]">
-            {lang === "en"
-              ? `${withCount} of ${total} replies have shortcuts — one tap each.`
-              : `${withCount} من ${total} رد ليهم اختصار — دوسة واحدة لكل رد.`}
-          </span>
-        </span>
-        <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-          {pct}٪
-        </span>
-        <span
-          className={`shrink-0 text-[var(--dim)] transition-transform ${open ? "rotate-180" : ""}`}
-        >
-          <Icon d={I.chevron} size={16} />
-        </span>
-      </button>
-      {open && current && (
-        <div className="border-t border-[var(--border)] px-4 py-3">
-          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-alt)]">
-            <span
-              className="block h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="mt-3 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-extrabold">
-                {current.title}
-              </p>
-              <p className="mt-0.5 text-[13px] text-[var(--dim)]">
-                {current.category}
-                {current.usageCount > 0
-                  ? ` · ${lang === "en" ? `copied ${current.usageCount} times` : `اتنسخ ${current.usageCount} مرة`}`
-                  : ""}
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-              {idx + 1} / {ordered.length}
-            </span>
-          </div>
-          {suggestions.length > 0 ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {suggestions.map((sug) => (
-                <button
-                  key={sug}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    if (busy) return;
-                    setBusy(true);
-                    void onSaveTrigger(current, sug).finally(() =>
-                      setBusy(false),
-                    );
-                  }}
-                  className="lux-btn trig-chip"
-                >
-                  <Icon d={I.shortcut} size={13} />
-                  <span dir="auto">{sug}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-[13px] leading-relaxed text-[var(--dim)]">
-              {t("مفيش اقتراح جاهز للرد ده — دوس على الاختصار واكتب واحد بنفسك.")}
-            </p>
-          )}
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy || ordered.length <= 1}
-              onClick={() => setIdx((i) => (i + 1) % ordered.length)}
-              className="lux-btn rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-bold disabled:opacity-60"
-            >
-              {t("تخطَّ")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="lux-btn rounded-full px-3 py-2 text-sm font-bold text-[var(--dim)] hover:text-[var(--text)]"
-            >
-              {t("أقفل")}
-            </button>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-/* ---------- مشاركة الاختصارات واستيرادها ----------
-   Export MY triggers as a JSON file (trigger → title + body +
-   category) for the team; import a teammate's file into my own
-   account. Rules, enforced here AND by the server (updateShortcut
-   / createShortcut re-validate uniqueness): only FREE triggers
-   are imported — a trigger I already have is shown as a conflict
-   and skipped, never overwritten. A trigger whose reply I already
-   have (same title + body) is LINKED to my reply; otherwise the
-   reply is created with its trigger. A clear before/after summary
-   closes the flow. */
 function ShareShortcutsRow({
   shortcuts,
   onSaveTrigger,
@@ -14666,7 +14073,6 @@ function ShareShortcutsRow({
 function ShortcutsView({
   token,
   shortcuts,
-  folders,
   query,
   onCopy,
   onSaveTrigger,
@@ -14676,7 +14082,6 @@ function ShortcutsView({
 }: {
   token: string;
   shortcuts: Shortcut[];
-  folders: FolderRowT[];
   query: string;
   onCopy: (s: Shortcut) => Promise<CopyResult>;
   onSaveTrigger: (s: Shortcut, trigger: string) => Promise<void>;
@@ -14737,37 +14142,6 @@ function ShortcutsView({
         ),
     [shortcuts, searching, q],
   );
-  /* Folder groups follow the folder tree's own order, so the view
-     reads the same way the library does — but inside each group
-     the most-used triggers stand first, with a small live count
-     that makes the order legible. */
-  const groups = useMemo(() => {
-    const rank = new Map<string, number>();
-    folders.forEach((f, i) => {
-      if (!rank.has(f.name)) rank.set(f.name, i);
-    });
-    const map = new Map<string, Shortcut[]>();
-    for (const s of withTrigger) {
-      const arr = map.get(s.category) ?? [];
-      arr.push(s);
-      map.set(s.category, arr);
-    }
-    for (const arr of map.values()) {
-      arr.sort(
-        (a, b) =>
-          b.usageCount - a.usageCount ||
-          (a.trigger ?? "").localeCompare(b.trigger ?? "", "ar"),
-      );
-    }
-    return [...map.entries()]
-      .sort(
-        ([a], [b]) =>
-          (rank.get(a) ?? 10000) - (rank.get(b) ?? 10000) ||
-          a.localeCompare(b, "ar"),
-      )
-      .map(([name, items]) => ({ name, items }));
-  }, [withTrigger, folders]);
-
   /* The empty state's one obvious first action: jump to the
      most-used reply still waiting for a trigger and flash its
      row, so the eye lands exactly on the pill to tap. */
@@ -14781,6 +14155,24 @@ function ShortcutsView({
       )[0] ?? null,
     [withoutTrigger],
   );
+  const [miniQ, setMiniQ] = useState("");
+  const miniList = useMemo(() => {
+    const mq = miniQ.trim();
+    if (!mq) return withoutTrigger;
+    return withoutTrigger.filter((x) => searchScore(x, mq) >= 0);
+  }, [withoutTrigger, miniQ]);
+  const copyAllKeys = async () => {
+    /* The card copies as `trigger → title` lines joined by a
+       newline — the same format the old shortcuts card used. */
+    const items = allTriggers;
+    const text = items.map((s) => `${s.trigger} → ${s.title}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      onToast?.(lang === "en" ? "All shortcuts copied" : "اتنسخت كل الاختصارات");
+    } catch {
+      onToast?.(lang === "en" ? "Copy failed — try again" : "النسخ فشل — حاول تاني");
+    }
+  };
   const jumpToFirstFree = () => {
     if (!firstFree) return;
     setFlashId(firstFree.id);
@@ -14792,55 +14184,98 @@ function ShortcutsView({
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* «كارت اختصاراتك» — every trigger → reply in one card,
-          copyable as plain text in one tap. */}
-      <MyShortcutsCard items={allTriggers} onAddFirst={jumpToFirstFree} onPickTrigger={onPickTrigger} query={q} onToast={onToast} />
-      {/* «أكمل اختصاراتك» — guided completion, most-used first,
-          one tap per reply. */}
-      <CompleteShortcutsPanel
-        withoutTrigger={withoutTrigger}
-        withCount={withTrigger.length}
-        total={shortcuts.length}
-        takenTriggersById={takenTriggersById}
-        onSaveTrigger={onSaveTrigger}
-      />
-      {/* Share + import. (The «مكتبة بداية» pill that sat here
-          was removed 2026-11-27 at the owner's call — the picker
-          itself stays at the bottom of this view.) */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <ShareShortcutsRow
-          shortcuts={shortcuts}
-          onSaveTrigger={onSaveTrigger}
-          onCreateShortcut={onCreateShortcut}
-        />
-      </div>
-      {withTrigger.length === 0 && withoutTrigger.length > 0 && !searching ? (
-        /* No triggers yet: one clear line saying what a shortcut
-           is, plus one obvious first action — no lecture. */
-        <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-4 text-center">
-          <p className="flex items-center justify-center gap-1.5 text-sm font-bold leading-relaxed">
-            <Icon d={I.shortcut} size={15} />
-            {t("الاختصار كلمة قصيرة بتكتبها في البحث — أو في شريط الاختصارات — فتجيب الرد ده على طول من غير ما تدوّر عليه.")}
-          </p>
-          <button
-            type="button"
-            onClick={jumpToFirstFree}
-            disabled={!firstFree}
-            className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
-          >
-            <Icon d={I.shortcut} size={15} />
-            {t("ضيف أول اختصار")}
-          </button>
+    <div className="legend-keyring flex flex-col gap-6">
+      {/* The keyring: the 5 keys ARE the page. */}
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-[20px] font-extrabold leading-snug">{lang === "en" ? "Your keys" : "مفاتيحك"}</h2>
+          {allTriggers.length > 0 && (
+            <button type="button" onClick={() => void copyAllKeys()} className="lux-btn legend-quiet-btn">
+              {lang === "en" ? "Copy all keys" : "نسخ الكارت كله"}
+            </button>
+          )}
         </div>
-      ) : (
-        <p className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-3 text-sm leading-relaxed text-[var(--dim)]">
+        {allTriggers.length > 0 ? (
+          <div className="legend-keyrow">
+            {allTriggers.map((x) => (
+              <div key={x.id} className="legend-bigkey">
+                <button
+                  type="button"
+                  onClick={() => onPickTrigger(x.trigger ?? "")}
+                  aria-label={lang === "en" ? `Show reply ${x.title} in search` : `عرض رد ${x.title} في البحث`}
+                  className="lux-btn legend-bigkey-face"
+                >
+                  <span dir="auto" className="legend-bigkey-trig">{x.trigger}</span>
+                  <span className="legend-bigkey-title">{x.title}</span>
+                  <span className="legend-bigkey-meta">
+                    {x.category} · {x.usageCount} {lang === "en" ? "uses" : "استخدام"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onCopy(x)}
+                  aria-label={lang === "en" ? `Copy reply ${x.title}` : `نسخ رد ${x.title}`}
+                  className="lux-btn legend-bigkey-copy"
+                >
+                  <Icon d={I.copy} size={15} />
+                  {lang === "en" ? "Copy" : "نسخ"}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] px-4 py-4 text-center">
+            <p className="flex items-center justify-center gap-1.5 text-sm font-bold leading-relaxed">
+              <Icon d={I.shortcut} size={15} />
+              {t("الاختصار كلمة قصيرة بتكتبها في البحث — أو في شريط الاختصارات — فتجيب الرد ده على طول من غير ما تدوّر عليه.")}
+            </p>
+            <button
+              type="button"
+              onClick={jumpToFirstFree}
+              disabled={!firstFree}
+              className="lux-btn mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+            >
+              <Icon d={I.shortcut} size={15} />
+              {t("ضيف أول اختصار")}
+            </button>
+          </div>
+        )}
+        <p className="legend-progress">
           {lang === "en"
-            ? `${withTrigger.length} trigger${withTrigger.length === 1 ? "" : "s"} — type any trigger in the search above or in the shortcut bar to jump straight to its reply. Each trigger belongs to you only.`
-            : `${withTrigger.length} اختصار — اكتب أي اختصار في البحث اللي فوق أو في «شريط الاختصارات» عشان توصل لرده على طول. كل اختصار بتاعك انت بس.`}
+            ? `${withTrigger.length} of ${shortcuts.length} replies have a shortcut`
+            : `${withTrigger.length} من ${shortcuts.length} رد ليهم اختصار`}
         </p>
+      </div>
+      {withoutTrigger.length > 0 && (
+        <section aria-label={t("ردود من غير اختصار")}>
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
+            <span className="editor-label-icon">
+              <Icon d={I.shortcut} size={14} />
+            </span>
+            {t("ردود لسه ملهاش اختصار")}
+            <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+              {withoutTrigger.length}
+            </span>
+            <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
+          </h3>
+          <input
+            value={miniQ}
+            onChange={(e) => setMiniQ(e.target.value)}
+            placeholder={lang === "en" ? "Search replies without a shortcut…" : "دوّر في الردود اللي لسه من غير اختصار…"}
+            aria-label={lang === "en" ? "Search replies without a shortcut" : "بحث في الردود اللي من غير اختصار"}
+            className="legend-mini-search mb-3 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm outline-none placeholder:text-[var(--faint)] focus:border-[var(--accent)]"
+          />
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {miniList.map((x) => (
+              <TriggerRow key={x.id} s={x} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(x.id) ?? []} highlight={flashId === x.id} />
+            ))}
+          </ul>
+          {miniList.length === 0 && (
+            <p className="py-6 text-center text-sm text-[var(--dim)]">{t("مفيش نتيجة مطابقة لبحثك")}</p>
+          )}
+        </section>
       )}
-      {withTrigger.length === 0 && withoutTrigger.length === 0 ? (
+      {withTrigger.length === 0 && withoutTrigger.length === 0 && (
         <div className="pattern-star rounded-[var(--radius)] border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-10 text-center">
           <div className="mb-3 flex justify-center text-[var(--faint)]">
             <Icon d={I.shortcut} size={40} />
@@ -14857,56 +14292,169 @@ function ShortcutsView({
               : t("الاختصار كلمة قصيرة بتكتبها في البحث فتجيب الرد على طول. ضيف أول رد من الرئيسية، وبعدها ادّيله اختصار من هنا.")}
           </p>
         </div>
-      ) : (
-        <>
-          {groups.map((g) => (
-            <section key={g.name} aria-label={g.name}>
-              <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
-                <span className="editor-label-icon">
-                  <Icon d={I.folder} size={14} />
-                </span>
-                {g.name}
-                <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-                  {g.items.length}
-                </span>
-                <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
-              </h3>
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {g.items.map((s) => (
-                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(s.id) ?? []} />
-                ))}
-              </ul>
-            </section>
-          ))}
-          {withoutTrigger.length > 0 && (
-            <section aria-label={t("ردود من غير اختصار")}>
-              <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
-                <span className="editor-label-icon">
-                  <Icon d={I.shortcut} size={14} />
-                </span>
-                {t("ردود لسه ملهاش اختصار")}
-                <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
-                  {withoutTrigger.length}
-                </span>
-                <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
-              </h3>
-              <p className="mb-2 text-[13px] leading-relaxed text-[var(--dim)]">
-                {t("دوس «أضف اختصار» على أي رد من اللي تحت واكتب له كلمة — دوسة واحدة وبيتحفظ.")}
-              </p>
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {withoutTrigger.map((s) => (
-                  <TriggerRow key={s.id} s={s} onCopy={onCopy} onSaveTrigger={onSaveTrigger} takenTriggers={takenTriggersById.get(s.id) ?? []} highlight={flashId === s.id} />
-                ))}
-              </ul>
-            </section>
-          )}
-        </>
       )}
-      {/* Owner only: «مكتبة بداية» — the starter set for new
-          accounts, picked from his own library. Renders nothing
-          for anyone else. */}
-      <StarterLibraryPicker token={token} shortcuts={shortcuts} folders={folders} />
+      {/* Import / export — one quiet row of text buttons at the bottom. */}
+      <div className="legend-shortcuts-foot">
+        <ShareShortcutsRow
+          shortcuts={shortcuts}
+          onSaveTrigger={onSaveTrigger}
+          onCreateShortcut={onCreateShortcut}
+        />
+      </div>
+      {/* Starter library picker — the 2026-11-27 decision kept the
+          picker (the PILL was the only thing removed). Owner-only;
+          a quiet section at the very bottom, below the no-trigger
+          mini-grid, in the legendary hairline language — never a
+          card, never the hero. */}
+      <StarterLibraryPicker token={token} shortcuts={shortcuts} onToast={onToast} />
     </div>
+  );
+}
+
+/* ---------- starter library picker ----------
+   The owner picks which of his own replies every new account
+   starts with (get/setStarterLibrary; new-user seeding happens
+   server-side at registration — this UI only chooses the set).
+   Non-owners get isOwner false and the section renders nothing;
+   while the query is loading it renders nothing either, so no
+   empty frame ever flashes. Chosen replies sit first, in the
+   saved order; the rest follow in library order. */
+function StarterLibraryPicker({
+  token,
+  shortcuts,
+  onToast,
+}: {
+  token: string;
+  shortcuts: Shortcut[];
+  onToast?: (msg: string) => void;
+}) {
+  const { lang, t } = useLang();
+  const queryClient = useQueryClient();
+  const [q, setQ] = useState("");
+  const [chosenIds, setChosenIds] = useState<number[]>([]);
+  const [seeded, setSeeded] = useState(false);
+  const libQuery = useQuery({
+    queryKey: ["starterLibrary", token],
+    queryFn: () => api.getStarterLibrary({ token }),
+  });
+  useEffect(() => {
+    if (libQuery.data && !seeded) {
+      setChosenIds(libQuery.data.chosen.map((c) => c.id));
+      setSeeded(true);
+    }
+  }, [libQuery.data, seeded]);
+  const saveMut = useMutation({
+    mutationFn: async (ids: number[]) =>
+      await api.setStarterLibrary({ token, shortcutIds: ids }),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ["starterLibrary", token] });
+      onToast?.(
+        lang === "en"
+          ? `Starter library saved — ${res.saved} replies`
+          : `اتحفظت مكتبة البداية — ${res.saved} رد`,
+      );
+    },
+    onError: () =>
+      onToast?.(
+        lang === "en" ? "Save failed — try again" : "الحفظ متمّش — حاول تاني",
+      ),
+  });
+  const savedIds = useMemo(
+    () => (libQuery.data?.chosen ?? []).map((c) => c.id),
+    [libQuery.data],
+  );
+  const dirty =
+    chosenIds.length !== savedIds.length ||
+    chosenIds.some((id, i) => id !== savedIds[i]);
+  const chosenSet = useMemo(() => new Set(chosenIds), [chosenIds]);
+  const visible = useMemo(() => {
+    const mq = q.trim();
+    const rows = shortcuts.filter((s) => !mq || searchScore(s, mq) >= 0);
+    const chosen = chosenIds
+      .map((id) => rows.find((s) => s.id === id))
+      .filter((s): s is Shortcut => !!s);
+    const rest = rows.filter((s) => !chosenSet.has(s.id));
+    return [...chosen, ...rest];
+  }, [shortcuts, q, chosenIds, chosenSet]);
+  const toggle = (id: number) =>
+    setChosenIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  if (!libQuery.data?.isOwner) return null;
+  return (
+    <section id="starter-library" aria-label={t("مكتبة بداية")} className="legend-starter">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-extrabold text-[var(--dim)]">
+        {t("مكتبة بداية")}
+        <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[12px] font-bold text-[var(--faint)]">
+          {chosenIds.length}
+        </span>
+        <span className="h-px flex-1 bg-[var(--border)]" aria-hidden="true" />
+      </h3>
+      <p className="mb-3 text-[13px] leading-relaxed text-[var(--dim)]">
+        {t("اختار الردود اللي أي حساب جديد هيبدأ بيها — بتتنسخ في مكتبته هو، وردودك بتفضل زي ما هي.")}
+      </p>
+      {chosenIds.length === 0 && (
+        <p className="mb-3 text-[13px] leading-relaxed text-[var(--faint)]">
+          {t("لسه مخترتش ولا رد — الحسابات الجديدة هتبدأ من صفحة فاضية لحد ما تختار.")}
+        </p>
+      )}
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={t("دوّر في ردودك…")}
+        aria-label={t("دوّر في ردودك")}
+        className="legend-mini-search mb-1 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm outline-none placeholder:text-[var(--faint)] focus:border-[var(--accent)]"
+      />
+      <ul className="max-h-[320px] overflow-y-auto">
+        {visible.map((s) => (
+          <li key={s.id}>
+            <label className="flex cursor-pointer items-center gap-2.5 border-b border-[var(--hairline)] py-2 last:border-b-0">
+              <input
+                type="checkbox"
+                checked={chosenSet.has(s.id)}
+                onChange={() => toggle(s.id)}
+                aria-label={s.title}
+                className="h-4 w-4 shrink-0 accent-[var(--accent)]"
+              />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text)]">
+                {s.title}
+              </span>
+              <span className="shrink-0 text-[12px] text-[var(--faint)]">
+                {s.category}
+                {s.trigger ? ` · ${s.trigger}` : ""}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {visible.length === 0 && (
+        <p className="py-6 text-center text-sm text-[var(--dim)]">
+          {t("مفيش نتيجة مطابقة لبحثك")}
+        </p>
+      )}
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => saveMut.mutate(chosenIds)}
+          disabled={!dirty || saveMut.isPending}
+          className="lux-btn rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--accent-ink)] hover:bg-[var(--accent-strong)] disabled:opacity-60"
+        >
+          {saveMut.isPending
+            ? lang === "en"
+              ? "Saving…"
+              : "بيتحفظ…"
+            : t("احفظ مكتبة البداية")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setChosenIds([])}
+          disabled={chosenIds.length === 0}
+          className="lux-btn text-sm font-bold text-[var(--dim)] hover:text-[var(--text)] disabled:opacity-50"
+        >
+          {t("امسح الاختيار")}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -15213,6 +14761,7 @@ function BulkModal({
   onClose: () => void;
   onImport: (items: BulkItem[]) => void;
 }) {
+  const { lang } = useLang();
   const [text, setText] = useState("");
   const BULK_EXAMPLE = `ترحيب سريع
 أهلاً بيك 🤍
@@ -15237,8 +14786,8 @@ function BulkModal({
   useBodyScrollLock(true);
 
   return (
-    <div className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center" role="dialog" aria-modal="true" aria-label="إضافة جماعية" onClick={attemptClose} ref={dialogRef}>
-      <div className="animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]" onClick={(e) => e.stopPropagation()}>
+    <div className="legend-sheet-wrap animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] sm:items-center" role="dialog" aria-modal="true" aria-label="إضافة جماعية" onClick={attemptClose} ref={dialogRef}>
+      <div className="legend-sheet animate-sheet elev-pop max-h-[92vh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-[var(--radius)] glass-panel p-5 sm:rounded-[var(--radius)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">إضافة جماعية</h2>
           <button type="button" aria-label="قفل الإضافة الجماعية" data-tip="قفل" data-tip-pos="below" onClick={attemptClose} className="lux-btn lux-row rounded-[var(--radius)] p-2 text-[var(--dim)] hover:text-[var(--text)]">
@@ -15290,9 +14839,7 @@ function BulkModal({
         />
         </span>
         <p className="mt-1.5 text-sm text-[var(--dim)]" aria-live="polite">
-          {text.trim()
-            ? `اتعرف على ${parsed.items.length} رد جاهز للإضافة${parsed.errors > 0 ? ` — و${parsed.errors} بلوك ناقص (هيتخطى)` : ""}`
-            : "لسه مفيش نص ملصوق"}
+          {`${parsed.items.length} ${lang === "en" ? "replies ready" : "ردود جاهزة"}${parsed.errors > 0 ? ` — ${parsed.errors} ${lang === "en" ? "blocks skipped" : "بلوك ناقص (هيتخطى)"}` : ""}`}
         </p>
         {confirmClose && (
           <div ref={confirmRef} role="alert" className="animate-rise mt-2 rounded-[var(--radius)] bg-[var(--warning-soft)] px-3.5 py-3">

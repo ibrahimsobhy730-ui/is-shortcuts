@@ -690,14 +690,14 @@ export function EditorModal({
   );
 
   return (
-    <div className="animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] backdrop-blur-[2px] sm:items-center" role="dialog" aria-modal="true" aria-label={item ? "تعديل رد" : "رد جديد"}
+    <div className="legend-sheet-wrap animate-fade fixed inset-0 z-50 flex items-end justify-center bg-[var(--scrim)] sm:items-center" role="dialog" aria-modal="true" aria-label={item ? "تعديل رد" : "رد جديد"}
       ref={dialogRef}
       onClick={(e) => {
         if (e.target === e.currentTarget) attemptClose();
       }}
     >
       <div
-        className="animate-sheet elev-pop flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[var(--radius)] glass-panel sm:rounded-[var(--radius)]"
+        className="legend-sheet animate-sheet elev-pop flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-[var(--radius)] glass-panel sm:rounded-[var(--radius)]"
       >
         <div className="flex items-center justify-between px-5 pt-5">
           <h2 className="flex items-center gap-2.5 text-xl font-semibold">
@@ -711,6 +711,22 @@ export function EditorModal({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+          {/* LEGENDARY — live preview on top: exactly what the
+              finished card looks like in the grid; typing updates
+              it live. */}
+          <div className="legend-live-preview mt-5">
+            <p className="legend-live-preview-label">معاينة حية — شكل الرد النهائي</p>
+            <div className="legend-live-preview-card">
+              {trigger.trim() && (
+                <span dir="auto" className="legend-keycap legend-keycap-sm">{trigger.trim()}</span>
+              )}
+              <p className="legend-live-preview-title">{title.trim() || "اسم الرد…"}</p>
+              {mediaList.length > 0 && (
+                <ReplyMediaBlock media={mediaList} title={title} compact />
+              )}
+              <p className="legend-live-preview-body">{body.trim() || "نص الرد…"}</p>
+            </div>
+          </div>
           {/* A new reply starts blank — title, trigger, body. No
               invented drafts. */}
           {!item && (draftSaved || draft) && (

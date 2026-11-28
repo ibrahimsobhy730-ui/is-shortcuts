@@ -32,9 +32,9 @@
   --space-12: 48px; --space-16: 64px;
 
   /* ---- Radius — مقياس واسع انسيابي (زجاج المستقبل) ---- */
-  --r-xs: 10px; --r-sm: 14px; --r-md: 20px; --r-lg: 26px; --r-xl: 32px; --r-full: 999px;
-  --radius: 22px;
-  --radius-sm: 12px; --radius-md: 22px; --radius-lg: 30px; --radius-full: 999px;
+  --r-xs: 14px; --r-sm: 14px; --r-md: 20px; --r-lg: 28px; --r-xl: 28px; --r-full: 999px;
+  --radius: 20px;
+  --radius-sm: 14px; --radius-md: 20px; --radius-lg: 28px; --radius-full: 999px;
 
   /* ---- Fluid type ---- */
   --fs-display: clamp(21px, 1.15rem + 0.7vw, 26px);
@@ -43,15 +43,17 @@
   --fs-title: clamp(16px, 1rem + 0.4vw, 19px);
   --fs-card: clamp(16px, 0.98rem + 0.2vw, 17px);
   --fs-body: clamp(14px, 0.88rem + 0.2vw, 15px);
-  --fs-caption: clamp(11.5px, 0.72rem + 0.2vw, 12.5px);
+  --fs-caption: clamp(12px, 0.72rem + 0.2vw, 12.5px);
   --fs-meta: clamp(12px, 0.74rem + 0.12vw, 13px);
   --fs-floor: 12px;
   --fs-nav: 13.5px;
 
   /* ---- Motion — منحنيات حرفية فقط (لا متغيرات داخل الحركات) ---- */
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-lux: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: var(--ease);
+  --ease-spring: var(--ease);
+  --ease-lux: var(--ease);
+  --dur-press: 120ms; --dur-hover: 200ms; --dur-enter: 320ms; --dur-stage: 480ms;
   --dur-press: 120ms; --dur-1: 120ms;
   --dur: 180ms;       --dur-2: 180ms;
   --dur-3: 240ms;
@@ -64,15 +66,7 @@
   /* ---- Z scale ---- */
   --z-panel: 40; --z-modal: 50; --z-menu: 70; --z-toast: 80;
 
-  /* ---- Hero deck (dark command deck, both themes) — full redesign ---- */
-  --deck-bg: linear-gradient(155deg, #0a1230 0%, #0d1e4a 52%, #12407e 100%);
-  --deck-text: oklch(0.97 0.012 250);
-  --deck-dim: oklch(0.82 0.035 252);
-  --deck-faint: oklch(0.66 0.04 253);
-  --deck-border: oklch(1 0 0 / 0.16);
-  --deck-search-bg: oklch(1 0 0 / 0.10);
-  --deck-search-border: oklch(1 0 0 / 0.30);
-  --deck-glow: 0 24px 60px -20px rgb(37 99 235 / 0.55);
+  /* LEGENDARY «النُّور»: no deck — the Ink Bar is the one dark object. */
 }
 
 /* ============================================================
@@ -89,15 +83,16 @@
   --shadow-hover: var(--shadow-3);
   --shadow-pop: var(--shadow-5);
   --focus: var(--accent);
-  --gold: var(--accent);
-  --gold-bright: var(--accent-strong);
-  --gold-soft: var(--accent-soft);
+  --gold-hairline: #C9A227;
+  --gold: #C9A227;
+  --gold-bright: #C9A227;
+  --gold-soft: color-mix(in srgb, #C9A227 12%, transparent);
   /* النحاسي أُلغي من الهوية نهائيًا: أي إشارة قديمة له تقع على
      لون التمييز نفسه. الذهبي الوحيد الباقي نجمة المفضلة. */
-  --brass: var(--accent);
-  --brass-strong: var(--accent-strong);
-  --brass-soft: var(--accent-soft);
-  --brass-line: color-mix(in srgb, var(--accent) 40%, transparent);
+  --brass: #C9A227;
+  --brass-strong: #C9A227;
+  --brass-soft: color-mix(in srgb, #C9A227 12%, transparent);
+  --brass-line: #C9A227;
   /* التدرّج الحيّ الواحد: أزرق ملكي ← سماوي — يبني الزر
      الأساسي والعناصر النشطة وحواف الألواح المضيئة. طرفه
      الفاتح --grad-end: سماوي للهوية الزرقاء، وللألوان
@@ -115,21 +110,25 @@
   --logo-hi: oklch(from var(--accent) 0.66 0.145 h);
   --logo-mid: oklch(from var(--accent) 0.55 0.16 h);
   --logo-lo: oklch(from var(--accent) 0.44 0.145 h);
-  --bg: oklch(0.94 0.02 252);
-  --surface: oklch(1 0 0 / 0.97);
+  --bg: #FAFBFF;
+  --surface: #FFFFFF;
+  --hairline: #E6EAF4;
+  --ink-secondary: #5A6B8C;
+  --ink-slab: linear-gradient(135deg, #0B1530 0%, color-mix(in srgb, var(--accent) 45%, #12224F) 100%);
+  --paper-card: #FFFFFF;
   --surface-alt: oklch(0.945 0.02 252 / 0.82);
-  --surface-elevated: oklch(1 0 0 / 0.99);
+  --surface-elevated: #FFFFFF;
   --surface-hover: oklch(0.935 0.028 252 / 0.98);
   --surface-selected: oklch(0.895 0.055 256 / 0.97);
   --surface-pressed: oklch(0.885 0.055 256 / 0.94);
   --bg-sidebar: oklch(1 0 0 / 0.88);
-  --ink: oklch(0.21 0.06 264);
-  --text: oklch(0.21 0.06 264);
-  --dim: oklch(0.42 0.05 260);
+  --ink: #0B1530;
+  --text: #0B1530;
+  --dim: #5A6B8C;
   --faint: oklch(0.54 0.04 256);
   --text-disabled: oklch(0.68 0.03 252);
   --silver: oklch(0.84 0.024 250);
-  --border: oklch(0.855 0.026 252 / 0.9);
+  --border: #E6EAF4;
   --border-strong: oklch(0.58 0.055 254);
   --cyan: oklch(0.66 0.14 205);
   --cyan-soft: oklch(0.93 0.045 205);
@@ -137,7 +136,7 @@
   --success-ink: oklch(1 0 0);
   --warning: oklch(0.58 0.13 75);
   --warning-soft: oklch(0.95 0.05 88);
-  --danger: oklch(0.54 0.2 25);
+  --danger: #DC2626;
   --danger-soft: oklch(0.95 0.032 26);
   --favorite: oklch(0.62 0.17 252);
   --favorite-soft: oklch(0.95 0.05 252);
@@ -149,14 +148,8 @@
   --glass-line: oklch(1 0 0 / 0.7);
   --on-grad: oklch(1 0 0);
   --shadow-1: 0 1px 2px oklch(0.30 0.08 262 / 0.07);
-  --shadow-2:
-    0 1px 2px oklch(0.30 0.08 262 / 0.08),
-    0 6px 18px -8px oklch(0.30 0.08 262 / 0.16),
-    0 22px 44px -20px oklch(0.35 0.10 262 / 0.28);
-  --shadow-3:
-    0 2px 4px oklch(0.30 0.08 262 / 0.08),
-    0 16px 34px -12px oklch(0.35 0.10 262 / 0.24),
-    0 40px 72px -28px oklch(0.40 0.12 258 / 0.36);
+  --shadow-2: 0 8px 30px -12px rgb(11 21 48 / 0.12);
+  --shadow-3: 0 16px 40px -16px rgb(11 21 48 / 0.18);
   --shadow-4:
     0 10px 22px oklch(0.28 0.08 262 / 0.10),
     0 52px 96px -32px oklch(0.32 0.10 262 / 0.36);
@@ -164,9 +157,9 @@
     0 12px 26px oklch(0.26 0.08 262 / 0.12),
     0 60px 112px -28px oklch(0.30 0.10 262 / 0.46);
   --glow-accent: 0 16px 40px -12px color-mix(in srgb, var(--accent) 55%, transparent);
-  --accent: oklch(0.52 0.185 262);
-  --accent-strong: oklch(0.44 0.17 264);
-  --accent-soft: oklch(0.895 0.06 256);
+  --accent: #1D4ED8;
+  --accent-strong: #1E40AF;
+  --accent-soft: #E8EEFE;
   --accent-ink: oklch(1 0 0);
   /* لون حبّة الاختصار الثابت — NEBULA ملكي ← سماوي، لا يتبع
      لون التمييز المختار (الأخضر/الفيروزي كان بيحوّل الحبّة
@@ -188,21 +181,25 @@
   --logo-hi: oklch(from var(--accent) 0.84 0.10 h);
   --logo-mid: oklch(from var(--accent) 0.76 0.125 h);
   --logo-lo: oklch(from var(--accent) 0.66 0.13 h);
-  --bg: oklch(0.082 0.03 264);
-  --surface: oklch(0.155 0.034 262 / 0.82);
+  --bg: #060B18;
+  --surface: #0C1526;
+  --hairline: rgb(255 255 255 / 0.09);
+  --ink-secondary: #93A4C8;
+  --ink-slab: #101D38;
+  --paper-card: #F4F7FF;
   --surface-alt: oklch(0.20 0.038 260 / 0.78);
-  --surface-elevated: oklch(0.185 0.036 261 / 0.92);
+  --surface-elevated: #111E36;
   --surface-hover: oklch(0.195 0.038 260 / 0.88);
   --surface-selected: oklch(0.30 0.08 256 / 0.55);
   --surface-pressed: oklch(0.34 0.09 256 / 0.6);
-  --bg-sidebar: oklch(0.125 0.032 263 / 0.72);
-  --ink: oklch(0.94 0.014 250);
-  --text: oklch(0.94 0.014 250);
-  --dim: oklch(0.76 0.034 252);
+  --bg-sidebar: #0A1224;
+  --ink: #EDF2FF;
+  --text: #EDF2FF;
+  --dim: #93A4C8;
   --faint: oklch(0.63 0.034 253);
   --text-disabled: oklch(0.48 0.03 254);
   --silver: oklch(0.31 0.045 256);
-  --border: oklch(1 0 0 / 0.10);
+  --border: rgb(255 255 255 / 0.09);
   --border-strong: oklch(1 0 0 / 0.22);
   --cyan: oklch(0.83 0.125 200);
   --cyan-soft: oklch(0.83 0.125 200 / 0.15);
@@ -210,7 +207,7 @@
   --success-ink: oklch(0.15 0.03 160);
   --warning: oklch(0.84 0.13 84);
   --warning-soft: oklch(0.84 0.13 84 / 0.14);
-  --danger: oklch(0.73 0.155 22);
+  --danger: #F87171;
   --danger-soft: oklch(0.73 0.155 22 / 0.14);
   --favorite: oklch(0.85 0.145 252);
   --favorite-soft: oklch(0.85 0.145 252 / 0.15);
@@ -238,9 +235,9 @@
     0 60px 112px -28px oklch(0 0 0 / 0.86),
     0 12px 26px oklch(0 0 0 / 0.46);
   --glow-accent: 0 16px 40px -12px color-mix(in srgb, var(--accent) 50%, transparent);
-  --accent: oklch(0.74 0.135 256);
-  --accent-strong: oklch(0.83 0.095 252);
-  --accent-soft: oklch(0.74 0.135 256 / 0.16);
+  --accent: #60A5FA;
+  --accent-strong: #3B82F6;
+  --accent-soft: rgb(96 165 250 / 0.14);
   --accent-ink: oklch(0.13 0.03 258);
   /* حبّة الاختصار ليلًا — نفس الملكي ← سماوي الثابت. */
   --trig: #73b1ff;
@@ -7403,3 +7400,689 @@ summary:focus-visible {
   color: var(--dim);
 }
 .auth-r8-guide-close:hover { color: var(--text); border-color: var(--accent); }
+
+/* ============================================================
+   LEGENDARY «النُّور» (2026-11-28) — one product, two
+   atmospheres. LIGHT = «الورق» (paper atelier): one dark object
+   (the Ink Bar). DARK = «المسرح» (velvet stage): one light
+   family (reply cards as luminous paper). Appended last so it
+   wins the unlayered cascade over the old NEBULA rules.
+   Three signature objects only: Ink Bar, Keycap, Gold Hairline.
+   ============================================================ */
+
+/* ---- Base: paper / stage, hairlines, no letter-spacing on
+   Arabic, 12px floor ---- */
+.hatch-space-root[data-hatch-space-root] { background: var(--bg); color: var(--text); }
+.app-shell { background: var(--bg); }
+body * { letter-spacing: 0; }
+.auth-r8-brandline { letter-spacing: 0.14em; }
+/* 12px floor sweep: every sub-12px Tailwind size in the product
+   is raised to the floor (the 12px rule is hard). */
+[class*="text-[9.5px]"], [class*="text-[10px]"], [class*="text-[10.5px]"],
+[class*="text-[11px]"], [class*="text-[11.5px]"] { font-size: 12px; }
+.trig-chip-count { font-size: 12px; }
+.auth-demo-example-badge { font-size: 12px; }
+
+/* ---- Keycap: THE shortcut mark (shape, not colour) ---- */
+.legend-keycap {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; min-width: 120px; height: 56px; padding: 8px 18px;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--hairline);
+  transition: transform var(--dur-press) var(--ease), box-shadow var(--dur-press) var(--ease);
+}
+.legend-keycap:active { transform: translateY(2px); box-shadow: none; }
+.legend-keycap-trig { font-size: 15px; font-weight: 800; color: var(--ink); line-height: 1.3; }
+.legend-keycap-title {
+  font-size: 12px; font-weight: 600; color: var(--ink-secondary);
+  max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3;
+}
+.legend-keycap-sm { height: auto; min-width: 0; padding: 6px 12px; }
+.legend-keycap-sm .legend-keycap-trig { font-size: 14px; }
+/* The trigger pill everywhere else takes the same keycap shape. */
+.trig-hero-pill {
+  border-radius: 14px;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.22), 0 1px 0 rgb(255 255 255 / 0.22) inset;
+}
+.trig-hero-pill::after { display: none; }
+.trig-chip {
+  border-radius: 14px;
+  box-shadow: 0 2px 0 var(--hairline);
+}
+.trig-chip:active { transform: translateY(2px); box-shadow: none; }
+
+/* ---- Topbar: a quiet hairline strip, not a floating pill ---- */
+.float-header {
+  max-width: none; height: 64px; margin: 0; padding-inline: 32px;
+  background: var(--bg); border: none; border-bottom: 1px solid var(--hairline);
+  border-radius: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.header-blur { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+@media (max-width: 640px) { .float-header { padding-inline: 20px; } }
+
+/* ---- Sidebar: slim 216px, nav only, gold active indicator ---- */
+aside.sidebar-panel:has([role="tree"]) { width: 216px !important; }
+.sidebar-resize-handle { display: none; }
+.modern-sidebar { background: var(--bg-sidebar); }
+.modern-sidebar div:has(> input[placeholder*="الشجرة"]) { display: none; }
+.modern-sidebar .sidebar-tools { display: none; }
+.nav-item-active {
+  background: transparent !important; color: var(--ink) !important; font-weight: 800;
+  box-shadow: inset 3px 0 0 var(--gold-hairline);
+  border-radius: 0 14px 14px 0;
+}
+:root[data-theme="dark"] .nav-item-active { box-shadow: inset 3px 0 0 var(--gold-hairline); }
+html[dir="ltr"] .nav-item-active { box-shadow: inset -3px 0 0 var(--gold-hairline); border-radius: 14px 0 0 14px; }
+
+/* ---- HOME: open air, not a deck ---- */
+.cmd-deck {
+  background: transparent; border: none; border-radius: 0; box-shadow: none;
+  padding: 32px 0 0; margin-top: 0;
+}
+.cmd-deck-glow { display: none; }
+.cmd-deck-hero { padding: 0; text-align: center; }
+.cmd-deck-verse { font-size: 30px; color: var(--ink); }
+@media (max-width: 768px) { .cmd-deck-verse { font-size: 26px; } }
+.cmd-deck-divider { display: block; width: 64px; height: 1px; background: var(--gold-hairline); margin: 16px auto 0; }
+.cmd-deck-divider::before, .cmd-deck-divider::after { display: none; }
+.cmd-deck-divider > i { display: none; }
+.cmd-deck-counters { margin-top: 12px; font-size: 13px; color: var(--ink-secondary); }
+.cmd-deck-counters b { color: var(--ink); }
+.cmd-deck .hero-hide-btn { background: transparent; border-color: var(--hairline); color: var(--dim); }
+.cmd-deck-strip { min-height: 52px; }
+.cmd-deck-strip-verse { color: var(--ink); }
+.cmd-deck-strip-counters { color: var(--ink-secondary); }
+.cmd-deck-strip-counters b { color: var(--ink); }
+.cmd-deck-strip > button { border-color: var(--hairline); color: var(--dim); }
+
+/* ---- The Ink Bar: the ONE dark object (light) / luminous glass (dark) ---- */
+.cmd-deck-search {
+  margin-top: 24px; background: var(--ink-slab); border-radius: 20px;
+  padding: 0 4px; border: 1px solid transparent;
+  box-shadow: 0 8px 30px -12px rgb(11 21 48 / 0.12);
+}
+:root[data-theme="dark"] .cmd-deck-search {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 0 0 1px rgb(96 165 250 / 0.18),
+    0 18px 50px -18px rgb(59 130 246 / 0.45);
+}
+.cmd-deck-search input {
+  background: transparent; border-color: transparent; box-shadow: none;
+  border-radius: 14px; color: #EDF2FF;
+}
+.cmd-deck-search input::placeholder { color: rgb(237 242 255 / 0.55); }
+.cmd-deck-search input:focus { border-color: transparent; box-shadow: none; }
+.cmd-deck-search .pointer-events-none { color: rgb(237 242 255 / 0.75); }
+.cmd-deck-search > button { color: rgb(237 242 255 / 0.75); }
+.cmd-deck-search > button:hover { background: rgb(255 255 255 / 0.10); color: #EDF2FF; }
+.cmd-deck-search:has(.search-trig-expand-open) { padding-bottom: 12px; }
+
+/* ---- Search preview: in-flow growth, 320ms ease, pushes content ---- */
+.legend-preview-wrap { margin-top: 0; }
+.legend-preview-wrap:has(.search-trig-expand-open) { margin-top: 12px; }
+.search-trig-expand { transition: grid-template-rows var(--dur-enter) var(--ease); }
+.search-trig-expand-inner { transition: opacity var(--dur-enter) var(--ease), transform var(--dur-enter) var(--ease); }
+.search-trig-panel { border-radius: 14px; }
+.search-trig-panel::after { display: none; }
+.search-trig-panel .trig-stage p { font-size: 12px; }
+.cmd-deck-bottom { margin-top: 20px; }
+.cmd-deck-bottom > div > span:first-child { color: var(--dim); }
+@media (max-width: 640px) {
+  .legend-keycap { flex: 1 1 40%; min-width: 0; }
+}
+
+/* ---- Filter row: quiet text links, gold underline for active ---- */
+.modern-switcher {
+  position: static; background: transparent; border: none; box-shadow: none;
+  padding: 4px 0 0; margin-top: 20px;
+}
+.pill-thumb { display: none; }
+.modern-switcher .pill-btn {
+  background: transparent; border: none; box-shadow: none; border-radius: 0;
+  padding: 8px 2px; color: var(--dim);
+}
+.modern-switcher .pill-btn[aria-pressed="true"] {
+  color: var(--ink); font-weight: 800; box-shadow: inset 0 -2px 0 var(--gold-hairline);
+}
+.modern-switcher .pill-btn > span:last-child {
+  background: transparent; color: inherit; padding: 0; font-size: 12px;
+}
+.modern-switcher .filter-scroll > div > button:not(.pill-btn) {
+  background: transparent; border: none; box-shadow: none; border-radius: 0;
+  padding: 8px 2px; color: var(--dim);
+}
+.modern-switcher .filter-scroll > div > button:not(.pill-btn)[aria-pressed="true"] {
+  color: var(--ink); font-weight: 800; box-shadow: inset 0 -2px 0 var(--gold-hairline);
+}
+.filter-scroll {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* ---- Folder strip: one row of tabs, edge fade, gold active ---- */
+/* The .no-scrollbar qualifier is load-bearing: the pre-legendary
+   rule for .no-scrollbar.overflow-x-auto (20px fade) outranks a
+   bare .legend-folder-strip, so without it the strip kept the
+   old 20px mask instead of the legendary 28px one. */
+.legend-folder-strip.no-scrollbar {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+.legend-folder-strip button[data-dragging="true"] { opacity: 0.45; }
+/* No hover pointer (touch) → no grip at all: HTML5 drag does not
+   exist there, so the handle would only eat ~18px per tab at
+   narrow widths for nothing. Desktop keeps it. */
+@media (hover: none) {
+  .legend-folder-strip .tree-grip { display: none; }
+}
+.legend-folder-strip button {
+  background: transparent; border: none; border-bottom: 2px solid transparent;
+  border-radius: 0; padding: 10px 6px; color: var(--dim); box-shadow: none;
+}
+.legend-folder-strip button[aria-pressed="true"] {
+  color: var(--ink); font-weight: 800; border-bottom-color: var(--gold-hairline);
+}
+.legend-folder-strip button > span:last-child {
+  background: transparent; color: inherit; padding: 0; font-size: 12px;
+}
+
+/* ---- Reply grid: 2 columns; dark cards are luminous paper ---- */
+.legend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 699px) { .legend-grid { grid-template-columns: 1fr; } }
+:root[data-theme="dark"] .reply-card {
+  color: #0B1530; /* the title button inherits color — without this it
+    inherits the dark stage's --text (#EDF2FF) and reads white-on-paper */
+  --surface: var(--paper-card); --surface-alt: #E8EEFE; --surface-hover: #E8EEFE;
+  --surface-elevated: #F4F7FF; --text: #0B1530; --ink: #0B1530;
+  --dim: #5A6B8C; --faint: #8A97B0; --border: #E6EAF4; --border-strong: #B9C4DC;
+  --accent: #1D4ED8; --accent-strong: #1E40AF; --accent-soft: #E8EEFE; --accent-ink: #FFFFFF;
+  --favorite: #1D4ED8; --favorite-soft: #E8EEFE;
+  --success: #15803D; --success-soft: #DCFCE7; --danger: #DC2626; --danger-soft: #FEE2E2;
+  --warning: #B45309; --warning-soft: #FEF3C7;
+}
+.reply-card { transition: transform var(--dur-hover) var(--ease), box-shadow var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease); }
+@media (hover: hover) {
+  .reply-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-3); }
+}
+
+/* ---- AUTH: one gate, one living scene, one download line ---- */
+.auth-r8 { background: var(--bg); }
+:root[data-theme="dark"] .auth-r8 {
+  background: radial-gradient(700px 320px at 50% 0%, rgb(59 130 246 / 0.14), transparent 70%), var(--bg);
+}
+.auth-r8 .auth-split {
+  display: flex; flex-direction: column; align-items: center;
+  max-width: 760px; margin-inline: auto; padding: 20px 20px 32px; gap: 0;
+  min-height: 0;
+}
+.auth-r8 .auth-split main.auth-form-side,
+.auth-r8.auth-modern.auth-v78 main.auth-form-side {
+  width: 100%; max-width: 440px; margin-inline: auto; padding: 0; min-height: 0;
+}
+.auth-r8 .auth-r8-demo {
+  display: block; width: 100%; max-width: 720px; padding: 0; margin: 28px 0 0;
+  border: none; border-inline-start: none; border-inline-end: none;
+}
+html[dir="ltr"] .auth-r8 .auth-r8-demo { border-inline-start: none; border-inline-end: none; }
+.auth-r8 .auth-form-card {
+  border: 1px solid var(--hairline); background: var(--surface);
+  box-shadow: var(--shadow-2); border-radius: 20px;
+}
+.auth-r8 .auth-form-card::before, .auth-r8 .auth-form-card::after { display: none; }
+/* The stage is the ONE dark object in light, luminous glass in dark. */
+.auth-r8-stage {
+  background: var(--ink-slab); border-color: transparent; border-radius: 28px;
+  box-shadow: 0 8px 30px -12px rgb(11 21 48 / 0.12);
+  height: clamp(220px, 30vh, 320px); aspect-ratio: auto;
+}
+:root[data-theme="dark"] .auth-r8-stage {
+  background: #101D38;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 0 0 1px rgb(96 165 250 / 0.18),
+    0 18px 50px -18px rgb(59 130 246 / 0.45);
+}
+.auth-r8-stage::after { display: none; }
+.auth-r8-stage .auth-r8-chat { inset: 16px 16px 40px; }
+.auth-r8-montage { bottom: 48px; }
+/* The 3 steps as small captions INSIDE the scene's bottom edge. */
+.legend-stage-captions {
+  position: absolute; left: 16px; right: 16px; bottom: 0; height: 40px; z-index: 5;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 12px; font-weight: 700; color: rgb(237 242 255 / 0.9);
+  pointer-events: none;
+}
+.legend-stage-wrap { width: 100%; }
+.legend-auth-download {
+  margin-top: 20px; text-align: center; font-size: 14px; font-weight: 600; color: var(--dim);
+  display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;
+}
+.legend-auth-download-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--accent); font-weight: 800; text-decoration: none;
+}
+.legend-auth-download-link:hover { color: var(--accent-strong); }
+/* Short viewports: shrink the stage (never the form) so the whole
+   gate stays above the fold at 1440x900 and 1366x768. */
+@media (max-height: 820px) {
+  .auth-r8 .auth-split { padding-top: 12px; }
+  .auth-r8 .auth-r8-demo { margin-top: 18px; }
+  .auth-r8-stage { height: clamp(170px, 24vh, 240px); }
+  .legend-auth-download { margin-top: 14px; }
+  .auth-r8 .auth-r8-logo .btn-lux { width: 56px !important; height: 56px !important; }
+}
+@media (max-height: 780px) {
+  .auth-r8-stage { height: 150px; }
+  .auth-r8 .auth-r8-demo { margin-top: 14px; }
+}
+
+/* ---- Docked sheets: editor + bulk slide in from the inline-end ---- */
+.legend-sheet-wrap {
+  justify-content: flex-end; align-items: stretch;
+  background: rgb(11 21 48 / 0.30); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.legend-sheet {
+  height: 100dvh; max-height: none; width: 480px; max-width: min(480px, 100vw);
+  border-radius: 0; margin: 0;
+  animation: legend-sheet-in var(--dur-enter) var(--ease) both;
+}
+html[dir="rtl"] .legend-sheet { animation-name: legend-sheet-in-rtl; }
+@keyframes legend-sheet-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes legend-sheet-in-rtl { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: translateX(0); } }
+.legend-sheet textarea { min-height: 220px; }
+/* Live preview card on top of the editor sheet. */
+.legend-live-preview-label { font-size: 13px; font-weight: 800; color: var(--dim); margin-bottom: 8px; }
+.legend-live-preview-card {
+  border: 1px solid var(--hairline); border-radius: 20px; padding: 16px;
+  background: var(--surface); display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+}
+.legend-live-preview-title { font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.5; }
+.legend-live-preview-body {
+  font-size: 15px; line-height: 1.7; color: var(--text); white-space: pre-wrap;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* ---- Shortcuts page: the keyring ---- */
+.legend-keyrow { display: flex; flex-wrap: wrap; gap: 16px; }
+.legend-bigkey { flex: 1 1 160px; max-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+.legend-bigkey-face {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 22px 16px 18px; background: var(--surface);
+  border: 1px solid var(--hairline); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--hairline);
+  transition: transform var(--dur-press) var(--ease), box-shadow var(--dur-press) var(--ease);
+}
+.legend-bigkey-face:active { transform: translateY(2px); box-shadow: none; }
+.legend-bigkey-trig { font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.2; }
+.legend-bigkey-title { font-size: 14px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.4; }
+.legend-bigkey-meta { font-size: 12px; font-weight: 600; color: var(--ink-secondary); }
+.legend-bigkey-copy {
+  align-self: center; color: var(--accent); font-weight: 800; font-size: 13px;
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px;
+}
+.legend-progress {
+  margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--hairline);
+  font-size: 13px; color: var(--ink-secondary);
+}
+.legend-quiet-btn { color: var(--accent); font-weight: 800; font-size: 13px; padding: 6px 10px; }
+.legend-shortcuts-foot { border-top: 1px solid var(--hairline); padding-top: 16px; }
+.legend-shortcuts-foot > div { display: flex; flex-wrap: wrap; gap: 4px 20px; align-items: center; }
+.legend-shortcuts-foot button { background: transparent !important; border: none !important; box-shadow: none !important; color: var(--accent); font-weight: 700; padding: 6px 4px; }
+
+/* ---- Trash: the recovery room ---- */
+.legend-page-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.legend-page-title { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.3; }
+.legend-page-count { font-size: 13px; font-weight: 700; color: var(--ink-secondary); }
+.legend-page-head .legend-danger-text { margin-inline-start: auto; }
+.legend-danger-text {
+  color: var(--danger); background: transparent; border: none; box-shadow: none;
+  font-weight: 800; font-size: 13px; padding: 8px 4px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.legend-danger-text:hover { background: var(--danger-soft); border-radius: 999px; }
+.legend-empty { text-align: center; padding: 64px 16px; }
+.legend-empty-glyph {
+  width: 96px; height: 96px; margin: 0 auto 16px; border-radius: 50%;
+  border: 1px solid var(--hairline); display: flex; align-items: center; justify-content: center;
+  color: var(--faint);
+}
+.legend-empty-line { font-size: 18px; font-weight: 800; color: var(--ink); }
+.legend-empty-link { margin-top: 10px; color: var(--accent); font-weight: 800; font-size: 14px; }
+.legend-trash ul li { border-radius: 20px; }
+
+/* ---- Account: profile band with a wash ---- */
+.legend-profile-band {
+  background: linear-gradient(120deg, var(--surface) 0%, #EAF2FF 100%);
+  border-radius: 20px;
+}
+:root[data-theme="dark"] .legend-profile-band {
+  background: linear-gradient(120deg, #0C1526 0%, #101D38 100%);
+}
+
+/* ---- Extension showcase: video is the hero ---- */
+.legend-ext-video { border-radius: 28px; }
+.legend-ext-chip {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  background: rgb(255 255 255 / 0.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgb(255 255 255 / 0.25); color: #fff; border-radius: 999px;
+  padding: 10px 18px; font-size: 13px; font-weight: 800; text-decoration: none;
+  max-width: calc(100% - 24px); overflow: hidden;
+}
+.legend-ext-chip:hover { background: rgb(255 255 255 / 0.22); }
+.legend-filmstrip {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+.legend-chapter { width: 224px; }
+.legend-ink-slab {
+  background: var(--ink-slab); border-radius: 28px; padding: 32px 28px;
+  display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center;
+  box-shadow: 0 8px 30px -12px rgb(11 21 48 / 0.12);
+}
+:root[data-theme="dark"] .legend-ink-slab {
+  background: #101D38;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 0 0 1px rgb(96 165 250 / 0.18),
+    0 18px 50px -18px rgb(59 130 246 / 0.45);
+}
+.legend-guide-row { border-bottom: 1px solid var(--hairline); }
+.legend-guide-head { display: flex; width: 100%; align-items: center; gap: 12px; padding: 16px 4px; }
+.legend-guide-num {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--hairline);
+  box-shadow: 0 2px 0 var(--hairline);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800; color: var(--ink);
+}
+.legend-guide-body { padding: 0 4px 20px 48px; display: flex; flex-direction: column; gap: 12px; }
+.legend-guide-imgwrap { position: relative; display: block; }
+.legend-guide-hotspot {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+  background: var(--accent); color: #fff; border-radius: 999px;
+  padding: 4px 10px; font-size: 12px; font-weight: 700;
+}
+.legend-guide-tile {
+  height: 120px; border-radius: 14px; background: var(--accent-soft);
+  color: var(--accent); display: flex; align-items: center; justify-content: center;
+}
+.legend-guide-tip {
+  background: var(--accent-soft); border-radius: 14px; padding: 12px 14px;
+  font-size: 13px; line-height: 1.7; color: var(--text);
+}
+
+/* ---- Tools: flat rows, no nesting ---- */
+.legend-tools #home-tools-body > div {
+  background: transparent; border: none; padding: 0; box-shadow: none;
+}
+.legend-tools #home-tools-body .grid { display: flex; flex-direction: column; gap: 0; }
+.legend-tools #home-tools-body .grid > button {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  border: none; border-bottom: 1px solid var(--hairline); border-radius: 0;
+  box-shadow: none; padding: 14px 4px; background: transparent; text-align: start;
+}
+.legend-tools #home-tools-body .grid > button:hover { background: var(--surface-alt); }
+
+/* ---- Details panel: dossier (structure already right; keep it quiet) ---- */
+.details-panel { border-radius: 20px; }
+.details-panel dl { border-radius: 14px; }
+
+/* ---- Motion: one ease, named durations; reduced motion kills all ---- */
+@media (prefers-reduced-motion: reduce) {
+  .legend-sheet, .legend-keycap, .legend-bigkey-face, .search-trig-expand,
+  .search-trig-expand-inner, .cmd-deck-search { transition: none; animation: none; }
+}
+
+/* ---- Narrow widths: premium stacked layout, no bottom nav, no overflow ---- */
+.bottom-nav { display: none !important; }
+@media (max-width: 640px) {
+  .cmd-deck { padding-top: 24px; }
+  .legend-bigkey { flex: 1 1 40%; max-width: none; }
+  .legend-sheet { width: 100vw; }
+  .legend-guide-body { padding-inline-start: 4px; }
+  .legend-ext-chip { font-size: 12px; padding: 8px 14px; gap: 6px; }
+}
+
+/* ================= LEGENDARY — chunk 3 =================
+   Critic round 1 fixes (measured, not guessed):
+   - The nebula aurora (.app-shell::before) paints a blue wash over
+     the whole paper/stage ground — kill it outright.
+   - The stage background was POISONED: the light-theme rule
+     `:root[data-theme="light"] .auth-r8-stage` (specificity 0,3,0)
+     declares `background: ... var(--deck-bg)` and --deck-bg is
+     undefined since the token rot removal — an undefined var()
+     makes the declaration invalid at computed-value time, so the
+     stage computed to transparent and beat the valid (0,1,0)
+     legendary rule. Same-specificity override, later in file, wins.
+   - The form card was vertically centered inside a too-short
+     <main> (align-items:center + card taller than main = card
+     pushed 130px above the viewport, overlapping the stage).
+     Fix: the split is a real flex column (flex:1, min-height:0),
+     main never shrinks, the demo flexes, the stage takes whatever
+     height remains (min-height floor). The card compacts instead. */
+
+/* ---- Ground: flat paper / flat stage, no nebula ---- */
+.app-shell::before, .app-shell::after { display: none !important; }
+
+/* ---- Auth stage: the ONE dark object (light) / luminous glass (dark) ---- */
+:root[data-theme="light"] .auth-r8-stage {
+  background: var(--ink-slab);
+  border-color: transparent;
+  box-shadow: 0 8px 30px -12px rgb(11 21 48 / 0.12);
+}
+:root[data-theme="dark"] .auth-r8-stage {
+  background: #101D38;
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 0 0 1px rgb(96 165 250 / 0.18),
+    0 18px 50px -18px rgb(59 130 246 / 0.45);
+}
+.auth-r8 .auth-r8-demo { background: none; }
+/* The demo chat sits ON the ink: dark glass, light text (re-scoped
+   vars so every bubble, the composer, the popup and the montage
+   chips inherit the dark treatment). */
+.auth-r8-stage .auth-r8-chat {
+  background: rgb(13 22 46 / 0.55);
+  border-color: rgb(255 255 255 / 0.16);
+  box-shadow: none;
+  --text: #EDF2FF;
+  --dim: #B9C6E4;
+  --faint: #8FA0C4;
+  --border: rgb(255 255 255 / 0.14);
+  --border-strong: rgb(255 255 255 / 0.22);
+  --surface: #101D38;
+  --surface-alt: rgb(255 255 255 / 0.10);
+  --surface-elevated: rgb(255 255 255 / 0.10);
+  --accent: #60A5FA;
+}
+
+/* ---- Auth column architecture: card first, stage flexes to fit ---- */
+.auth-r8 .auth-split {
+  flex: 1 1 auto; min-height: 0;
+  padding: 12px 20px 16px;
+}
+.auth-r8 .auth-split main.auth-form-side {
+  flex-shrink: 0;
+  width: 100%; max-width: 440px; margin-inline: auto; padding: 0; min-height: 0;
+}
+.auth-r8 .auth-r8-demo {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  margin-top: 16px;
+}
+.auth-r8 .auth-r8-stage {
+  flex: 1 1 auto; min-height: 140px;
+  height: auto; aspect-ratio: auto;
+}
+.legend-auth-download { margin-top: 12px; flex-shrink: 0; }
+
+/* ---- Card compaction (base): the stage is the flexible part ---- */
+.auth-r8 .auth-r8-logo-ring { width: 48px; height: 48px; }
+.auth-r8-logo svg { width: 40px; height: 40px; }
+.auth-r8 .auth-title { font-size: 26px; }
+.auth-v78 .auth-form { margin-top: 8px; gap: 8px; }
+.auth-v78 .auth-input { min-height: 44px; }
+.auth-v78 .auth-seg-btn { min-height: 40px; }
+
+/* ---- Short viewports: compact harder (never the form fields) ---- */
+@media (max-height: 820px) {
+  .auth-r8 .auth-split { padding: 8px 20px 12px; }
+  .auth-r8 .auth-r8-demo { margin-top: 10px; }
+  .auth-r8 .auth-r8-stage { min-height: 100px; }
+  .auth-r8 .auth-r8-logo-ring { width: 32px; height: 32px; }
+  .auth-r8-logo svg { width: 26px; height: 26px; }
+  .auth-r8-brandline { display: none; }
+  .auth-r8 .auth-subtitle { display: none; }
+  .auth-r8 .auth-helper { display: none; }
+  .auth-r8 .auth-privacy { display: none; }
+  .auth-r8 .auth-title { font-size: 24px; }
+  .auth-v78 .auth-form { gap: 6px; margin-top: 6px; }
+  .auth-v78 .auth-input { min-height: 40px; }
+  .auth-v78 .auth-seg-btn { min-height: 36px; }
+  .legend-auth-download { margin-top: 8px; }
+}
+
+/* ---- Keycaps at narrow widths: a real 2-column grid, label on top ---- */
+@media (max-width: 640px) {
+  .cmd-deck-bottom > div {
+    display: grid; grid-template-columns: 1fr 1fr; justify-items: stretch;
+  }
+  .cmd-deck-bottom > div > span { grid-column: 1 / -1; justify-self: center; }
+  .cmd-deck-bottom .legend-keycap { flex: none; width: 100%; }
+  .cmd-deck-bottom .legend-keycap:last-child { grid-column: 1 / -1; }
+}
+
+/* ================= LEGENDARY — chunk 4 =================
+   The stage was NOT flexing: .auth-r8-demo > .legend-stage-wrap >
+   figure.auth-r8-demo-fig > .auth-r8-stage — two plain block
+   wrappers between the flex column and the stage, so the demo's
+   flex allocation pooled as empty space below a min-height stage.
+   display:contents on both wrappers makes the stage the demo's
+   direct flex item (its own position:relative is untouched, so the
+   absolute chat / montage / captions inside it are unaffected).
+   Register logo: the old (0,4,0) register rule kept a 56px ring
+   that cost 8px and pushed register at 1440x900 to 901px (1px
+   overflow) — same-specificity override, later in file, wins. */
+.legend-stage-wrap, .auth-r8-demo-fig { display: contents; }
+.auth-r8 .auth-form-card[data-mode="register"] .auth-r8-logo-ring { width: 48px; height: 48px; }
+.auth-r8 .auth-form-card[data-mode="register"] .auth-r8-logo svg { width: 40px; height: 40px; }
+
+/* ================= LEGENDARY — chunk 5 =================
+   DESIGN.md §2.2 specifies the gate's logo medallion at 72px.
+   The base compaction had shrunk it to 48px at ALL heights —
+   restore 72px (svg 48px, the old 2/3 ratio) at tall viewports;
+   register keeps 48px (its taller form is explicitly the case
+   where the old code itself shrank the ring to fit above the fold).
+   Short-height compaction (32px) is untouched. */
+.auth-r8 .auth-r8-logo-ring { width: 72px; height: 72px; }
+.auth-r8-logo svg { width: 48px; height: 48px; }
+
+/* ================= LEGENDARY — chunk 6 =================
+   The 2px backdrop blur on the sheet wrap survives: the
+   Tailwind `backdrop-blur-[2px]` utility sits after the
+   legendary rule in the compiled bundle for this one property
+   (the same rule's background DOES win — the competitors sit
+   on opposite sides of it). DESIGN wants a plain 30% scrim,
+   no blur — one !important on this single property settles it
+   for the editor sheet and the bulk sheet alike (both use
+   .legend-sheet-wrap). */
+.legend-sheet-wrap {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ================= LEGENDARY — chunk 7 =================
+   (a) The blur class is removed from the JSX (EditorModal +
+   BulkModal wraps) — no class, no blur. The CSS guard below
+   keeps only the STANDARD property: Lightning CSS was dropping
+   `backdrop-filter` whenever the -webkit- twin sat beside it,
+   which is why the !important in chunk 6 never reached the
+   standard property Chrome reads.
+   (b) Short-height logo: chunk 5's unconditional 72px ring
+   (later in file, same specificity) was beating chunk 3's
+   max-height:820px 32px rule — re-assert the compact sizes
+   here, after chunk 5, so they win again at <=820px. */
+.legend-sheet-wrap { backdrop-filter: none !important; }
+@media (max-height: 820px) {
+  .auth-r8 .auth-r8-logo-ring { width: 32px; height: 32px; }
+  .auth-r8-logo svg { width: 26px; height: 26px; }
+}
+
+/* ================= LEGENDARY — chunk 8 =================
+   TOKEN LOCK (measured): the legendary values set in :root
+   (lines ~106/184) were being clobbered by LATER blocks in
+   the same file — line 2133 (:root --bg oklch 0.94…) and line
+   4063 (--bg oklch 0.938…, --surface 82% white, --bg-sidebar
+   68% white) — which is why the page read pale BLUE instead
+   of paper #FAFBFF, and why surfaces were translucent over
+   that blue. These rules sit at the END of the file at the
+   same specificity as the late blocks, so they win. The accent
+   system is deliberately NOT locked here: the [data-accent]
+   rules (higher specificity) still own --accent*.
+   Also: the sticky topbar needs a solid paper back (the
+   .header-blur transparent rule would let list content show
+   through it while scrolling), and the auth gate gets its
+   last -38px of compaction so the living scene breathes. */
+:root, :root[data-theme="light"] {
+  --bg: #FAFBFF;
+  --surface: #FFFFFF;
+  --surface-alt: #F2F5FC;
+  --surface-elevated: #FFFFFF;
+  --surface-hover: #EEF2FB;
+  --surface-selected: #E3EBFA;
+  --surface-pressed: #DCE6F8;
+  --bg-sidebar: #F2F5FC;
+  --ink: #0B1530;
+  --text: #0B1530;
+  --dim: #5A6B8C;
+  --faint: oklch(0.54 0.04 256);
+  --border: #E6EAF4;
+  --cyan: oklch(0.66 0.14 205);
+}
+:root[data-theme="dark"] {
+  --bg: #060B18;
+  --bg-sidebar: #0A1224;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #060B18;
+    --bg-sidebar: #0A1224;
+  }
+}
+.header-blur.float-header { background: var(--bg); }
+/* Auth gate: last compaction so the stage reads as a scene. */
+.auth-r8 .auth-split { padding: 8px 20px 8px; }
+.auth-r8 .auth-r8-demo { margin-top: 8px; }
+.legend-auth-download { margin-top: 8px; }
+.auth-v78 .auth-form { gap: 6px; }
+.auth-v78 .auth-input { min-height: 40px; }
+
+/* ================= LEGENDARY — chunk 9 =================
+   Last nebula remnants (measured via ::before probe):
+   .auth-r8::before paints a soft blue radial glow (17% blue)
+   across the top of the auth page, and .auth-r8-card-glow
+   tints the top 200px of the card blue — both are the old
+   aurora language. Paper is paper: kill the paint. */
+.auth-r8::before,
+.auth-r8-card-glow { background: none !important; }
+
+/* ================= LEGENDARY — chunk 10 =================
+   Watermark clip repair (measured): the .auth-watermark
+   gradient was painting the WHOLE 1440×120 foot band instead
+   of the letters — the compiler drops `background-clip: text`
+   when it shares a rule with the `background` shorthand
+   (computed bgClip was `border-box`, bgSize `auto`). Re-declare
+   the paint with `background-image` (no shorthand) in its own
+   rule, after the original, so the clip survives. */
+.auth-watermark {
+  background-image: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--accent) 62%, transparent) 20%,
+    color-mix(in srgb, var(--grad-end, var(--cyan)) 30%, transparent) 42%,
+    oklch(1 0 0 / 0.55) 50%,
+    color-mix(in srgb, var(--grad-end, var(--cyan)) 30%, transparent) 58%,
+    color-mix(in srgb, var(--accent) 62%, transparent) 80%
+  );
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
