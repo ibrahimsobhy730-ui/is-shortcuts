@@ -49,19 +49,10 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
 
   return (
     <section className="legend-extension animate-fade mx-auto max-w-4xl" aria-label={en ? "Download the extension" : "تحميل الاكستنشن"}>
-      {/* VIDEO — the hero. The floating glass chip overlays its
-          lower edge: download · version · free · Chrome. */}
-      <div className="legend-ext-video relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-black shadow-[var(--shadow-2)]">
-        <video
-          ref={videoRef}
-          controls
-          preload="metadata"
-          poster="/extension-guide-poster.jpg"
-          src="/extension-guide.mp4"
-          onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
-          className="aspect-video w-full bg-black"
-          aria-label={en ? "Extension install video — 70 seconds" : "فيديو تثبيت الإضافة — ٧٠ ثانية"}
-        />
+      {/* IMAGINATION — the title chip sits ABOVE the video now, never
+          over the player's native controls (the old floating chip
+          covered the seek bar). */}
+      <div className="legend-ext-chip-row">
         <a
           href="/is-shortcuts-extension.zip"
           download
@@ -76,6 +67,19 @@ export function ExtensionShowcase({ lang }: { lang: "ar" | "en" }) {
           <span aria-hidden="true">·</span>
           <span>Chrome</span>
         </a>
+      </div>
+      {/* VIDEO — the hero, framed as a screen on the desk. */}
+      <div className="legend-ext-video relative overflow-hidden rounded-[28px] border border-[var(--border)] bg-black shadow-[var(--shadow-2)]">
+        <video
+          ref={videoRef}
+          controls
+          preload="metadata"
+          poster="/extension-guide-poster.jpg"
+          src="/extension-guide.mp4"
+          onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+          className="aspect-video w-full bg-black"
+          aria-label={en ? "Extension install video — 70 seconds" : "فيديو تثبيت الإضافة — ٧٠ ثانية"}
+        />
       </div>
       <p className="mt-3 text-center text-[13px] font-bold text-[var(--dim)]">
         {en ? "70 seconds — Arabic voiceover with captions" : "٧٠ ثانية — تعليق صوتي عربي مع ترجمة مكتوبة"}

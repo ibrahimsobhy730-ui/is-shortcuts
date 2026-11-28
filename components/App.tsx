@@ -1638,13 +1638,17 @@ export function AvatarFace({
       />
     );
   }
+  /* IMAGINATION — the avatar initial normalises alef-with-hamza
+     (إ/أ/آ) to a plain alef: at avatar sizes the hamza renders as a
+     stray dot and the initial reads as "!". Display name untouched. */
+  const initial = (displayName.charAt(0) || "؟").replace(/[إأآ]/g, "ا");
   return (
     <span
       aria-hidden="true"
       className={`avatar-face flex shrink-0 items-center justify-center rounded-full bg-[var(--accent)] bg-[linear-gradient(150deg,var(--accent),var(--accent-strong))] font-bold text-[var(--accent-ink)] ${textClass}`}
       style={{ width: size, height: size }}
     >
-      {displayName.charAt(0) || "؟"}
+      {initial}
     </span>
   );
 }
@@ -6816,6 +6820,35 @@ function Workspace({
     ? (shortcuts.find((s) => s.id === detailItem.id) ?? null)
     : null;
 
+  /* IMAGINATION — the macro nav: the sidebar's replacement. One
+     helper, two shapes: the vertical key column on the deck
+     (row=false) and the horizontal key row on Shortcuts / Trash /
+     Account / Extension (row=true). */
+  const macroNav = (row: boolean) => (
+    <nav className={row ? "keydeck-macro keydeck-macro-row" : "keydeck-macro"} aria-label={t("التنقل الرئيسي")}>
+      <button type="button" onClick={goHome} aria-current={section === "home" && view === "default" ? "page" : undefined} className={`lux-btn keydeck-macro-key ${section === "home" && view === "default" ? "keydeck-macro-key-on" : ""}`}>
+        <Icon d={I.home} size={20} />
+        <span>{t("الرئيسية")}</span>
+      </button>
+      <button type="button" onClick={goShortcuts} aria-current={view === "shortcuts" ? "page" : undefined} className={`lux-btn keydeck-macro-key ${view === "shortcuts" ? "keydeck-macro-key-on" : ""}`}>
+        <Icon d={I.shortcut} size={20} />
+        <span>{t("الاختصارات")}</span>
+      </button>
+      <button type="button" onClick={() => goSection("extension")} aria-current={section === "extension" ? "page" : undefined} className={`lux-btn keydeck-macro-key ${section === "extension" ? "keydeck-macro-key-on" : ""}`}>
+        <Icon d={I.puzzle} size={20} />
+        <span>{t("الأدوات")}</span>
+      </button>
+      <button type="button" onClick={() => goSection("account")} aria-current={section === "account" ? "page" : undefined} className={`lux-btn keydeck-macro-key ${section === "account" ? "keydeck-macro-key-on" : ""}`}>
+        <Icon d={I.user} size={20} />
+        <span>{t("حسابي")}</span>
+      </button>
+      <button type="button" onClick={goTrash} aria-current={view === "trash" ? "page" : undefined} className={`lux-btn keydeck-macro-key ${view === "trash" ? "keydeck-macro-key-on" : ""}`}>
+        <Icon d={I.trash} size={20} />
+        <span>{t("سلة المهملات")}</span>
+      </button>
+    </nav>
+  );
+
   /* The overlays rendered inline here (not their own component)
      lock the page behind them while open — the same refcounted
      lock the modal components use, so a modal opened from one of
@@ -7317,69 +7350,9 @@ function Workspace({
             </div>
           )}
 
-          {/* The search box IS the preview box — moved here from
-              the header (Round 7): same input, same preview,
-              bigger, as the deck's centerpiece. */}
-          <div ref={searchWrapRef} className={`cmd-deck-search relative w-full ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
-            <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
-              <Icon d={I.search} size={22} />
-            </span>
-            <input
-              ref={searchRef}
-              aria-label={t("دوّر في الردود")}
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                if (section !== "home") setSection("home");
-              }}
-              onFocus={() => {
-                if (section !== "home") setSection("home");
-              }}
-              onKeyDown={(e) => {
-                /* Enter copies the best trigger match — the same
-                   one-tap copy the shortcut bar does on Enter, so
-                   the two search surfaces behave as one. */
-                if (e.key === "Enter" && searchTrigBest) {
-                  e.preventDefault();
-                  void handleCopy(searchTrigBest);
-                }
-              }}
-              placeholder={t("اكتب اختصار أو كلمة من الرد…")}
-              className={`h-[64px] w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[18px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[68px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] shadow-[0_12px_30px_-10px_rgba(22,104,196,0.40)]"}`}
-            />
-            {search && (
-              <button
-                type="button"
-                aria-label={t("مسح البحث")}
-                data-tip={t("مسح البحث")}
-                data-tip-pos="below"
-                onClick={() => setSearch("")}
-                className="lux-btn absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-[var(--faint)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
-              >
-                <Icon d={I.x} size={16} />
-              </button>
-            )}
-            {/* The search box IS the preview box: while the query
-                matches a trigger (or matches nothing at all), the
-                field grows downward into the full reply preview —
-                and shrinks back when cleared. */}
-            <div className="legend-preview-wrap">
-              <SearchTriggerPreview
-                open={searchPreviewOpen}
-                query={search}
-                best={searchTrigBest}
-                extras={searchTrigMatches.slice(1, 3)}
-                kindScore={searchTrigKind}
-                shortcuts={shortcuts}
-                onCopy={(s) => handleCopy(s)}
-                onSaveTrigger={async (s, trigger) => {
-                  await updateTriggerMut.mutateAsync({ s, trigger });
-                }}
-                onDismiss={() => setSearch("")}
-              />
-            </div>
-          </div>
-
+          <div className="keydeck">
+            {macroNav(false)}
+            <div className="keydeck-body">
           {/* Triggers: the chips feed the search box — one small
               centered row now; the «جديد» button is gone from
               the deck (see the comment above). */}
@@ -7406,10 +7379,6 @@ function Workspace({
               </div>
             )}
           </div>
-        </section>)}
-
-        {/* Toolbar: folder chips on small screens — the «جديد» button now lives in the command deck (Round 7). */}
-        {view !== "shortcuts" && view !== "trash" && (
         <section className="legend-folder-strip-wrap pt-6">
           <div className="legend-folder-strip no-scrollbar -mx-4 mb-1 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
             {stripCategories.map((c) => {
@@ -7519,7 +7488,89 @@ function Workspace({
               );
             })}
           </div>
+        </section>
+          <div className="keydeck-spacebar-row">
+          {/* The search box IS the preview box — moved here from
+              the header (Round 7): same input, same preview,
+              bigger, as the deck's centerpiece. */}
+          <div ref={searchWrapRef} className={`cmd-deck-search relative w-full ${chipPulse ? "trig-search-pulsed" : ""}`} data-tip={searchPreviewOpen ? undefined : t("اكتب اختصار أو أي كلمة من الرد")}>
+            <span className={`pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 ${searchTrigBest ? "text-[var(--accent)]" : "text-[var(--faint)]"}`}>
+              <Icon d={I.search} size={22} />
+            </span>
+            <input
+              ref={searchRef}
+              aria-label={t("دوّر في الردود")}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (section !== "home") setSection("home");
+              }}
+              onFocus={() => {
+                if (section !== "home") setSection("home");
+              }}
+              onKeyDown={(e) => {
+                /* Enter copies the best trigger match — the same
+                   one-tap copy the shortcut bar does on Enter, so
+                   the two search surfaces behave as one. */
+                if (e.key === "Enter" && searchTrigBest) {
+                  e.preventDefault();
+                  void handleCopy(searchTrigBest);
+                }
+              }}
+              placeholder={t("اكتب اختصار أو كلمة من الرد…")}
+              className={`h-[64px] w-full rounded-full border bg-[var(--surface)] pe-11 ps-12 text-[18px] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[var(--faint)] focus:border-[var(--accent)] focus:shadow-[0_10px_28px_-8px_rgba(22,104,196,0.35)] sm:h-[68px] ${searchTrigBest ? "border-[var(--accent)] shadow-[0_10px_32px_-8px_rgba(22,104,196,0.55)]" : "border-[color-mix(in_srgb,var(--accent)_38%,var(--border))] shadow-[0_12px_30px_-10px_rgba(22,104,196,0.40)]"}`}
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label={t("مسح البحث")}
+                data-tip={t("مسح البحث")}
+                data-tip-pos="below"
+                onClick={() => setSearch("")}
+                className="lux-btn absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-[var(--faint)] hover:bg-[var(--surface-alt)] hover:text-[var(--text)]"
+              >
+                <Icon d={I.x} size={16} />
+              </button>
+            )}
+            {/* The search box IS the preview box: while the query
+                matches a trigger (or matches nothing at all), the
+                field grows downward into the full reply preview —
+                and shrinks back when cleared. */}
+            <div className="legend-preview-wrap">
+              <SearchTriggerPreview
+                open={searchPreviewOpen}
+                query={search}
+                best={searchTrigBest}
+                extras={searchTrigMatches.slice(1, 3)}
+                kindScore={searchTrigKind}
+                shortcuts={shortcuts}
+                onCopy={(s) => handleCopy(s)}
+                onSaveTrigger={async (s, trigger) => {
+                  await updateTriggerMut.mutateAsync({ s, trigger });
+                }}
+                onDismiss={() => setSearch("")}
+              />
+            </div>
+          </div>
+
+
+            <button
+              type="button"
+              onClick={() => setEditor({ open: true, item: null })}
+              aria-label={t("اختصار جديد")}
+              data-tip={t("اختصار جديد — رد جديد باختصار")}
+              className="lux-btn keydeck-enter"
+            >
+              <Icon d={I.plus} size={18} />
+              <span>{t("اختصار جديد")}</span>
+            </button>
+          </div>
+            </div>
+          </div>
         </section>)}
+
+        {/* Toolbar: folder chips on small screens — the «جديد» button now lives in the command deck (Round 7). */}
+        
 
         {/* Filter bar — ONE sticky glass row under the header:
             four primary view pills with counters riding a sliding
@@ -8215,6 +8266,7 @@ function Workspace({
 
         {/* List */}
         <section className="mt-4">
+          {((view as string) === "shortcuts" || (view as string) === "trash") && macroNav(true)}
           {view === "shortcuts" ? (
             <ShortcutsView
               token={token}
@@ -8825,6 +8877,27 @@ function Workspace({
                 تصفير الاستخدام
               </button>
             </div>
+            {/* IMAGINATION — bulk entry moved here from the deleted
+                sidebar (it was the sidebar's only entry point). */}
+            <div className="keydeck-bulk-row mt-4 flex flex-wrap items-center gap-3 border-t border-[var(--border)] pt-3.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]">
+                <Icon d={I.upload} size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">إضافة جماعية</p>
+                <p className="mt-0.5 text-[12.5px] leading-relaxed text-[var(--dim)]">
+                  أضف مجموعة ردود مرة واحدة باللصق.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="إضافة جماعية — إضافة مجموعة ردود مرة واحدة باللصق"
+                onClick={() => setBulkOpen(true)}
+                className="lux-btn shrink-0 rounded-full border border-[var(--border)] px-4 py-2 text-[13px] font-bold text-[var(--accent-strong)] hover:border-[var(--accent)]"
+              >
+                إضافة جماعية
+              </button>
+            </div>
             <div className="mt-4 border-t border-[var(--border)] pt-3.5">
               <p className="flex items-center gap-2 text-[13px] font-semibold text-[var(--dim)]" aria-live="polite">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${lastBackup ? "bg-[var(--cyan)]" : "bg-[var(--gold)]"}`} aria-hidden="true" />
@@ -8848,6 +8921,7 @@ function Workspace({
         </>
         )}
 
+        {section === "account" && macroNav(true)}
         {section === "account" && (
           <AccountSection
             token={token}
@@ -8859,6 +8933,7 @@ function Workspace({
           />
         )}
 
+        {section === "extension" && macroNav(true)}
         {section === "extension" && <ExtensionShowcase lang={lang} />}
 
         <footer className="mt-16 flex flex-wrap items-center justify-center gap-2.5 text-xs text-[var(--dim)]">
@@ -12547,7 +12622,7 @@ export function RichTextEditor({
 
   return (
     <div>
-      <div className="no-scrollbar flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5" role="toolbar" aria-label="أدوات تنسيق الرد">
+      <div className="keydeck-vars-row no-scrollbar flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5" role="toolbar" aria-label="أدوات تنسيق الرد">
         <button type="button" aria-label="نص عريض" data-tip="عريض بصيغة واتساب — بيظهر منسق لما يتلصق هناك" onClick={() => wrapSelection("*", "*", "نص عريض")} className={toolBtn}>
           <Icon d={I.bold} size={16} />
           عريض
@@ -12581,7 +12656,7 @@ export function RichTextEditor({
         </button>
       </div>
 
-      <div className="no-scrollbar mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5">
+      <div className="keydeck-vars-row no-scrollbar mt-2 flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5">
         <span className="flex shrink-0 items-center gap-1 text-xs font-bold text-[var(--dim)]">
           <Icon d={I.braces} size={14} />
           متغيرات ديناميكية:
@@ -14763,6 +14838,9 @@ function BulkModal({
 }) {
   const { lang } = useLang();
   const [text, setText] = useState("");
+  /* IMAGINATION — instructions are one line + ⓘ popover (the full
+     text lives in the popover, verbatim). */
+  const [showBulkInfo, setShowBulkInfo] = useState(false);
   const BULK_EXAMPLE = `ترحيب سريع
 أهلاً بيك 🤍
 ---
@@ -14794,12 +14872,28 @@ function BulkModal({
             <Icon d={I.x} size={18} />
           </button>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--dim)]">
-          الصق مجموعة ردود مرة واحدة. كل رد بالشكل ده: أول سطر عنوان الرد،
-          وبعده نص الرد (أي عدد أسطر)، وبين كل رد والتاني سطر فيه{" "}
-          <span dir="ltr" className="font-mono font-bold">---</span> لوحده. أو الصق JSON بنفس
-          شكل ملف النسخة الاحتياطية — والردود الموجودة عندك قبل كده هتتخطى تلقائياً.
+        <p className="mt-2 flex items-center gap-1.5 text-sm leading-relaxed text-[var(--dim)]">
+          <span>الصق الردود — كل رد: عنوان ثم النص، وبين الردود سطر <span dir="ltr" className="font-mono font-bold">---</span> لوحده.</span>
+          <span className="relative shrink-0">
+            <button
+              type="button"
+              aria-label="شرح الإضافة الجماعية"
+              aria-expanded={showBulkInfo}
+              onClick={() => setShowBulkInfo((v) => !v)}
+              className="lux-btn flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--dim)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              <Icon d={I.info} size={13} />
+            </button>
+            {showBulkInfo && (
+              <span className="pop-glass absolute start-0 top-full z-30 mt-1.5 w-72 rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface-elevated)] p-3 text-xs font-normal leading-relaxed text-[var(--dim)] shadow-[var(--shadow-pop)]">
+                الصق مجموعة ردود مرة واحدة. كل رد بالشكل ده: أول سطر عنوان الرد، وبعده نص الرد (أي عدد أسطر)، وبين كل رد والتاني سطر فيه <span dir="ltr" className="font-mono font-bold">---</span> لوحده. أو الصق JSON بنفس شكل ملف النسخة الاحتياطية — والردود الموجودة عندك قبل كده هتتخطى تلقائياً.
+              </span>
+            )}
+          </span>
         </p>
+        {showBulkInfo && (
+          <button type="button" aria-hidden="true" tabIndex={-1} onClick={() => setShowBulkInfo(false)} className="fixed inset-0 z-20 cursor-default" />
+        )}
         <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-alt)] p-3.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] font-bold text-[var(--faint)]">مثال — الشكل المطلوب</span>

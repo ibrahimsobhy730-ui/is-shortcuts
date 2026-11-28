@@ -711,6 +711,15 @@ export function EditorModal({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+          {/* IMAGINATION — the engraving station: one LARGE physical
+              key showing the trigger being engraved; its legend
+              updates LIVE as you type the trigger below. */}
+          <div className="keydeck-engrave-keywrap mt-5" aria-hidden="true">
+            <div className="keydeck-engrave-key">
+              <span dir="auto">{trigger.trim() || "…"}</span>
+            </div>
+            <p className="keydeck-engrave-keylabel">الاختصار على المفتاح</p>
+          </div>
           {/* LEGENDARY — live preview on top: exactly what the
               finished card looks like in the grid; typing updates
               it live. */}
@@ -810,7 +819,7 @@ export function EditorModal({
                   )}
                 {triggerSuggestions.length > 0 && (
                   <span className="mt-2 block">
-                    <span className="no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                    <span className="keydeck-suggest-row no-scrollbar flex items-center gap-1.5 overflow-x-auto pb-0.5">
                       <span className="shrink-0 text-[12px] font-bold text-[var(--faint)]">
                         اقتراحات:
                       </span>

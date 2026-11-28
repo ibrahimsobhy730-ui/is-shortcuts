@@ -8086,3 +8086,612 @@ html[dir="rtl"] .legend-sheet { animation-name: legend-sheet-in-rtl; }
   -webkit-background-clip: text;
   background-clip: text;
 }
+
+/* ============================================================
+   IMAGINATION «المِفْتَاح» (The Keydeck) — 2026-11-28.
+   The site IS a keyboard you play. Appended last so it wins the
+   unlayered cascade. Design: ~/workspace/imagination-redesign/DESIGN.md
+   PART A — tokens + topbar + home (deck, macro column, spacebar, tray).
+   Token-lock lesson: verify by computed probe + pixel sampling.
+   ============================================================ */
+
+/* ---- Tokens: two desks, one instrument ---- */
+:root {
+  --desk: #F6F3EC;
+  --deck-slab: #EDE8DA;
+  --key-face: #FFFEFA;
+  --key-edge: #C9C0A6;
+  --key-legend: #0B1530;
+  --slip: #FFFDF7;
+  --ink: #0B1530;
+  --ink-secondary: #5A6B8C;
+  --hairline: #DDD5C2;
+  --gold-hairline: #C9A227;
+  --accent: #1D4ED8;
+  --accent-strong: #1E40AF;
+  --accent-soft: #E8EEFE;
+}
+:root[data-theme="dark"] {
+  --desk: #070B16;
+  --deck-slab: #0C1322;
+  --key-face: #1B2942;
+  --key-edge: #04060C;
+  --key-legend: #EDF2FF;
+  --slip: #F4F7FF;
+  --ink: #EDF2FF;
+  --ink-secondary: #93A4C8;
+  --hairline: rgb(255 255 255 / 0.09);
+  --gold-hairline: #C9A227;
+  --accent: #60A5FA;
+  --accent-strong: #3B82F6;
+  --accent-soft: rgb(96 165 250 / 0.14);
+}
+/* Token lock (last wins): the desk colours, opaque surfaces. */
+:root, :root[data-theme="light"] {
+  --bg: #F6F3EC; --surface: #FFFEFA; --surface-alt: #EFEAD9;
+  --bg-sidebar: #F6F3EC; --text: #0B1530; --dim: #5A6B8C;
+  --faint: #8A94A8; --border: #DDD5C2; --border-strong: #C9C0A6;
+}
+:root[data-theme="dark"] {
+  --bg: #070B16; --surface: #101A2E; --surface-alt: #0C1322;
+  --bg-sidebar: #070B16; --text: #EDF2FF; --dim: #93A4C8;
+  --faint: #6B7C9E; --border: rgb(255 255 255 / 0.09);
+  --border-strong: rgb(255 255 255 / 0.18);
+}
+.app-shell, body { background: var(--bg); }
+
+/* ---- Sidebar DELETED; drawer hamburger + mobile pill nav gone.
+   The macro column IS the navigation, at every width. ---- */
+aside.sidebar-panel { display: none !important; }
+button[aria-label="فتح قائمة التنقل"] { display: none !important; }
+nav[aria-label="أقسام الموقع"] { display: none !important; }
+.drawer-nav { display: none !important; }
+
+/* ---- Topbar: quiet hairline strip on the desk ---- */
+.float-header {
+  background: var(--bg); border-bottom: 1px solid var(--hairline);
+  box-shadow: none;
+}
+
+/* ---- HOME: the desk. cmd-deck is a transparent wrapper now. ---- */
+.cmd-deck {
+  background: transparent; border: none; border-radius: 0;
+  box-shadow: none; padding: 0; margin-top: 0;
+}
+.cmd-deck-glow { display: none; }
+
+/* ---- Nameplate: the verse, engraved on the desk. No slab. ---- */
+.cmd-deck-hero {
+  padding: 28px 0 0; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+}
+.cmd-deck-verse { font-size: 32px; color: var(--ink); line-height: 1.7; }
+@media (max-width: 768px) { .cmd-deck-verse { font-size: 26px; } }
+.cmd-deck-divider {
+  display: block; width: 64px; height: 1px;
+  background: var(--gold-hairline); margin: 14px auto 0;
+}
+.cmd-deck-divider::before, .cmd-deck-divider::after { display: none; }
+.cmd-deck-divider > i { display: none; }
+.cmd-deck-counters { margin-top: 10px; font-size: 13px; color: var(--ink-secondary); }
+.cmd-deck-counters b { color: var(--ink); }
+.cmd-deck .hero-hide-btn {
+  order: 3; position: static; margin-top: 10px;
+  background: transparent; border: 1px solid var(--hairline);
+  color: var(--dim); border-radius: 999px; padding: 6px 12px; font-size: 12px;
+}
+/* Collapsed nameplate strip (hero hidden): same engraving, one line. */
+.cmd-deck-strip { min-height: 52px; padding-top: 20px; }
+.cmd-deck-strip-verse { color: var(--ink); }
+.cmd-deck-strip-counters { color: var(--ink-secondary); }
+.cmd-deck-strip-counters b { color: var(--ink); }
+
+/* ---- The deck: one raised slab holding ALL the keys ---- */
+.keydeck {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 20px;
+  margin-top: 28px; padding: 24px;
+  background: var(--deck-slab);
+  border: 1px solid var(--hairline); border-radius: 28px;
+  box-shadow: 0 24px 48px -24px rgb(11 21 48 / 0.28), 0 2px 0 rgb(255 255 255 / 0.5) inset;
+}
+:root[data-theme="dark"] .keydeck {
+  box-shadow: 0 24px 48px -20px rgb(0 0 0 / 0.7), 0 1px 0 rgb(255 255 255 / 0.06) inset;
+}
+.keydeck-body { min-width: 0; display: flex; flex-direction: column; }
+
+/* ---- Macro column: 5 nav keys on the deck's inline-start edge ---- */
+.keydeck-macro { display: flex; flex-direction: column; gap: 8px; }
+.keydeck-macro-key {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; min-height: 72px; padding: 8px 6px;
+  background: var(--key-face); color: var(--key-legend);
+  border: 1px solid var(--hairline); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--key-edge);
+  font-size: 12px; font-weight: 700; line-height: 1.4; text-align: center;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1), color 200ms;
+}
+.keydeck-macro-key:hover { transform: translateY(-1px); }
+.keydeck-macro-key:active { transform: translateY(2px); box-shadow: none; }
+.keydeck-macro-key-on {
+  transform: translateY(2px); box-shadow: none;
+  color: var(--accent); box-shadow: inset 0 -2px 0 var(--gold-hairline);
+}
+.keydeck-macro-key svg { flex-shrink: 0; }
+
+/* ---- Top row: the five trigger keys (the product's soul) ---- */
+.cmd-deck-bottom { margin-top: 0; display: block; }
+.cmd-deck-bottom > div { justify-content: stretch; gap: 10px; width: 100%; }
+.cmd-deck-bottom > div > span:first-child { display: none; }
+.legend-keycap {
+  flex: 1 1 0; min-width: 0; height: 96px; padding: 10px 8px;
+  background: var(--key-face); border: 1px solid var(--hairline);
+  border-radius: 14px; box-shadow: 0 2px 0 var(--key-edge);
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.legend-keycap:hover { transform: translateY(-1px); }
+.legend-keycap:active { transform: translateY(2px); box-shadow: none; }
+.legend-keycap-trig { font-size: 24px; font-weight: 800; color: var(--key-legend); line-height: 1.3; }
+.legend-keycap-title {
+  font-size: 12px; font-weight: 600; color: var(--ink-secondary);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;
+}
+/* In-card trigger chips take the same key shape, with a real edge. */
+.trig-chip {
+  border-radius: 14px; box-shadow: 0 2px 0 var(--key-edge);
+}
+.trig-chip:active { transform: translateY(2px); box-shadow: none; }
+
+/* ---- Folder rows: key clusters on the deck ---- */
+.legend-folder-strip-wrap { padding-top: 0; margin-top: 22px; }
+.legend-folder-strip {
+  margin: 0 !important; padding: 2px 2px 4px !important;
+  gap: 10px !important; flex-wrap: wrap; overflow: visible;
+  -webkit-mask-image: none; mask-image: none;
+}
+.legend-folder-strip > button {
+  background: var(--key-face) !important; color: var(--key-legend) !important;
+  border: 1px solid var(--hairline) !important; border-radius: 14px !important;
+  box-shadow: 0 2px 0 var(--key-edge) !important;
+  padding: 12px 16px !important;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.legend-folder-strip > button:hover { transform: translateY(-1px); }
+.legend-folder-strip > button:active { transform: translateY(2px); box-shadow: none !important; }
+.legend-folder-strip > button[aria-pressed="true"] {
+  transform: translateY(2px); box-shadow: none !important;
+  background: var(--accent) !important; color: #fff !important;
+  border-color: var(--accent-strong) !important;
+}
+.legend-folder-strip > button[aria-pressed="true"] span:last-child {
+  background: rgb(255 255 255 / 0.22) !important; color: #fff !important;
+}
+.legend-folder-strip > button:nth-child(4n) { margin-inline-end: 0; }
+
+/* ---- Bottom row: the spacebar + the Enter key ---- */
+.keydeck-spacebar-row { display: flex; gap: 10px; align-items: stretch; margin-top: 22px; }
+.keydeck-spacebar-row .cmd-deck-search {
+  flex: 1 1 auto; min-width: 0; margin-top: 0; padding: 0;
+  background: transparent; border: none; border-radius: 0; box-shadow: none;
+}
+.cmd-deck-search input {
+  height: 68px; background: var(--key-face); color: var(--key-legend);
+  border: 1px solid var(--hairline); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--key-edge), 0 12px 24px -12px rgb(11 21 48 / 0.25);
+  font-size: 18px;
+}
+.cmd-deck-search input::placeholder { color: var(--ink-secondary); }
+.cmd-deck-search input:focus { border-color: var(--accent); box-shadow: 0 2px 0 var(--key-edge), 0 0 0 3px var(--accent-soft); }
+.cmd-deck-search .pointer-events-none { color: var(--ink-secondary) !important; }
+.cmd-deck-search > button { color: var(--dim); }
+.cmd-deck-search > button:hover { background: var(--surface-alt); color: var(--ink); }
+/* The risen spacebar: when the preview is open the whole search
+   container is ONE tall key; the preview inside is the paper slip. */
+.cmd-deck-search:has(.search-trig-expand-open) {
+  background: var(--key-face); border: 1px solid var(--hairline);
+  border-radius: 14px; box-shadow: 0 2px 0 var(--key-edge), 0 16px 32px -16px rgb(11 21 48 / 0.3);
+  padding: 0 0 12px;
+}
+.cmd-deck-search:has(.search-trig-expand-open) input {
+  background: transparent; border-color: transparent; box-shadow: none;
+}
+.cmd-deck-search:has(.search-trig-expand-open) input:focus { box-shadow: none; }
+/* The clear button stays pinned to the input row (top 34px), never
+   drifting to the middle of the grown spacebar. */
+.cmd-deck-search:has(.search-trig-expand-open) > button { top: 34px; }
+/* A hairline separates the input row from the risen preview, so the
+   grown spacebar reads as ONE key with two zones, not a blank box. */
+.legend-preview-wrap:has(.search-trig-expand-open) {
+  border-top: 1px solid var(--hairline);
+  margin: 8px 16px 0; padding-top: 12px;
+}
+.legend-preview-wrap { margin-top: 0; }
+.legend-preview-wrap:has(.search-trig-expand-open) { margin-top: 4px; }
+.search-trig-expand { transition: grid-template-rows 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.search-trig-expand-inner { transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), transform 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+.search-trig-panel { border-radius: 14px; background: transparent; box-shadow: none; }
+.search-trig-panel::after { display: none; }
+/* The Enter key: the one accent object on the deck. It never
+   stretches when the spacebar rises — it stays 68px tall. */
+.keydeck-enter {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; min-width: 132px; height: 68px; align-self: flex-start; padding: 10px 14px;
+  background: var(--accent); color: #fff;
+  border: 1px solid var(--accent-strong); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--accent-strong);
+  font-size: 15px; font-weight: 800; line-height: 1.4;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.keydeck-enter:hover { transform: translateY(-1px); }
+.keydeck-enter:active { transform: translateY(2px); box-shadow: none; }
+
+/* ---- Tray: paper slips in a rimmed tray below the deck ---- */
+.legend-grid {
+  margin-top: 24px; padding: 20px;
+  border: 1px solid var(--hairline); border-radius: 28px;
+  background: transparent;
+}
+.reply-card {
+  background: var(--slip) !important; color: #0B1530;
+  border: 1px solid var(--hairline); border-radius: 20px !important;
+  box-shadow: 0 6px 18px -10px rgb(11 21 48 / 0.18);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reply-card:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -12px rgb(11 21 48 / 0.25); }
+:root[data-theme="dark"] .reply-card { border-color: rgb(255 255 255 / 0.12); }
+.reply-card h3, .reply-card .truncate { color: #0B1530; }
+/* Filter row: the tray's edge — quiet text links, gold underline. */
+.modern-switcher {
+  position: static; background: transparent; border: none; box-shadow: none;
+  padding: 16px 4px 0; margin-top: 4px;
+}
+.pill-thumb { display: none; }
+.modern-switcher .pill-btn {
+  background: transparent; border: none; box-shadow: none; border-radius: 0;
+  padding: 8px 2px; color: var(--dim);
+}
+.modern-switcher .pill-btn[aria-pressed="true"] {
+  color: var(--ink); font-weight: 800; box-shadow: inset 0 -2px 0 var(--gold-hairline);
+}
+.modern-switcher .pill-btn > span:last-child { background: transparent; color: inherit; padding: 0; font-size: 12px; }
+.modern-switcher .filter-scroll > div > button:not(.pill-btn) {
+  background: transparent; border: none; box-shadow: none; border-radius: 0;
+  padding: 8px 2px; color: var(--dim);
+}
+.modern-switcher .filter-scroll > div > button:not(.pill-btn)[aria-pressed="true"] {
+  color: var(--ink); font-weight: 800; box-shadow: inset 0 -2px 0 var(--gold-hairline);
+}
+.filter-scroll {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* ---- 390px: the deck stacks, still an instrument ---- */
+@media (max-width: 700px) {
+  .keydeck { grid-template-columns: 1fr; gap: 14px; padding: 16px; margin-top: 20px; }
+  .keydeck-macro { flex-direction: row; gap: 8px; }
+  .keydeck-macro-key { flex: 1 1 0; min-height: 72px; padding: 8px 2px; font-size: 12px; }
+  .legend-keycap { flex: 1 1 40%; height: 76px; }
+  .legend-keycap-trig { font-size: 20px; }
+  .keydeck-spacebar-row { flex-direction: column; }
+  .keydeck-enter { min-width: 0; width: 100%; flex-direction: row; min-height: 56px; align-self: stretch; height: auto; }
+  .cmd-deck-search input { height: 60px; font-size: 17px; }
+  .legend-grid { padding: 12px; gap: 12px; }
+}
+
+/* ============================================================
+   IMAGINATION — PART B: shortcuts deck, trash, account,
+   extension, details, bulk, editor, auth, tools.
+   ============================================================ */
+
+/* ---- Macro row (Shortcuts / Trash / Account / Extension pages):
+   the same 5 keys, horizontal, in a slim slab. ---- */
+.keydeck-macro-row {
+  flex-direction: row; gap: 10px; margin-top: 20px;
+  padding: 14px; background: var(--deck-slab);
+  border: 1px solid var(--hairline); border-radius: 28px;
+  box-shadow: 0 16px 32px -20px rgb(11 21 48 / 0.25);
+}
+.keydeck-macro-row .keydeck-macro-key { flex: 1 1 0; min-height: 64px; }
+@media (max-width: 700px) {
+  .keydeck-macro-row { flex-wrap: wrap; gap: 8px; padding: 10px; }
+  .keydeck-macro-row .keydeck-macro-key { flex: 1 1 28%; min-height: 60px; }
+}
+
+/* ---- SHORTCUTS page: the deck with empty key slots ---- */
+.legend-keyring {
+  margin-top: 20px; padding: 24px;
+  background: var(--deck-slab);
+  border: 1px solid var(--hairline); border-radius: 28px;
+  box-shadow: 0 24px 48px -24px rgb(11 21 48 / 0.28);
+}
+.legend-keyrow { display: flex; gap: 10px; flex-wrap: wrap; }
+.legend-bigkey {
+  flex: 1 1 0; min-width: 160px; display: flex; flex-direction: column;
+  background: var(--key-face); border: 1px solid var(--hairline);
+  border-radius: 14px; box-shadow: 0 2px 0 var(--key-edge);
+  overflow: hidden;
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.legend-bigkey:hover { transform: translateY(-1px); }
+.legend-bigkey-face {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 16px 10px 10px; background: transparent; border: none; box-shadow: none;
+}
+.legend-bigkey-face:active { transform: translateY(2px); }
+.legend-bigkey-trig { font-size: 24px; font-weight: 800; color: var(--key-legend); line-height: 1.3; }
+.legend-bigkey-title {
+  font-size: 12px; font-weight: 600; color: var(--ink-secondary);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.legend-bigkey-meta { font-size: 12px; color: var(--dim); }
+/* The copy action lives INSIDE its key now, not detached below it. */
+.legend-bigkey-copy {
+  margin: 6px 10px 10px; padding: 8px 10px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-strong);
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.legend-progress {
+  margin-top: 14px; font-size: 13px; color: var(--ink-secondary);
+  border-top: 1px solid var(--hairline); padding-top: 12px;
+}
+/* Empty key slots: outlined keys for the 83 trigger-less replies. */
+.legend-keyring ul.grid > li {
+  background: transparent !important;
+  border: 1.5px dashed var(--border-strong) !important;
+  border-radius: 14px !important; box-shadow: none !important;
+}
+.legend-keyring ul.grid > li:hover { border-color: var(--accent) !important; }
+.legend-mini-search {
+  background: var(--key-face) !important; border: 1px solid var(--hairline) !important;
+  border-radius: 14px !important; box-shadow: 0 2px 0 var(--key-edge) !important;
+}
+.legend-shortcuts-foot { margin-top: 16px; }
+
+/* ---- TRASH: the spare-keys box ---- */
+.legend-trash { margin-top: 20px; }
+.legend-page-head { display: flex; align-items: baseline; gap: 10px; }
+.legend-page-title { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.4; }
+.legend-page-count { font-size: 14px; font-weight: 700; color: var(--ink-secondary); }
+.legend-empty { padding: 48px 0 32px; text-align: center; }
+.legend-empty-glyph {
+  width: 96px; height: 96px; margin: 0 auto; border-radius: 999px;
+  border: 1.5px solid var(--border-strong);
+  display: flex; align-items: center; justify-content: center; color: var(--dim);
+}
+.legend-empty-line { margin-top: 14px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.legend-empty-link { margin-top: 8px; color: var(--accent-strong); font-weight: 700; }
+
+/* ---- ACCOUNT: the engraved brass plate ---- */
+.legend-profile-band {
+  background: var(--deck-slab) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 28px !important;
+  box-shadow: 0 16px 32px -20px rgb(11 21 48 / 0.25) !important;
+}
+/* The stray IS logo floating alone at the band's far end goes —
+   the plate carries the avatar + name, nothing else. */
+.legend-profile-band > :last-child { display: none; }
+:root[data-theme="dark"] .legend-profile-band { background: var(--deck-slab) !important; }
+
+/* ---- EXTENSION: a screen on the desk; chip ABOVE the video ---- */
+.legend-ext-chip-row { display: flex; justify-content: center; margin: 20px 0 14px; }
+.legend-ext-chip {
+  position: static !important; transform: none !important;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 999px;
+  background: var(--key-face); color: var(--key-legend);
+  border: 1px solid var(--hairline); box-shadow: 0 2px 0 var(--key-edge);
+  font-size: 14px; font-weight: 700; text-decoration: none;
+}
+.legend-ext-video {
+  border-radius: 28px !important;
+  box-shadow: 0 24px 48px -20px rgb(11 21 48 / 0.35) !important;
+}
+.legend-filmstrip { -webkit-mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%); mask-image: linear-gradient(to left, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%); }
+.legend-ink-slab { border-radius: 28px; }
+
+/* ---- DETAILS panel: the key dossier ---- */
+.details-panel {
+  background: var(--key-face) !important; color: var(--key-legend);
+  border: 1px solid var(--hairline) !important; border-radius: 20px !important;
+  box-shadow: 0 2px 0 var(--key-edge), 0 24px 48px -20px rgb(11 21 48 / 0.35) !important;
+}
+.details-panel .trig-chip { box-shadow: 0 2px 0 var(--key-edge); }
+
+/* ---- EDITOR: the engraving station ---- */
+.legend-sheet {
+  background: var(--desk) !important;
+  border: 1px solid var(--hairline) !important; border-radius: 28px !important;
+}
+.keydeck-engrave-keywrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.keydeck-engrave-key {
+  width: 100%; min-height: 96px; display: flex; align-items: center; justify-content: center;
+  padding: 12px 16px; background: var(--key-face);
+  border: 1px solid var(--hairline); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--key-edge);
+}
+.keydeck-engrave-key > span {
+  font-size: 28px; font-weight: 800; color: var(--key-legend); line-height: 1.3;
+  overflow-wrap: anywhere; text-align: center;
+}
+.keydeck-engrave-keylabel { font-size: 12px; font-weight: 700; color: var(--ink-secondary); }
+.legend-live-preview-card {
+  background: var(--slip) !important; color: #0B1530;
+  border: 1px solid var(--hairline) !important; border-radius: 20px !important;
+}
+/* Suggestions = one scrollable row of small keys. */
+.legend-sheet .trig-chip, .legend-sheet [class*="suggest"] .trig-chip {
+  border-radius: 14px; box-shadow: 0 2px 0 var(--key-edge);
+}
+
+/* ---- BULK sheet: the textarea is the hero; example is a slip ---- */
+.legend-sheet textarea {
+  background: var(--key-face) !important; color: var(--key-legend);
+  border: 1px solid var(--hairline) !important; border-radius: 14px !important;
+  box-shadow: 0 2px 0 var(--key-edge) !important;
+}
+
+/* ---- AUTH: keycap form + self-playing mini-keyboard ---- */
+.auth-r8 { background: var(--desk); }
+.auth-split {
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  max-width: 720px; margin: 0 auto; padding: 0 20px 32px;
+}
+.auth-form-side { width: 100%; display: flex; justify-content: center; }
+.auth-form-card {
+  width: 100%; max-width: 480px;
+  background: var(--key-face) !important;
+  border: 1px solid var(--hairline) !important; border-radius: 28px !important;
+  box-shadow: 0 2px 0 var(--key-edge), 0 24px 48px -24px rgb(11 21 48 / 0.3) !important;
+}
+.auth-r8 .auth-form [type="submit"], .auth-r8 .auth-form button[type="submit"] {
+  border-radius: 14px !important;
+  box-shadow: 0 2px 0 var(--accent-strong) !important;
+}
+.auth-r8 .auth-form button[type="submit"]:active { transform: translateY(2px); box-shadow: none !important; }
+.auth-r8-demo { width: 100%; max-width: 640px; }
+/* The mini-keyboard: the stage is a small deck on the desk. */
+.auth-r8-stage {
+  background: var(--deck-slab) !important;
+  border: 1px solid var(--hairline) !important; border-radius: 28px !important;
+  box-shadow: 0 2px 0 var(--key-edge), 0 16px 32px -20px rgb(11 21 48 / 0.25) !important;
+  overflow: hidden;
+}
+.auth-r8-stage::after { display: none; }
+/* The composer IS the spacebar: a wide key that types «/شكرا». */
+.auth-r8-composer {
+  background: var(--key-face) !important;
+  border: 1px solid var(--hairline) !important; border-radius: 14px !important;
+  box-shadow: 0 2px 0 var(--key-edge) !important;
+}
+/* Popup rows ARE keys. */
+.auth-r8-popup-item {
+  border: 1px solid var(--hairline); border-radius: 14px;
+  box-shadow: 0 2px 0 var(--key-edge);
+}
+.auth-r8-popup-item-active {
+  box-shadow: 0 2px 0 var(--key-edge), 0 0 0 2px var(--accent-soft);
+}
+/* No-clip by construction: in the montage phase the popup rows
+   shrink so the taller 4-row popup still fits the short stage. */
+.auth-r8-stage[data-montage="1"] .auth-r8-popup { bottom: 52px; }
+.auth-r8-stage[data-montage="1"] .auth-r8-popup-item { min-height: 30px; padding: 4px 12px; }
+.auth-r8-stage[data-montage="1"] .auth-r8-popup-head { padding: 6px 12px 4px; }
+.auth-r8-stage[data-montage="1"] .auth-r8-montage { bottom: 48px; }
+
+/* ---- TOOLS: desk-drawer hairline rows ---- */
+.legend-tools {
+  background: transparent !important; border: 1px solid var(--hairline) !important;
+  border-radius: 28px !important; box-shadow: none !important;
+}
+.legend-tools .legend-danger-text { color: var(--danger); font-weight: 700; }
+
+/* ---- Dark: slips stay luminous paper — inner text must be ink ---- */
+:root[data-theme="dark"] .reply-card { color: #0B1530; }
+:root[data-theme="dark"] .reply-card [class*="text-[var(--text)]"] { color: #0B1530 !important; }
+:root[data-theme="dark"] .reply-card [class*="text-[var(--dim)]"] { color: #44506B !important; }
+:root[data-theme="dark"] .reply-card [class*="text-[var(--faint)]"] { color: #6B7C9E !important; }
+:root[data-theme="dark"] .reply-card h3 button { color: #0B1530 !important; }
+:root[data-theme="dark"] .legend-live-preview-card { color: #0B1530; }
+:root[data-theme="dark"] .legend-live-preview-title { color: #0B1530; }
+:root[data-theme="dark"] .legend-live-preview-body { color: #44506B; }
+
+/* ---- 390px: other views stack as keys, not lists ---- */
+@media (max-width: 700px) {
+  .legend-keyring { padding: 16px; }
+  .legend-bigkey { flex: 1 1 40%; min-width: 0; }
+  .legend-bigkey-trig { font-size: 20px; }
+  .auth-split { gap: 14px; padding: 0 12px 24px; }
+  .auth-form-card { border-radius: 20px !important; }
+}
+
+/* ============================================================
+   IMAGINATION — PART C: critic-loop round 1 fixes.
+   - Suggestions are small keys; scroll rows fade at the edge
+     (never slice a chip mid-word with no fade).
+   - The details dossier shows the trigger as a real keycap.
+   ============================================================ */
+
+/* Suggestions = one scrollable row of small keys. */
+.keydeck-suggest-row {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+}
+.keydeck-suggest-row button {
+  border-radius: 14px !important;
+  box-shadow: 0 2px 0 var(--key-edge) !important;
+  background: var(--key-face) !important;
+  padding: 6px 12px !important;
+}
+.keydeck-suggest-row button:active { transform: translateY(2px); box-shadow: none !important; }
+
+/* Variables row: edge fade so a chip is never sliced mid-word. */
+.keydeck-vars-row {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+  padding-inline-end: 24px;
+}
+
+/* Dossier: the trigger renders as a physical keycap. */
+.details-panel .trig-icon {
+  background: var(--key-face) !important; color: var(--key-legend) !important;
+  border: 1px solid var(--hairline) !important; border-radius: 14px !important;
+  box-shadow: 0 2px 0 var(--key-edge) !important;
+  height: 34px !important; padding: 0 12px !important; font-size: 14px !important;
+}
+.details-panel .trig-icon .trig-sheen { display: none; }
+
+/* ============================================================
+   IMAGINATION — PART D: auth stage no-clip, by construction.
+   Root cause (measured): the popup is 159–180px tall in a
+   135–191px stage with bottom:84px, so it overflows the stage
+   top by 27–98px. Fix = BOTH sides: compact the popup rows
+   AND give the stage a real height AND free the vertical budget
+   from the form card (logo, tabs margin, card padding, gaps).
+   Verified targets: stage ≥220px; popup top ≥8px inside the
+   stage at every loop phase; no-scroll kept at 1440×900 +
+   1366×768 (login + register).
+   ============================================================ */
+
+/* The stage gets a real height (overrides the breakpoint clamps).
+   flex:none: the stage is a flex item with flex:auto elsewhere,
+   so it was SHRINKING below its height to fit the viewport —
+   that shrink is what clipped the popup. It must not shrink.
+   Height budget: 4-row popup (141px) + bottom 40px + 5px air = 186. */
+.auth-r8-stage {
+  height: clamp(192px, 25vh, 260px) !important;
+  aspect-ratio: auto !important;
+  flex: none !important;
+}
+/* Compact popup rows (base, not just montage) + lower anchor.
+   Rows ~28px, head ~25px: 3-row popup ≈109px, 4-row ≈141px. */
+.auth-r8-popup { bottom: 40px !important; }
+.auth-r8-popup-head { padding: 3px 10px 2px !important; font-size: 12px !important; }
+.auth-r8-popup-item { min-height: 28px !important; padding: 1px 10px !important; font-size: 12px !important; }
+.auth-r8-cursor { top: 38px !important; }
+.auth-r8-stage[data-montage="1"] .auth-r8-popup { bottom: 40px !important; }
+.auth-r8-stage[data-montage="1"] .auth-r8-popup-item { min-height: 28px !important; padding: 1px 10px !important; }
+
+/* Free the vertical budget from the form (the stage is the
+   mini-keyboard — it grows; the form only loses air, never fields). */
+.auth-r8-logo-ring > * { width: 32px !important; height: 32px !important; }
+.auth-r8-logo { margin-bottom: 4px !important; }
+.auth-r8 .auth-title { font-size: 22px !important; }
+.auth-r8 .auth-input { min-height: 44px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
+.auth-r8 .auth-submit { min-height: 48px !important; }
+.auth-r8 .auth-form-side { padding: 12px 20px 4px !important; }
+.auth-form-card { padding: 14px 24px 10px !important; }
+.auth-r8 .auth-tabs { margin-top: 6px !important; }
+.auth-r8 .auth-form { gap: 6px !important; }
+.auth-r8 .auth-helper { margin-top: 2px !important; }
+.auth-split { gap: 8px !important; padding-bottom: 8px !important; }
+.legend-auth-download { margin-top: 0 !important; font-size: 13px !important; }
+.auth-topbar { padding-top: 2px !important; padding-bottom: 2px !important; }
+/* The brandline + the REGISTER greeting subtitle are already
+   hidden at short heights by an existing rule — hide them at ALL
+   heights: the logo ring + title carry the card, and the freed
+   ~50px is what keeps the stage from clipping at 1440×900.
+   (Listed in MERGED-TEXTS.md.) The LOGIN promise line stays. */
+.auth-r8-brandline { display: none !important; }
+.auth-r8 .auth-subtitle:not(.auth-promise) { display: none !important; }
